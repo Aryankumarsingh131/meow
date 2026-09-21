@@ -1,6 +1,6 @@
 # Dependency-aware implementation plan
 
-**Intent only.** Application implementation is not authorized by the current request. This package is ready for the user to review and hand to coding agents.
+**Implementation authorized 22 September 2026.** Gate status and verified work are recorded in [current state](docs/agent-workflow/current-state.md).
 
 Three teammates, A/B/C, own product, ML/native and backend/operations respectively. They may use Astra/Fable, but keep one human accountable per boundary. No claims about model capability or coding throughput are assumed.
 

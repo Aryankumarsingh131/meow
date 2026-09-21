@@ -1,6 +1,6 @@
 # JalSakshi — research and execution blueprint
 
-**Status: planning complete; application not implemented or validated.** Research cutoff: 21 September 2026 UTC. Prepared for three teammates using Astra and Fable as coding assistance; their exact capabilities and costs have not been assumed.
+**Status: M0 in progress; synthetic prototype built, no device or scientific validation.** Research cutoff: 21 September 2026 UTC. The sibling Android demo and development API are tracked in [current state](docs/agent-workflow/current-state.md).
 
 JalSakshi helps a community water screening result become an owned, traceable follow-up: **source → kit protocol → indicative result → laboratory referral → corrective action → retest → resident update**. It is not a potability detector or a replacement for laboratory testing.
 
@@ -9,7 +9,7 @@ JalSakshi helps a community water screening result become an owned, traceable fo
 1. Read [project brief](docs/project-brief.md), [assumptions](docs/assumptions-and-open-questions.md) and [current state](docs/agent-workflow/current-state.md).
 2. Review the [requirements and traceability](docs/requirements.md).
 3. Use the [implementation plan](implementation-plan.md), then claim one task in [to-do.md](to-do.md).
-4. Agents must follow [AGENTS.md](AGENTS.md). Do not build until the user authorizes implementation.
+4. Agents must follow [AGENTS.md](AGENTS.md). The user authorized implementation on 22 September 2026.
 
 ## Recommendation in one minute
 
@@ -41,11 +41,15 @@ implementation-plan.md
 to-do.md
 scripts/
   check-blueprint.ps1
-docs/
-  README.md
-  project-brief.md
-  requirements.md
-  assumptions-and-open-questions.md
+  docs/
+    README.md
+    project-brief.md
+    requirements.md
+    assumptions-and-open-questions.md
+    event-confirmation.md
+    protocol-selection.md
+    synthetic-demo-protocol.md
+    toolchain-matrix.md
   research/
     README.md
     research-review.md
@@ -83,9 +87,9 @@ docs/
     handoff-template.md
 ```
 
-All application paths mentioned in this package are **proposed**, not existing source files. All implementation checkboxes start unchecked. There are no project performance measurements or deployment claims.
+Application paths in this package are task targets; check [current state](docs/agent-workflow/current-state.md) for what now exists. There are no project performance measurements or deployment claims.
 
-The only executable file is a documentation checker, not app code. From this package root run `powershell -NoProfile -File scripts/check-blueprint.ps1`. See [validation results](docs/delivery/blueprint-validation.md).
+From this package root run `powershell -NoProfile -File scripts/check-blueprint.ps1` for document checks. API and mobile checks are listed in [current state](docs/agent-workflow/current-state.md).
 
 ## Immediate decisions
 

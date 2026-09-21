@@ -23,11 +23,8 @@ def test_live_exposes_no_dependency_detail():
 
 def test_ready_reports_unwired_dependencies_instead_of_claiming_ready():
     response = client.get("/health/ready")
-    assert response.status_code == 200
-    body = response.json()
-    # Nothing is wired yet, so readiness must be False rather than optimistic.
-    assert body["ready"] is False
-    assert body["checks"]["database"] is False
+    assert response.status_code == 503
+    assert response.json() == {"ready": False}
 
 
 def test_development_allows_empty_config():
@@ -53,6 +50,11 @@ def test_production_refuses_synthetic_data_mode():
 def test_unknown_error_code_is_rejected_at_construction():
     with pytest.raises(KeyError):
         ApiError("NOT_A_REAL_CODE", "boom")
+
+
+def test_problem_extra_cannot_override_contract_fields():
+    with pytest.raises(ValueError, match="cannot override"):
+        ApiError("NOT_FOUND", "missing", extra={"status": 200})
 
 
 def _problem_client() -> TestClient:

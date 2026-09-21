@@ -33,7 +33,7 @@ Prefer existing patterns, stdlib/platform features and smallest tested change. T
 
 Generated API types come from reviewed OpenAPI. Never edit generated client alone. Each migration has one owner, compatibility plan and test against old data. Pin compatible dependencies; security/native additions require license/provenance review. Secrets never committed or pasted into prompts.
 
-Current actual app commands: **none**. T03/T05 must establish and record exact setup/build/test scripts; do not invent a passing npm/pytest result. Proposed commands in docs are intent until artifacts exist.
+Actual probe/API commands and results are in [current state](docs/agent-workflow/current-state.md). T03/T05 must establish the full build/test scripts; proposed commands are intent until artifacts exist.
 
 ## Definition of done for every task
 

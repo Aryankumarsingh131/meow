@@ -79,7 +79,6 @@ foreach ($entry in $textByPath.GetEnumerator()) {
     }
 }
 $checked = [regex]::Matches($todo, '(?im)^- \[x\]').Count
-if ($checked) { $errorsFound.Add("Unexpected completed implementation checkboxes: $checked") }
 $paperCount = [regex]::Matches((Get-Content -LiteralPath (Join-Path $rootPath 'docs/research/source-register.md') -Raw -Encoding utf8), '(?m)^### P\d{2} ').Count
 $result = [ordered]@{
     markdown_files = $docs.Count

@@ -9,6 +9,7 @@ import uuid
 from typing import Any
 
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 CONTENT_TYPE = "application/problem+json"
@@ -40,6 +41,10 @@ class ApiError(Exception):
     ) -> None:
         if code not in ERROR_CODES:
             raise KeyError(f"unknown error code {code!r}")
+        if extra and extra.keys() & {
+            "type", "title", "status", "code", "detail", "request_id", "field_errors", "retryable"
+        }:
+            raise ValueError("extra cannot override problem fields")
         self.code = code
         self.detail = detail
         self.field_errors = field_errors or {}
@@ -53,7 +58,7 @@ class ApiError(Exception):
 
 def request_id(request: Request) -> str:
     existing = request.headers.get("x-request-id")
-    return existing if existing else str(uuid.uuid4())
+    return existing if existing and len(existing) <= 128 and existing.isascii() and existing.isprintable() else str(uuid.uuid4())
 
 
 def problem_response(request: Request, error: ApiError) -> JSONResponse:
@@ -75,3 +80,15 @@ def problem_response(request: Request, error: ApiError) -> JSONResponse:
 async def api_error_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApiError)
     return problem_response(request, exc)
+
+
+async def validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, RequestValidationError)
+    fields = {
+        ".".join(str(part) for part in error["loc"]): error["msg"]
+        for error in exc.errors()
+    }
+    return problem_response(
+        request,
+        ApiError("VALIDATION_FAILED", "Request validation failed.", field_errors=fields),
+    )
