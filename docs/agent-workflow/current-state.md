@@ -176,6 +176,27 @@ system-installed Edge, are in `docs/evidence/` with a full reproduction
 procedure. Playwright is a **root** devDependency so the mobile lockfile (T03,
 role B) stays untouched; no browser binary was downloaded.
 
+**Sibling repository `meow` integrated (2026-09-22, branch `integrate-meow`,
+user-requested).** `meow` and this repo are **siblings, not a fork** — no
+common git ancestor — and implemented different slices of the same blueprint,
+so they are complementary. Taken from `meow`: the API service skeleton
+(`config.py`, `errors.py`, real `main.py`), the synthetic demo workflow
+(`demo.py`, `demo-store.ts`, `sync-state.ts`, ONNX probe model, controlled
+fixtures), `metro.config.js`, packaging, 12 API tests, and two reference docs.
+**Its `patch-onnxruntime.mjs` resolves the onnxruntime/Gradle-9 blocker this
+repo had recorded as open** — it is version-guarded, preserves real semantics,
+refuses unrecognised source, and runs as `postinstall` so it survives
+`npm install`. Its dependency set also supplies **`expo-crypto` (T06 PKCE) and
+`expo-camera` (T07 QR)**, both previously recorded as blocked on a role-B
+lockfile change; T06/T07 are **not yet rewired** onto them.
+**T05's frozen `contracts/openapi.json` was protected:** this repo's
+contract-generation stub moved to `services/api/app/contracts_app.py` so that
+`main.py` could become the real service without silently adding `/health/*`
+and `/demo/v1/*` to the frozen document; regeneration was re-run and verified
+byte-identical. The merged app builds and runs on the emulator with both
+halves reachable. 183 tests from this repo plus 13 from `meow` all pass.
+Full detail: [handoff-integration-meow.md](handoff-integration-meow.md).
+
 ## Open blockers
 
 - Real kit/manufacturer/lot/read-window: not selected. `docs/protocol-selection.md`
@@ -207,12 +228,13 @@ role B) stays untouched; no browser binary was downloaded.
   recommendation awaiting human sign-off, not a procurement. No fictional
   provider tenant, client ID or credential was invented. Verification logic is
   provider-agnostic, so the choice can be made later without a rewrite.
-- **T06's mobile client is not wired into the app.** `expo-auth-session`,
-  `expo-crypto`, `expo-web-browser` and `expo-secure-store` are not installed,
-  and installing them edits `apps/mobile/package.json` and the mobile lockfile
-  — both declared files of T03 (role B). Per AGENTS.md that interface change
-  must be agreed with the owner first, so T06 did not make it. **Needs a
-  role-B conversation.** Consequently token storage is also unimplemented;
+- **T06's mobile client is still not wired into the app** — but the
+  dependency half of this blocker is **partly resolved** (2026-09-22, `meow`
+  integration): `expo-crypto` is now installed, which is what PKCE S256 needs
+  since Hermes has no `crypto.subtle`. Still absent: `expo-auth-session`,
+  `expo-web-browser`, `expo-secure-store`. The T06 module has **not** been
+  rewired onto `expo-crypto` yet — that is follow-up work. Consequently token
+  storage is also unimplemented;
   nothing should be persisted to disk until `expo-secure-store` exists.
   Hermes has no `crypto.subtle`, so S256 needs a native module regardless.
 - **JWKS fetching/caching is unimplemented (T06).** `auth.py` does no network
@@ -227,17 +249,13 @@ role B) stays untouched; no browser binary was downloaded.
   sensors, x86_64 rather than ARM. The original verification line asks for a
   screen recording; that is not yet produced, and emulator stills are not
   silently substituted for it.
-- **`onnxruntime-react-native@1.24.3` breaks the Android build on Gradle 9 —
-  role B's dependency, role B's call.** It calls `VersionNumber.parse()`
-  (`android/build.gradle` line 250), which Gradle 9 removed; RN 0.86 pins
-  Gradle 9.3.1. The guarded branch is dead code for RN ≥ 0.71, but Gradle
-  evaluates it eagerly. To obtain a build at all, that file was patched
-  locally in `node_modules` (`if (false)`). **That patch is gitignored, is NOT
-  committed, and will be lost on the next `npm install`**, so the Android
-  build is **not reproducible from a clean checkout**. It was not captured
-  with `patch-package` because that is a dependency change to
-  `apps/mobile/package.json` — T03's declared file. Needs a real fix from
-  role B: upgrade the package, pin Gradle 8, or adopt `patch-package`.
+- ~~`onnxruntime-react-native@1.24.3` breaks the Android build on Gradle 9.~~
+  **RESOLVED 2026-09-22 by the `meow` integration.**
+  `apps/mobile/scripts/patch-onnxruntime.mjs` runs as `postinstall`, so the
+  fix now survives `npm install` and the Android build **is** reproducible
+  from a clean checkout. The patch is version-guarded to 1.24.3 and refuses to
+  apply to unrecognised source. Remove it once onnxruntime ships its own
+  Gradle 9 fix (a `ponytail:` marker in the script says so).
 - The demo harness in `apps/mobile/App.tsx` is **temporary scaffolding**, not
   the app's real root component. It wires T07/T08 screens to fictional
   fixtures purely so they can be viewed, and must be reverted before real
@@ -258,8 +276,9 @@ role B) stays untouched; no browser binary was downloaded.
   and regenerate the frozen contracts, so T07 left both alone; the functions
   have therefore never been exercised over HTTP. `contracts/openapi.json` and
   `contracts/client.ts` remain byte-identical to T05's output.
-- No QR scanner is wired in (`expo-camera` not installed — same role-B
-  lockfile constraint as T06's auth dependencies).
+- No QR scanner is wired in. **`expo-camera` is now installed** (2026-09-22,
+  `meow` integration), so the dependency blocker is gone, but T07's
+  `resolveScan` has not been connected to a live camera feed yet.
 - T07's catalogue is invented test data, not a real assigned one. No real
   tenant, village or source list exists; nothing in T07 is field-validated.
 - T07 has not had independent review and its `to-do.md` checkbox is

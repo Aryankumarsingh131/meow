@@ -1,46 +1,44 @@
-"""T05: minimal FastAPI app whose ONLY purpose is to generate a real
-`contracts/openapi.json` from services/api/app/schemas.py - so that document
-is produced by FastAPI's own generator, not hand-typed. It registers only
-the two v1 routes this task's contracts touch (sync push, case commands);
-every other route in
-jalsakshi-blueprint/docs/architecture/api-contracts.md's endpoint inventory
-is out of scope for T05 and deliberately not stubbed here to avoid
-scaffolding unused endpoints.
+"""JalSakshi API.
 
-Not a real backend: there is no database, no auth, no business logic. Do not
-run this expecting it to accept real traffic - see
-docs/agent-workflow/handoff-T05.md.
+Integrated 2026-09-22 from the sibling `meow` repository, which built the
+service skeleton (health, configuration validation, error contract) and the
+synthetic demo workflow, while this repository built the v1 contracts (T05),
+authorization (T06) and the source catalogue (T07).
+
+Domain routers (sync, cases, lab reports, evidence, admin) are added by their
+own tasks against jalsakshi-blueprint/docs/architecture/api-contracts.md.
+
+**`contracts/openapi.json` is NOT generated from this module.** It is a frozen
+T05 deliverable generated from `app.contracts_app`, which carries only the two
+v1 contract routes. Generating it from here would add `/health/*` and the
+synthetic demo paths to the frozen document. See `contracts_app.py`.
 """
 
-from __future__ import annotations
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
-from fastapi import FastAPI, Response
+from .config import load_settings
+from .demo import router as demo_router
+from .errors import ApiError, api_error_handler, validation_error_handler
 
-from .schemas import CaseCommandRequest, ProblemDetail, PushRequest
+app = FastAPI(title="JalSakshi API", version="0.1.0")
+app.add_exception_handler(ApiError, api_error_handler)
+app.add_exception_handler(RequestValidationError, validation_error_handler)
 
-app = FastAPI(
-    title="JalSakshi API (v1 contracts only)",
-    version="1.0.0",
-    description=(
-        "Contract-only surface generated for T05. Not a running backend - "
-        "see docs/agent-workflow/handoff-T05.md."
-    ),
-)
-
-
-@app.post(
-    "/v1/sync/push",
-    responses={422: {"model": ProblemDetail}, 409: {"model": ProblemDetail}},
-    summary="Idempotent sample event batch push",
-)
-def sync_push(body: PushRequest) -> Response:
-    raise NotImplementedError("contract-only stub; see docs/agent-workflow/handoff-T05.md")
+settings = load_settings()  # Validate deployment configuration at startup.
+if settings.environment == "development" and settings.tenant_data_mode == "synthetic":
+    app.state.demo_data_dir = ".data/demo"
+    app.include_router(demo_router)
 
 
-@app.post(
-    "/v1/cases/{case_id}/commands",
-    responses={422: {"model": ProblemDetail}, 409: {"model": ProblemDetail}},
-    summary="Role-checked, idempotent case command",
-)
-def case_command(case_id: str, body: CaseCommandRequest) -> Response:
-    raise NotImplementedError("contract-only stub; see docs/agent-workflow/handoff-T05.md")
+@app.get("/health/live")
+def live() -> dict[str, str]:
+    """Public liveness. Exposes no dependency or configuration detail."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def ready() -> JSONResponse:
+    """Stay unready until database and identity checks are implemented."""
+    return JSONResponse(status_code=503, content={"ready": False})

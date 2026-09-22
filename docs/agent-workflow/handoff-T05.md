@@ -42,7 +42,13 @@
 
 ```bash
 # Regenerate contracts/openapi.json after editing schemas.py:
-python -c "from services.api.app.main import app; import json; json.dump(app.openapi(), open('contracts/openapi.json','w'), indent=2); open('contracts/openapi.json','a').write('\n')"
+# NOTE (2026-09-22, meow integration): the contract-generation app moved from
+# services/api/app/main.py to services/api/app/contracts_app.py. main.py is now
+# the real service (health, config validation, synthetic demo router), and
+# generating from it would add /health/* and /demo/v1/* to this FROZEN
+# document. Regeneration was re-run after the rename and verified
+# byte-identical, so the T05 freeze is intact.
+python -c "from services.api.app.contracts_app import app; import json; json.dump(app.openapi(), open('contracts/openapi.json','w'), indent=2); open('contracts/openapi.json','a').write('\n')"
 
 # Regenerate contracts/client.ts (never hand-edit it):
 npx openapi-typescript contracts/openapi.json -o contracts/client.ts
