@@ -10,6 +10,7 @@
     "ajv-formats": "^3.0.1",
     "jpeg-js": "^0.4.4",
     "openapi-typescript": "^7.13.0",
+    "playwright": "^1.63.0",
     "typescript": "^5.9.3"
   }
 }

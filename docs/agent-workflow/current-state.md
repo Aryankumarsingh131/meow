@@ -85,13 +85,41 @@ a reason code and never the payload, and there is no scan-to-navigate path at
 all. Test quality was checked by source-level mutation testing: 21 mutants,
 all caught — two initially survived and exposed that both bounded-length tests
 asserted something true with or without the bound; both were rewritten so the
-truncation is observable. **The S02 screen has never been rendered and no
-screen recording exists** (no device, emulator or Android SDK — verified:
-`adb` and `emulator` not found, `ANDROID_HOME`/`ANDROID_SDK_ROOT` unset).
+truncation is observable. **Superseded 2026-09-22:** at the time T07 was
+written there was no device, emulator or Android SDK, so the S02 screen had
+never been rendered. An emulator now exists and the screen has been rendered
+and screenshotted on it (`docs/evidence/`); **a screen recording is still not
+produced**, and stills on an emulator are not a substitute for it.
 **PostgreSQL has never been run against** — no server, no psycopg driver — and
 `sources.py` uses qmark paramstyle, which psycopg does not accept, so it will
 not run on PostgreSQL as written. No dependency was added and no lockfile was
 touched.
+
+`apps/mobile/src/timer.ts` + `apps/mobile/src/protocol.tsx` +
+`tests/protocol.test.ts` (T08) — read-window timing integrity and kit
+eligibility. Elapsed time is reconciled from **two** clocks (monotonic as the
+measurement of record, wall clock as cross-check) and yields a discriminated
+`measured | indeterminate`, where reboot, wall-clock rollback, monotonic
+regression, or divergence beyond tolerance all force `indeterminate` — which
+blocks assisted interpretation while leaving the manual path open, per
+protocol-schema.md line 50. Elapsed time is **computed from a clock reading,
+never accumulated from ticks**, so backgrounding cannot silently under-count.
+Kit eligibility checks lot expiry, verification status, lot↔protocol-version
+match, protocol approval and validity window, reporting all failures at once.
+39 Node tests. Test quality checked by source-level mutation testing: 16
+mutants, all caught — two initially survived, one because a multi-line `sed`
+never applied (a meaningless result, re-run properly) and one because of a
+**real gap** (no test passed a `null` read window; test added).
+**Every domain value is injected — there is no default or fallback read
+window anywhere**, and a missing/malformed one yields `indeterminate` rather
+than an assumed window. **T08 is NOT domain-complete: T01 is still fictional,
+so no real kit, manufacturer, lot, expiry or read window exists.** The fixture
+timings in the tests are declared test values, labelled as such, and passing
+them is not domain validation. **Superseded 2026-09-22:** the S03 screen has
+now been rendered on the Android emulator and its full timer lifecycle
+(waiting → in-window → expired) captured from a single live run against the
+short-window fixture — see `docs/evidence/`. The domain blocker is unchanged:
+rendering correctly with fictional fixtures says nothing about any real kit.
 
 ## Active claims
 
@@ -126,6 +154,27 @@ touched.
   Touches tenant authorization boundaries and shares T06's `Session` and its
   404-not-403 reasoning, so it **warrants the same independent review**. See
   [handoff-T07.md](handoff-T07.md).
+- T08 (Kit protocol and read-window flow) — owner: agent (role A). **Its T01
+  dependency gate is genuinely unmet, not waived:** this document already
+  listed T08 as "blocked" on T01, and that is still true. The mechanism was
+  built data-driven so no kit value is embedded, and verified against declared
+  fixtures per the card's own verification line, but nothing about a real kit
+  is validated. Gates whether an automated interpretation may occur and
+  produces the `invalid` timing state, so it **requires independent review**
+  per AGENTS.md's state-closure rule. See [handoff-T08.md](handoff-T08.md).
+
+**Android toolchain and visual evidence (2026-09-22, explicitly authorized by
+the user).** JDK 17, the Android SDK (platform 35, build-tools 35.0.0,
+platform-tools, emulator), an `android-35 google_apis x86_64` system image and
+an AVD (`jalsakshi_pixel`) were installed, and **the real native Android build
+now succeeds and runs on the emulator** (`BUILD SUCCESSFUL`, APK installed,
+`org.jalsakshi.mobile/.MainActivity` resumed). This **closes T03's long-standing
+"no Android SDK/device" blocker** for emulator purposes and the "Java 17 gap"
+in `docs/toolchain-matrix.md`. Screenshots of the T07 and T08 screens running
+on the emulator, plus an Expo-web set driven by Playwright through
+system-installed Edge, are in `docs/evidence/` with a full reproduction
+procedure. Playwright is a **root** devDependency so the mobile lockfile (T03,
+role B) stays untouched; no browser binary was downloaded.
 
 ## Open blockers
 
@@ -171,11 +220,28 @@ touched.
   whoever wires the real provider must choose the failure mode explicitly.
 - T06 has not had the independent auth review AGENTS.md requires, and its
   `to-do.md` checkbox is deliberately left unchecked.
-- **T07's required screen recording was not produced.** No device, emulator or
-  Android SDK exists here (verified, not assumed). The S02 screen has never
-  been rendered; `apps/mobile/src/sources.tsx` is type-checked and
-  source-scanned but never executed. No web render or mock-up was substituted
-  — AGENTS.md is explicit that a fallback does not complete the original.
+- **T07/T08 screen recordings still outstanding, though the screens now render.**
+  As of 2026-09-22 an emulator exists and both screens have been rendered and
+  screenshotted on it (`docs/evidence/`). What is captured is **stills, not a
+  recording**, and an emulator is **not a device** — no real camera, no real
+  sensors, x86_64 rather than ARM. The original verification line asks for a
+  screen recording; that is not yet produced, and emulator stills are not
+  silently substituted for it.
+- **`onnxruntime-react-native@1.24.3` breaks the Android build on Gradle 9 —
+  role B's dependency, role B's call.** It calls `VersionNumber.parse()`
+  (`android/build.gradle` line 250), which Gradle 9 removed; RN 0.86 pins
+  Gradle 9.3.1. The guarded branch is dead code for RN ≥ 0.71, but Gradle
+  evaluates it eagerly. To obtain a build at all, that file was patched
+  locally in `node_modules` (`if (false)`). **That patch is gitignored, is NOT
+  committed, and will be lost on the next `npm install`**, so the Android
+  build is **not reproducible from a clean checkout**. It was not captured
+  with `patch-package` because that is a dependency change to
+  `apps/mobile/package.json` — T03's declared file. Needs a real fix from
+  role B: upgrade the package, pin Gradle 8, or adopt `patch-package`.
+- The demo harness in `apps/mobile/App.tsx` is **temporary scaffolding**, not
+  the app's real root component. It wires T07/T08 screens to fictional
+  fixtures purely so they can be viewed, and must be reverted before real
+  provisioning (S01) and navigation are built.
 - **No PostgreSQL anywhere in this environment (T07).** No server and no
   psycopg driver, so the `sources` migration has only ever been applied to
   SQLite, and `services/api/app/sources.py` uses qmark (`?`) paramstyle, which
@@ -197,6 +263,34 @@ touched.
 - T07's catalogue is invented test data, not a real assigned one. No real
   tenant, village or source list exists; nothing in T07 is field-validated.
 - T07 has not had independent review and its `to-do.md` checkbox is
+  deliberately left unchecked.
+- **T08 is domain-blocked on T01 and cannot be completed until a real kit
+  protocol exists.** No real kit, manufacturer, lot, expiry or read window has
+  been selected. The mechanism is real and tested; the domain is not. Passing
+  `tests/protocol.test.ts` is explicitly **not** evidence that any physical
+  kit's read window is honoured.
+- **Spec ambiguity in `protocol-schema.md` (found by T08, unresolved):** the
+  document defines `timing_valid = true` inside `read_at ± tolerance` and
+  `false` after `invalid_after_seconds`, but says nothing about the band
+  between them — though the schema plainly intends them to differ or
+  `invalid_after` would be redundant. T08 resolves it conservatively as
+  `late` with `timingValid = false` (only the explicitly-stated true case is
+  true, so no false "valid" is possible), but whether a late strip is re-read,
+  discarded, or recorded manually **needs T01/domain sign-off**.
+- **T08's monotonic clock source is not bound to the platform.** The Android
+  source must be `SystemClock.elapsedRealtime()` (counts during deep sleep),
+  **not** `uptimeMillis()`; using the wrong one would under-count a test left
+  running while the phone slept. Binding it needs a native module — **role B's
+  boundary — and needs agreement before wiring.**
+- `CLOCK_AGREEMENT_TOLERANCE_MS = 2000` in `timer.ts` is an engineering
+  constant chosen by the agent, not a domain value, and has not been validated
+  against real device clock behaviour. Erring small only moves toward
+  `indeterminate`, which is the safe direction.
+- T08's S03 screen is not reachable from `App.tsx` and an attempt lives in
+  component state only, so a process kill loses it. Durable attempt storage is
+  T12's boundary. Server-side re-checking of expiry/timing on ingestion is
+  T13's boundary and does not exist.
+- T08 has not had independent review and its `to-do.md` checkbox is
   deliberately left unchecked.
 
 ## Next exact action
@@ -247,6 +341,15 @@ staleness label. When a PostgreSQL server and psycopg exist, convert
 `services/api/migrations/source.py` with `dialect="postgresql"`, and re-run
 `tests/sources_test.py` against it. Agree `SAMPLES_COLUMNS_EXPECTED` with
 T13's owner before T13 writes `services/api/migrations/samples.py`.
+
+For T08: when T01 supplies a **real** transcribed protocol, replace the
+fixture in `tests/protocol.test.ts` with the real read window and re-run —
+`timer.ts` needs no change, because no kit value is embedded in it. Get domain
+sign-off on the late-vs-expired band before then. Separately, agree the
+monotonic clock binding with role B (`SystemClock.elapsedRealtime()`, not
+`uptimeMillis()`).
+
+T08 added this command: `node tests/protocol.test.ts`.
 
 T07 added these commands: `python -m unittest tests.sources_test`, `node
 tests/sources_client.test.ts`, and `cd apps/mobile && npx tsc --noEmit -p
