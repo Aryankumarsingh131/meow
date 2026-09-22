@@ -1,0 +1,15 @@
+{
+  "name": "jalsakshi-repo-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Root-level dev dependencies for cross-language test harnesses (e.g. T04 golden-vector parity). Not an app; apps/mobile has its own package.json.",
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "jpeg-js": "^0.4.4",
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3"
+  }
+}

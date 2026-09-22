@@ -1,0 +1,25 @@
+# Python API runtime dependencies.
+#
+# Added by T06. T05 introduced fastapi/pydantic usage without a pin file;
+# this records the exact versions T06 was developed and tested against, on
+# the build host described in docs/agent-workflow/handoff-T06.md.
+#
+# Not a new dependency install: every version below was already present in
+# the environment. Nothing was downloaded to produce this file.
+
+fastapi==0.116.1
+pydantic==2.11.7
+starlette==0.47.3
+httpx==0.28.1          # required by fastapi.testclient
+
+# JWT/JOSE verification for services/api/app/auth.py.
+# Chosen because it was already installed, so T06 added no new supply-chain
+# surface. 3.5.0 is the release that fixes CVE-2024-33663 (algorithm
+# confusion) and CVE-2024-33664 (JWE decompression bomb) - do not downgrade.
+# Known limitation, measured in tests/auth_test.py and worked around in
+# auth.py: this library ignores the JWS `kid` header and walks the JWKS key
+# set in order. auth.py therefore selects the key by `kid` itself.
+# Migration path: PyJWT is the better-maintained option; switching touches
+# only verify_token() and needs no test changes. See docs/auth-provider.md.
+python-jose==3.5.0
+cryptography==49.0.0   # RSA backend for python-jose; also used by the tests

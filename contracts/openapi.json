@@ -1,0 +1,1208 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "JalSakshi API (v1 contracts only)",
+    "description": "Contract-only surface generated for T05. Not a running backend - see docs/agent-workflow/handoff-T05.md.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/sync/push": {
+      "post": {
+        "summary": "Idempotent sample event batch push",
+        "operationId": "sync_push_v1_sync_push_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/cases/{case_id}/commands": {
+      "post": {
+        "summary": "Role-checked, idempotent case command",
+        "operationId": "case_command_v1_cases__case_id__commands_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/AssignCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReferToLabCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RecordActionCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/AcceptActionCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/LinkRetestCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RecordCommunicationCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/RequestClosureCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/CloseCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/ReopenCommand"
+                  },
+                  {
+                    "$ref": "#/components/schemas/DismissCommand"
+                  }
+                ],
+                "discriminator": {
+                  "propertyName": "type",
+                  "mapping": {
+                    "assign": "#/components/schemas/AssignCommand",
+                    "refer_to_lab": "#/components/schemas/ReferToLabCommand",
+                    "record_action": "#/components/schemas/RecordActionCommand",
+                    "accept_action": "#/components/schemas/AcceptActionCommand",
+                    "link_retest": "#/components/schemas/LinkRetestCommand",
+                    "record_communication": "#/components/schemas/RecordCommunicationCommand",
+                    "request_closure": "#/components/schemas/RequestClosureCommand",
+                    "close": "#/components/schemas/CloseCommand",
+                    "reopen": "#/components/schemas/ReopenCommand",
+                    "dismiss": "#/components/schemas/DismissCommand"
+                  }
+                },
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptActionCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "accept_action",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AcceptActionPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "AcceptActionCommand"
+      },
+      "AcceptActionPayload": {
+        "properties": {
+          "action_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Action Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action_id"
+        ],
+        "title": "AcceptActionPayload"
+      },
+      "AssignCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "assign",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/AssignPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "AssignCommand"
+      },
+      "AssignPayload": {
+        "properties": {
+          "owner_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Owner Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "owner_id"
+        ],
+        "title": "AssignPayload"
+      },
+      "CanonicalSampleV1": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "sample_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Sample Id"
+          },
+          "source_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Source Id"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolRef"
+          },
+          "kit_lot_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Kit Lot Id"
+          },
+          "captured_at_device": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Captured At Device"
+          },
+          "timing": {
+            "$ref": "#/components/schemas/Timing"
+          },
+          "method": {
+            "$ref": "#/components/schemas/Method"
+          },
+          "observation": {
+            "$ref": "#/components/schemas/Observation"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "client_build": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Client Build"
+          },
+          "data_mode": {
+            "$ref": "#/components/schemas/DataMode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sample_id",
+          "source_id",
+          "protocol",
+          "kit_lot_id",
+          "captured_at_device",
+          "timing",
+          "method",
+          "observation",
+          "client_build",
+          "data_mode"
+        ],
+        "title": "CanonicalSampleV1"
+      },
+      "CloseCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "close",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ClosePayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "CloseCommand"
+      },
+      "ClosePayload": {
+        "properties": {
+          "verified_report_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Report Id"
+          },
+          "verified_report_exemption_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified Report Exemption Reason"
+          },
+          "retest_sample_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retest Sample Id"
+          },
+          "retest_exemption_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retest Exemption Reason"
+          },
+          "action_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Action Ids"
+          },
+          "action_exemption_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Exemption Reason"
+          },
+          "communication_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Communication Id"
+          },
+          "disposition": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Disposition"
+          },
+          "policy_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Policy Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "communication_id",
+          "disposition",
+          "policy_version"
+        ],
+        "title": "ClosePayload",
+        "description": "api-contracts.md: 'close includes verified_report_id,\nretest_sample_id or authorized exemption, action IDs or exemption,\ncommunication_id, disposition and policy_version.' The or-exemption\npattern is enforced below, not just documented - this is what makes\nacceptance criterion 1 ('command discriminators reject invalid data')\nreal rather than type-checking alone."
+      },
+      "DataMode": {
+        "type": "string",
+        "enum": [
+          "synthetic",
+          "research",
+          "operational"
+        ],
+        "title": "DataMode"
+      },
+      "DismissCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "dismiss",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/DismissPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "DismissCommand"
+      },
+      "DismissPayload": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "DismissPayload"
+      },
+      "IndicativeFlag": {
+        "type": "string",
+        "enum": [
+          "no_flag",
+          "review",
+          "uncertain",
+          "invalid"
+        ],
+        "title": "IndicativeFlag",
+        "description": "'no_flag' means the tested parameter did not trigger that protocol's\nreview rule - it is never a potability/safety claim (AGENTS.md)."
+      },
+      "LinkRetestCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "link_retest",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/LinkRetestPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "LinkRetestCommand"
+      },
+      "LinkRetestPayload": {
+        "properties": {
+          "retest_sample_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Retest Sample Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "retest_sample_id"
+        ],
+        "title": "LinkRetestPayload"
+      },
+      "Method": {
+        "type": "string",
+        "enum": [
+          "assisted",
+          "manual"
+        ],
+        "title": "Method"
+      },
+      "Observation": {
+        "properties": {
+          "machine_bin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Bin"
+          },
+          "manual_bin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manual Bin"
+          },
+          "selected_bin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Bin"
+          },
+          "indicative_flag": {
+            "$ref": "#/components/schemas/IndicativeFlag"
+          },
+          "quality_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Quality Reasons"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "calibration_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibration Version"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "indicative_flag"
+        ],
+        "title": "Observation",
+        "description": "Machine suggestion and human observation are kept as distinct\noptional fields (machine_bin / manual_bin / selected_bin) rather than\never collapsed into one 'result' field - this is the AGENTS.md\nprovenance-separation rule expressed as a schema shape, not a comment."
+      },
+      "ProblemDetail": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "field_errors": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Errors"
+          },
+          "retryable": {
+            "type": "boolean",
+            "title": "Retryable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "detail",
+          "request_id",
+          "retryable"
+        ],
+        "title": "ProblemDetail"
+      },
+      "ProtocolRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "version"
+        ],
+        "title": "ProtocolRef"
+      },
+      "PushRequest": {
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Device Id"
+          },
+          "events": {
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/SampleCreateEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/SampleCorrectEvent"
+                }
+              ],
+              "discriminator": {
+                "propertyName": "kind",
+                "mapping": {
+                  "sample.correct": "#/components/schemas/SampleCorrectEvent",
+                  "sample.create": "#/components/schemas/SampleCreateEvent"
+                }
+              }
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_id",
+          "events"
+        ],
+        "title": "PushRequest",
+        "description": "POST /v1/sync/push envelope. Batch bound (50) matches\napi-contracts.md 'Common rules' - not an arbitrary number picked here."
+      },
+      "RecordActionCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "record_action",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RecordActionPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "RecordActionCommand"
+      },
+      "RecordActionPayload": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "owner_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Owner Id"
+          },
+          "due_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Due At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "description",
+          "owner_id",
+          "due_at"
+        ],
+        "title": "RecordActionPayload"
+      },
+      "RecordCommunicationCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "record_communication",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RecordCommunicationPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "RecordCommunicationCommand"
+      },
+      "RecordCommunicationPayload": {
+        "properties": {
+          "channel": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Channel"
+          },
+          "template_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Template Version"
+          },
+          "audience_description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Audience Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "channel",
+          "template_version",
+          "audience_description"
+        ],
+        "title": "RecordCommunicationPayload"
+      },
+      "ReferToLabCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "refer_to_lab",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReferToLabPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "ReferToLabCommand"
+      },
+      "ReferToLabPayload": {
+        "properties": {
+          "lab_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lab Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "ReferToLabPayload"
+      },
+      "ReopenCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "reopen",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/ReopenPayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "ReopenCommand"
+      },
+      "ReopenPayload": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "ReopenPayload"
+      },
+      "RequestClosureCommand": {
+        "properties": {
+          "command_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Command Id"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Version"
+          },
+          "type": {
+            "type": "string",
+            "const": "request_closure",
+            "title": "Type"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/RequestClosurePayload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "command_id",
+          "expected_version",
+          "type",
+          "payload"
+        ],
+        "title": "RequestClosureCommand"
+      },
+      "RequestClosurePayload": {
+        "properties": {
+          "disposition": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
+          }
+        },
+        "type": "object",
+        "title": "RequestClosurePayload"
+      },
+      "SampleCorrectEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "sample.correct",
+            "title": "Kind"
+          },
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "payload": {
+            "$ref": "#/components/schemas/SampleCorrectionSampleV1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "kind",
+          "payload"
+        ],
+        "title": "SampleCorrectEvent"
+      },
+      "SampleCorrectionSampleV1": {
+        "properties": {
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "sample_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Sample Id"
+          },
+          "source_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Source Id"
+          },
+          "protocol": {
+            "$ref": "#/components/schemas/ProtocolRef"
+          },
+          "kit_lot_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Kit Lot Id"
+          },
+          "captured_at_device": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Captured At Device"
+          },
+          "timing": {
+            "$ref": "#/components/schemas/Timing"
+          },
+          "method": {
+            "$ref": "#/components/schemas/Method"
+          },
+          "observation": {
+            "$ref": "#/components/schemas/Observation"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "title": "Evidence Ids"
+          },
+          "client_build": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Client Build"
+          },
+          "data_mode": {
+            "$ref": "#/components/schemas/DataMode"
+          },
+          "supersedes_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Supersedes Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sample_id",
+          "source_id",
+          "protocol",
+          "kit_lot_id",
+          "captured_at_device",
+          "timing",
+          "method",
+          "observation",
+          "client_build",
+          "data_mode",
+          "supersedes_id"
+        ],
+        "title": "SampleCorrectionSampleV1",
+        "description": "sample.correct payload: same shape, plus the required pointer to the\nrecord it supersedes (data-model.md `samples.supersedes_id`)."
+      },
+      "SampleCreateEvent": {
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Event Id"
+          },
+          "kind": {
+            "type": "string",
+            "const": "sample.create",
+            "title": "Kind"
+          },
+          "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "title": "Schema Version",
+            "default": 1
+          },
+          "payload": {
+            "$ref": "#/components/schemas/CanonicalSampleV1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "kind",
+          "payload"
+        ],
+        "title": "SampleCreateEvent"
+      },
+      "Timing": {
+        "properties": {
+          "elapsed_ms": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Elapsed Ms"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "elapsed_ms",
+          "valid"
+        ],
+        "title": "Timing"
+      }
+    }
+  }
+}
