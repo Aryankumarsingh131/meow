@@ -197,6 +197,53 @@ byte-identical. The merged app builds and runs on the emulator with both
 halves reachable. 183 tests from this repo plus 13 from `meow` all pass.
 Full detail: [handoff-integration-meow.md](handoff-integration-meow.md).
 
+`apps/mobile/src/captureJob.ts` + `apps/mobile/src/capture.tsx` +
+`tests/capture-flow.test.ts` (T09) — guided capture and manual ROI. The job
+reducer enforces J02's rule that a retake supersedes an in-flight capture and
+that cancelled/late output **cannot** overwrite it: a stale settle returns a
+typed `discarded_superseded`/`discarded_cancelled` disposition and leaves
+state byte-identical. At most one job is active by construction, so there is
+no queue to bound. Failure reasons are typed and each carries a prompt that
+names an action; `permission_denied` is recoverable and manual entry stays
+open in every state. Manual ROI corners are validated (refused, never
+clamped) and mapped into the upright frame — verified against T04's **real**
+`correctOrientation` for all 8 EXIF orientations, pixel by pixel. 31 tests;
+13 source-level mutants all caught (one initially survived on a **real gap**:
+nothing tested cancelling a wrong job id, so a stale cancel could have killed
+the active retake). **Permission recovery and missing-card→manual-ROI were
+exercised on the Android emulator with permission genuinely revoked via adb**
+— screenshots in `docs/evidence/`. **Cancel was NOT verified on device** (the
+capture settles faster than two adb taps); it is unit-tested only. No real
+assisted reading is possible: `computeFeaturesNative` still rejects (role B's
+Kotlin module was never compiled) and no reference-card detection exists
+anywhere (T10).
+
+**Supabase connected (2026-09-22, user-supplied credentials, explicitly
+authorised).** **PostgreSQL 17.6.** The project reference is deliberately not
+recorded here — this repository is public, and naming the project identifies
+it without adding anything a contributor needs; it lives in the gitignored
+`.env`. Config is
+read from a **gitignored `.env`** via `config.py`'s `JALSAKSHI_` env prefix;
+`.env.example` is the committed template and contains placeholders only. No
+credential is in any tracked file — verified against the staged diff before
+pushing. Two corrections were needed to the supplied connection details: the
+string was missing the `:` between username and password, and the direct host
+`db.<ref>.supabase.co` **does not resolve** (Supabase direct connection is
+IPv6-only), so the working route is the **pooler**
+`aws-0-ap-northeast-1.pooler.supabase.com:5432` with username
+`postgres.<project-ref>`.
+
+**Security actions outstanding:** the database password was pasted into a chat
+transcript and **must be rotated** — it is compromised regardless of what the
+repo does. **Data residency:** the project is in **Tokyo (ap-northeast-1)**,
+not India; `security-and-privacy.md` treats residency as material for this
+programme, so the region likely needs revisiting (a region change means a new
+Supabase project). Everything stored so far is **synthetic fixture data** —
+`.env` sets `environment=development` and `tenant_data_mode=synthetic`, and
+`config.py` refuses to start production unless the mode is `operational`.
+This work touches migrations and security, so it **requires independent
+review** per AGENTS.md.
+
 ## Open blockers
 
 - Real kit/manufacturer/lot/read-window: not selected. `docs/protocol-selection.md`
@@ -260,12 +307,24 @@ Full detail: [handoff-integration-meow.md](handoff-integration-meow.md).
   the app's real root component. It wires T07/T08 screens to fictional
   fixtures purely so they can be viewed, and must be reverted before real
   provisioning (S01) and navigation are built.
-- **No PostgreSQL anywhere in this environment (T07).** No server and no
-  psycopg driver, so the `sources` migration has only ever been applied to
-  SQLite, and `services/api/app/sources.py` uses qmark (`?`) paramstyle, which
-  psycopg does not accept. **That module will not run on PostgreSQL as
-  written.** The fix is mechanical but was not written blind against a
-  database nobody can execute.
+- ~~No PostgreSQL anywhere in this environment (T07).~~ **RESOLVED
+  2026-09-22.** The user supplied a Supabase project and authorised connecting
+  it. `psycopg` installed; the `sources` migration now runs on **real
+  PostgreSQL 17.6**, and `tests/sources_postgres_test.py` (12 tests) passes
+  against it. The qmark/pyformat gap is fixed by `_adapt` in `sources.py`,
+  verified on both backends rather than written blind.
+  **Three divergences SQLite structurally could not catch, found immediately:**
+  (1) the schema's `uuid` columns **reject** T07's friendly fixture ids like
+  `src-a1` — SQLite maps `uuid`→`text` and accepts anything, so the SQLite
+  suite passes with data the real schema refuses; (2) psycopg returns
+  `uuid.UUID` objects where SQLite returns `str`, so `Source.id` was not
+  actually a `str` on PostgreSQL despite the dataclass declaring it —
+  `_row_to_source` now coerces; (3) PostgreSQL aborts the whole transaction on
+  any error, which SQLite does not, so the test harness needed rollbacks
+  between cases.
+  **Still open from this:** `tests/sources_test.py` (SQLite) continues to use
+  non-UUID ids, so the two suites disagree about what a valid id is. That
+  should be reconciled — the schema is authoritative per data-model.md.
 - **T07's `source_history` depends on the `samples` table, which is T13's
   migration and does not exist.** The expected columns are documented in
   `sources.SAMPLES_COLUMNS_EXPECTED` and stood up as a test fixture — an
@@ -283,6 +342,33 @@ Full detail: [handoff-integration-meow.md](handoff-integration-meow.md).
   tenant, village or source list exists; nothing in T07 is field-validated.
 - T07 has not had independent review and its `to-do.md` checkbox is
   deliberately left unchecked.
+- **T09's cancel path was never verified on a device.** The capture settles
+  faster than two sequential `adb` taps, so the Cancel button was gone before
+  the tap landed. Covered by three unit tests only. Needs a human tapping
+  Cancel during a slow capture, or an instrumented test harness.
+- **T09 could not exercise a non-1 EXIF orientation on device** — the emulator
+  camera always reports orientation 1. Photo-rotation normalisation is
+  verified against T04's real transform in unit tests, not on hardware. The
+  device "rotate" check only proved the app survives a rotation config change
+  with state intact, because `app.config.ts` sets `orientation: "portrait"`
+  and the app is deliberately portrait-locked.
+- **No reference-card detection exists anywhere in the codebase.** The native
+  bridge takes ROI corners as input and does not find them, so "reference card
+  not found" is currently the only possible outcome when a protocol requires
+  one. Automatic detection plus the glare/blur quality reasons named in S04
+  are **T10**, unbuilt. T09's manual ROI is the interim path, not a substitute.
+- **Metro could not resolve `modules/` from `apps/mobile` until T09 fixed it.**
+  Metro sandboxes to its project root, so the app's import of the native
+  bridge failed at runtime even though Node and `tsc` resolved it (which is
+  why tests and type-checks did not catch it). Fixed via `watchFolders` in
+  `apps/mobile/metro.config.js` — a file no task card claims.
+- `MIN_ROI_AREA_PX = 16` in `captureJob.ts` is an engineering floor chosen by
+  the agent, not a domain threshold. Real quality thresholds
+  (`min_roi_pixels`, blur, glare) belong to the protocol's `quality_policy`
+  and are fitted in T10.
+- T09's ROI editor is tap-to-move rather than drag, and capture state is not
+  persisted (durable drafts are T12). T09 has not had independent review and
+  its `to-do.md` checkbox is deliberately left unchecked.
 - **T08 is domain-blocked on T01 and cannot be completed until a real kit
   protocol exists.** No real kit, manufacturer, lot, expiry or read window has
   been selected. The mechanism is real and tested; the domain is not. Passing
@@ -367,6 +453,13 @@ fixture in `tests/protocol.test.ts` with the real read window and re-run —
 sign-off on the late-vs-expired band before then. Separately, agree the
 monotonic clock binding with role B (`SystemClock.elapsedRealtime()`, not
 `uptimeMillis()`).
+
+For T09: tap Cancel during an in-flight capture on a real device (or wire an
+instrumented test) to close the one device check that was not exercised, and
+capture a photo with a non-1 EXIF orientation on real hardware to confirm the
+ROI mapping end to end. Both are blocked on a physical phone, not on code.
+
+T09 added this command: `node tests/capture-flow.test.ts`.
 
 T08 added this command: `node tests/protocol.test.ts`.
 

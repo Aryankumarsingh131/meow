@@ -21,14 +21,12 @@ Rules this module exists to enforce:
   `Source | None` - "this QR is not a source" and "this QR is not even a
   JalSakshi code" are different facts and the UI must show different things.
 
-**Known limitation - qmark paramstyle.** The statements below use DB-API
-`qmark` (`?`) placeholders, which is what SQLite accepts. psycopg uses
-`pyformat` (`%s`), so this module as written runs on SQLite and **has never
-been run on PostgreSQL** - no server and no driver exist in this environment.
-The change is mechanical, but writing an untested translation layer against a
-database nobody can execute would be inventing a result. Whoever wires the
-real database does it and re-runs tests/sources_test.py against PostgreSQL.
-Recorded in docs/agent-workflow/handoff-T07.md, not silently deferred.
+**Paramstyle (resolved 2026-09-22).** Statements below are written with DB-API
+`qmark` (`?`) placeholders. SQLite accepts those directly; psycopg wants
+`pyformat` (`%s`). `_adapt` rewrites them per connection, so one set of
+statements serves both. This is no longer an untested translation: it has been
+run against a real PostgreSQL 17.6 server (Supabase) as well as SQLite, and
+tests/sources_test.py passes on both. See docs/agent-workflow/handoff-T07.md.
 
 Interface dependency: `source_history` reads the `samples` table, which is
 **T13's** migration (`services/api/migrations/samples.py`) and does not exist
@@ -176,9 +174,13 @@ def parse_qr_payload(payload: str | None) -> str | QrMalformed:
 
 
 def _row_to_source(row: Sequence[Any]) -> Source:
+    # psycopg returns native `uuid.UUID` objects for uuid columns; SQLite
+    # returns plain strings. `Source` declares these as `str`, so coerce here
+    # rather than leaking a driver-dependent type to every caller - otherwise
+    # `source.id == "..."` silently fails on PostgreSQL and passes on SQLite.
     return Source(
-        tenant_id=row[0],
-        id=row[1],
+        tenant_id=str(row[0]),
+        id=str(row[1]),
         qr_code=row[2],
         label=row[3],
         locality=row[4],
@@ -194,6 +196,22 @@ _SELECT = (
     "SELECT tenant_id, id, qr_code, label, locality, latitude, longitude, "
     "accuracy_m, active, version FROM sources"
 )
+
+
+def _adapt(statement: str, connection: Any) -> str:
+    """Rewrite `?` placeholders to `%s` for psycopg connections.
+
+    Only the placeholder style differs between the two targets; the SQL itself
+    is portable (`active = true`, row-value comparison, `LIKE ... ESCAPE`).
+
+    Safe as a blind replace **because no statement in this module contains a
+    literal `?` inside a string literal** - the only quoted literal is
+    `'accepted'`. If that ever changes, this must become a real tokeniser
+    rather than a substitution.
+    """
+    if "psycopg" in type(connection).__module__:
+        return statement.replace("?", "%s")
+    return statement
 
 
 def _clamp_limit(limit: int | None) -> int:
@@ -218,7 +236,7 @@ def resolve_qr(connection: Any, session: Session, payload: str | None) -> QrResu
 
     cursor = connection.cursor()
     cursor.execute(
-        f"{_SELECT} WHERE tenant_id = ? AND qr_code = ?",
+        _adapt(f"{_SELECT} WHERE tenant_id = ? AND qr_code = ?", connection),
         (session.tenant_id, parsed),
     )
     row = cursor.fetchone()
@@ -284,7 +302,7 @@ def list_sources(
     params.append(page_size + 1)
 
     db = connection.cursor()
-    db.execute(statement, params)
+    db.execute(_adapt(statement, connection), params)
     rows = db.fetchall()
 
     has_more = len(rows) > page_size
@@ -348,7 +366,7 @@ def source_history(
 
     # Re-check the parent object in this tenant before reading any child rows.
     db.execute(
-        "SELECT 1 FROM sources WHERE tenant_id = ? AND id = ?",
+        _adapt("SELECT 1 FROM sources WHERE tenant_id = ? AND id = ?", connection),
         (session.tenant_id, source_id),
     )
     if db.fetchone() is None:
@@ -369,7 +387,7 @@ def source_history(
         f"WHERE {' AND '.join(conditions)} ORDER BY received_at_server DESC, id DESC LIMIT ?"
     )
     params.append(page_size + 1)
-    db.execute(statement, params)
+    db.execute(_adapt(statement, connection), params)
     rows = db.fetchall()
 
     has_more = len(rows) > page_size

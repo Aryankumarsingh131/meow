@@ -6,6 +6,7 @@ import { DemoWorkflowScreen } from './src/demo-workflow';
 import { SourcesScreen } from './src/sources';
 import type { CachedSource, HistoryRow } from './src/sourceCatalog';
 import { ProtocolScreen } from './src/protocol';
+import { CaptureScreen } from './src/capture';
 import type { ClockReading, KitLot, Protocol } from './src/timer';
 
 // ===========================================================================
@@ -105,7 +106,7 @@ function readClock(): ClockReading {
 let attemptCounter = 0;
 const newAttemptId = () => `attempt-${(attemptCounter += 1)}`;
 
-type Tab = 'demo' | 'sources' | 'protocol' | 'protocol-blocked' | 'protocol-fast';
+type Tab = 'demo' | 'sources' | 'protocol' | 'protocol-blocked' | 'protocol-fast' | 'capture';
 
 const TABS: ReadonlyArray<readonly [Tab, string]> = [
   ['demo', 'Demo workflow'],
@@ -113,6 +114,7 @@ const TABS: ReadonlyArray<readonly [Tab, string]> = [
   ['protocol', 'T08 Protocol'],
   ['protocol-blocked', 'T08 Expired'],
   ['protocol-fast', 'T08 Timer'],
+  ['capture', 'T09 Capture'],
 ];
 
 export default function App() {
@@ -144,6 +146,21 @@ export default function App() {
 
       <View style={styles.body}>
         {tab === 'demo' && <DemoWorkflowScreen />}
+
+        {tab === 'capture' && (
+          <CaptureScreen
+            request={{
+              sourceId: 'src-a1',
+              protocolId: DEMO_PROTOCOL.id,
+              protocolVersion: DEMO_PROTOCOL.version,
+              attemptId: 'attempt-demo',
+              requireReferenceCard: true,
+            }}
+            newJobId={newAttemptId}
+            onManualEntry={(reason) => console.log('manual entry', reason)}
+            onAnalysed={(_f, corners) => console.log('analysed', corners.length, 'corners')}
+          />
+        )}
 
         {tab === 'sources' && (
           <SourcesScreen
