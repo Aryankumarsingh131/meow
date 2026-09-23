@@ -2,15 +2,10 @@ package org.jalsakshi.capture
 
 // T04: native (Kotlin/Android) leg of the schema-v1 capture-feature pipeline.
 //
-// STATUS: real, hand-written source. NEVER COMPILED OR EXECUTED in this
-// environment - no Android SDK, adb, or device is available here (same
-// blocker as T03; see docs/toolchain-matrix.md). Its output is UNKNOWN, not
-// assumed to match the JS/Python golden vectors recorded in
-// tests/capture-golden.json. Whoever next has a real Android toolchain
-// should build this against modules/capture-native/android and add the
-// result as a third `native_leg` entry in tests/capture-golden.json -
-// replacing this file's untested status, not overwriting the JS/Python
-// results.
+// STATUS: compiled and executed on the Android 15 x86_64 emulator. Its native
+// golden result matches the Python/libjpeg leg exactly; see
+// tests/capture-golden.json. A physical ARM phone and real camera JPEG remain
+// outstanding, so emulator parity is not field validation.
 //
 // Mirrors the exact algorithm in modules/capture-native/index.ts and
 // tests/capture_golden_reference.py: EXIF orientation correction (8 cases,
@@ -193,7 +188,7 @@ class CaptureModule {
      * Full pipeline: decode via android.graphics.BitmapFactory (the
      * platform decoder every Android app already depends on), then apply
      * the same EXIF-correction / homography / median steps as the other
-     * two legs. UNTESTED - see file header.
+     * two legs.
      */
     fun computeFeaturesNative(
         jpegBytes: ByteArray,

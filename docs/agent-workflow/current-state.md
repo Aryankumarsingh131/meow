@@ -182,6 +182,11 @@ rendering correctly with fictional fixtures says nothing about any real kit.
   produces the `invalid` timing state, so it **requires independent review**
   per AGENTS.md's state-closure rule. See [handoff-T08.md](handoff-T08.md).
 
+- T10 (Deterministic capture-quality rules) — owner/reviewer: Codex (role B),
+  completed 23 September 2026 IST on `feature/t10-quality-native`. The Python
+  fixture runner and compiled Kotlin mirror agree on decisions/reason codes;
+  thresholds remain explicitly provisional. See [handoff-T10.md](handoff-T10.md).
+
 **Android toolchain and visual evidence (2026-09-22, explicitly authorized by
 the user).** JDK 17, the Android SDK (platform 35, build-tools 35.0.0,
 platform-tools, emulator), an `android-35 google_apis x86_64` system image and
@@ -233,9 +238,21 @@ the active retake). **Permission recovery and missing-card→manual-ROI were
 exercised on the Android emulator with permission genuinely revoked via adb**
 — screenshots in `docs/evidence/`. **Cancel was NOT verified on device** (the
 capture settles faster than two adb taps); it is unit-tested only. No real
-assisted reading is possible: `computeFeaturesNative` still rejects (role B's
-Kotlin module was never compiled) and no reference-card detection exists
-anywhere (T10).
+assisted reading was possible at that point because the native module had not
+yet been compiled and no reference-card locator existed. The native feature
+bridge and T10 rules now compile; the capture screen still does not locate the
+card or consume T10 outcomes.
+
+`modules/capture-native/android/src/main/java/org/jalsakshi/capture/Quality.kt`,
+`ml/quality_baseline.py`, `ml/quality_fixtures_run.py` and
+`tests/quality-fixtures.json` (T10) — deterministic blur, clipping, glare, ROI
+and reference-card rules now exist in Python and compiled Kotlin. Eight
+synthetic fixtures cover accept/review/retake, absent/partial/unreadable cards,
+unset thresholds and all named quality reasons. Four native unit tests pass.
+A deliberately sharp but low-texture card is recorded as a false reject for
+T23, proving the provisional Laplacian rule measures texture rather than focus.
+No rule returns a class, bin, concentration or water judgement. Thresholds are
+synthetic and provisional until T23/T27; this is not real-kit validation.
 
 **Supabase connected (2026-09-22, user-supplied credentials, explicitly
 authorised).** **PostgreSQL 17.6.** The project reference is deliberately not
@@ -371,11 +388,10 @@ review** per AGENTS.md.
   device "rotate" check only proved the app survives a rotation config change
   with state intact, because `app.config.ts` sets `orientation: "portrait"`
   and the app is deliberately portrait-locked.
-- **No reference-card detection exists anywhere in the codebase.** The native
-  bridge takes ROI corners as input and does not find them, so "reference card
-  not found" is currently the only possible outcome when a protocol requires
-  one. Automatic detection plus the glare/blur quality reasons named in S04
-  are **T10**, unbuilt. T09's manual ROI is the interim path, not a substitute.
+- **No geometric reference-card locator exists.** T10 now classifies supplied
+  reference-patch colours and produces glare/blur/clipping reason codes, but
+  the native bridge still takes ROI corners as input and does not find the card
+  in a photograph. T09's manual ROI remains the interim path, not a substitute.
 - **Metro could not resolve `modules/` from `apps/mobile` until T09 fixed it.**
   Metro sandboxes to its project root, so the app's import of the native
   bridge failed at runtime even though Node and `tsc` resolved it (which is
@@ -384,7 +400,8 @@ review** per AGENTS.md.
 - `MIN_ROI_AREA_PX = 16` in `captureJob.ts` is an engineering floor chosen by
   the agent, not a domain threshold. Real quality thresholds
   (`min_roi_pixels`, blur, glare) belong to the protocol's `quality_policy`
-  and are fitted in T10.
+  and T10 fitted only provisional synthetic values. T23/T27 must replace or
+  approve them using real captures.
 - T09's ROI editor is tap-to-move rather than drag, and capture state is not
   persisted (durable drafts are T12). T09 has not had independent review and
   its `to-do.md` checkbox is deliberately left unchecked.

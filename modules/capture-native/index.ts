@@ -6,11 +6,10 @@
 //     vector parity testing (see tests/capture_golden_reference.py and
 //     tests/capture-golden.json), and can also serve web/dev builds where the
 //     native module isn't available.
-//  2. `computeFeaturesNative` - the thin bridge to the real on-device native
-//     module (modules/capture-native/android/CaptureModule.kt). It is a
-//     stub in this environment: no Android SDK/adb/device is available to
-//     build or call the real native module (see docs/toolchain-matrix.md).
-//     Calling it throws rather than silently returning a fabricated result.
+//  2. `computeFeaturesNative` - the thin bridge to the compiled on-device
+//     module (modules/capture-native/android/CaptureModule.kt). Missing-link
+//     and decode errors propagate; they are never replaced by a fabricated
+//     feature vector.
 //
 // No calibration claim: FeatureVectorV1 is raw pixel statistics (median RGB
 // of an oriented region of interest), never a water-quality/safety value.
@@ -279,11 +278,9 @@ export function computeFeaturesJs(
 }
 
 /**
- * Real on-device bridge. Not implemented here: no Android SDK/adb/device is
- * available in this environment to build or invoke
- * modules/capture-native/android/CaptureModule.kt. Throws rather than
- * fabricating a result - see docs/toolchain-matrix.md and
- * docs/agent-workflow/handoff-T04.md.
+ * Real on-device bridge. The native module is required lazily so Node-based
+ * reference tests can still import this file. Missing-link and native errors
+ * throw rather than fabricating a result.
  */
 export function computeFeaturesNative(
   fileUri: string,

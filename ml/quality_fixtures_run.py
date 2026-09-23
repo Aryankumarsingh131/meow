@@ -28,7 +28,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from quality_baseline import (  # noqa: E402
+from quality_baseline import (
     PROVISIONAL_THRESHOLDS,
     QUALITY_RULES_VERSION,
     SYN_COLOR_001_SWATCHES,
@@ -45,7 +45,7 @@ QUADS = {"SYN-A": (0, 0), "SYN-B": (0, 1), "SYN-C": (1, 0), "SYN-D": (1, 1)}
 
 
 def _clamp(v: float) -> int:
-    return max(0, min(255, int(round(v))))
+    return max(0, min(255, round(v)))
 
 
 def sharp_card(seed: int = 7) -> list[list[Pixel]]:
@@ -67,6 +67,20 @@ def sharp_card(seed: int = 7) -> list[list[Pixel]]:
             row.append(tuple(_clamp(c + edge + n) for c in base))  # type: ignore[arg-type]
         grid.append(row)
     return grid
+
+
+def low_texture_card() -> list[list[Pixel]]:
+    """In-focus flat swatches that the provisional blur heuristic rejects.
+
+    This is a deliberate false-reject example for T23: Laplacian variance
+    measures texture, not focus, so a sharp low-texture print can look blurry
+    to the rule.
+    """
+    order = [SYN_COLOR_001_SWATCHES[k] for k in ALL]
+    return [
+        [order[(0 if y < H // 2 else 2) + (0 if x < W // 2 else 1)] for x in range(W)]
+        for y in range(H)
+    ]
 
 
 def blurred(grid: list[list[Pixel]], passes: int = 6) -> list[list[Pixel]]:
@@ -137,32 +151,37 @@ def wash(c: Pixel, k: float = 0.40) -> Pixel:
 
 
 def build_fixtures():
-    """(name, grid, patches, expected_decision, description, expected_ref_state)"""
+    """(name, grid, patches, expected decision, description, reference state, known good)"""
     good = sharp_card()
+    low_texture = low_texture_card()
     washed_grid = [[wash(SYN_COLOR_001_SWATCHES["SYN-A"])] * W for _ in range(H)]
     return [
         ("good_sharp_card_present", good, patches_from(good, ALL), "accept",
-         "Well-exposed, in-focus, all four swatches present.", "detected"),
+         "Well-exposed, in-focus, all four swatches present.", "detected", True),
+        ("known_good_low_texture_false_reject", low_texture, patches_from(low_texture, ALL),
+         "review", ("In-focus flat swatches rejected by the provisional blur heuristic; "
+                    "recorded for T23 because Laplacian variance measures texture, not focus."),
+         "detected", True),
         ("reference_absent", good, {}, "retake",
-         "Card not in frame. Caller supplied no patches; nothing is guessed.", "not_detected"),
+         "Card not in frame. Caller supplied no patches; nothing is guessed.", "not_detected", False),
         ("reference_partially_occluded", good, patches_from(good, ["SYN-A", "SYN-B"]), "retake",
-         "Two swatches visible, two covered.", "partially_occluded"),
+         "Two swatches visible, two covered.", "partially_occluded", False),
         ("reference_unreadable_washed", washed_grid,
          {k: wash(v) for k, v in SYN_COLOR_001_SWATCHES.items()}, "retake",
-         "All four swatches in place but washed beyond the match tolerance: "
-         "present-but-unreadable, a DIFFERENT fact from absent.", "unreadable"),
+         ("All four swatches in place but washed beyond the match tolerance: "
+          "present-but-unreadable, a DIFFERENT fact from absent."), "unreadable", False),
         ("blur_defocused", blurred(good), patches_from(good, ALL), "review",
-         "Same scene, defocused.", "detected"),
+         "Same scene, defocused.", "detected", False),
         ("glare_specular_30pct", with_glare(good, 0.30), patches_from(good, ALL), "review",
-         "30% of the ROI is specular highlight.", "detected"),
+         "30% of the ROI is specular highlight.", "detected", False),
         ("clipping_30pct", with_clipping(good, 0.30), patches_from(good, ALL), "review",
-         "30% of the ROI is clipped to 0/255.", "detected"),
+         "30% of the ROI is clipped to 0/255.", "detected", False),
     ]
 
 
 def main() -> None:
     cases = build_fixtures()
-    measured = {name: compute_metrics(g, p) for name, g, p, _, _, _ in cases}
+    measured = {name: compute_metrics(g, p) for name, g, p, _, _, _, _ in cases}
 
     fitted = fit_thresholds(
         [measured["good_sharp_card_present"]],
@@ -177,7 +196,7 @@ def main() -> None:
     mismatches: list[dict] = []
     false_rejects: list[dict] = []
 
-    for name, _g, _p, expected, description, expected_ref in cases:
+    for name, _g, _p, expected, description, expected_ref, known_good in cases:
         outcome = evaluate(measured[name], fitted, require_reference_card=True)
         actual_ref = outcome.metrics.reference_card.state
         ok_decision = outcome.decision == expected
@@ -188,7 +207,7 @@ def main() -> None:
         if not ok_ref:
             mismatches.append({"fixture": name, "field": "reference_state",
                                "expected": expected_ref, "actual": actual_ref})
-        if expected == "accept" and outcome.decision != "accept":
+        if known_good and outcome.decision != "accept":
             false_rejects.append({
                 "fixture": name, "expected": expected, "actual": outcome.decision,
                 "reasons": list(outcome.reasons),
@@ -197,6 +216,7 @@ def main() -> None:
         results.append({
             "fixture": name,
             "description": description,
+            "known_good": known_good,
             "expected_decision": expected,
             "expected_reference_state": expected_ref,
             "actual": outcome_to_dict(outcome),
@@ -212,6 +232,13 @@ def main() -> None:
     if unset.decision == "accept":
         mismatches.append({"fixture": "unset_policy", "field": "decision",
                            "expected": "must not accept", "actual": "accept"})
+    if not false_rejects:
+        mismatches.append({
+            "fixture": "false_reject_record",
+            "field": "coverage",
+            "expected": "at least one known-good limitation recorded for T23",
+            "actual": "none",
+        })
 
     doc = {
         "_status": "SYNTHETIC FIXTURES. These exercise the deterministic quality rules. They are "
@@ -243,8 +270,7 @@ def main() -> None:
         },
         "fixtures": results,
         "false_rejects_for_T23": false_rejects,
-        "false_reject_note": "Empty means no GOOD fixture was rejected by the fitted thresholds. "
-                             "With only one good synthetic fixture that says little about the "
+        "false_reject_note": "Synthetic examples expose rule limitations but cannot estimate a "
                              "real false-reject rate; T23 must collect real captures.",
         "mismatches": mismatches,
     }
