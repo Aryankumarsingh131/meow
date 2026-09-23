@@ -1,0 +1,7 @@
+{
+  "name": "capture-native",
+  "version": "0.1.0",
+  "description": "T04: schema-v1 capture feature pipeline (JS reference + Android native leg).",
+  "main": "index.ts",
+  "private": true
+}

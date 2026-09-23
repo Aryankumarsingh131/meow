@@ -30,5 +30,10 @@
     "postinstall": "node scripts/patch-onnxruntime.mjs",
     "test:demo": "node --experimental-strip-types --test src/sync-state.test.mjs"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "nativeModulesDir": "../../modules"
+    }
+  }
 }

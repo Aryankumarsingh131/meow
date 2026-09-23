@@ -285,10 +285,35 @@ export function computeFeaturesJs(
  * fabricating a result - see docs/toolchain-matrix.md and
  * docs/agent-workflow/handoff-T04.md.
  */
-export function computeFeaturesNative(_jpegBytes: Uint8Array): Promise<FeatureVectorV1> {
-  return Promise.reject(
-    new Error(
-      "computeFeaturesNative is not implemented in this environment: no Android SDK/adb/device available to build or run CaptureModule.kt (see docs/toolchain-matrix.md).",
-    ),
-  );
+export function computeFeaturesNative(
+  fileUri: string,
+  // Readonly: the bridge only reads these, and callers hold them as readonly
+  // tuples (T09's `RoiCorners`).
+  corners: readonly [Point, Point, Point, Point],
+  outSize = 16,
+): Promise<FeatureVectorV1> {
+  // Required lazily, and deliberately not at module scope: this file is also
+  // imported by Node test harnesses (tests/capture-flow.test.ts,
+  // tests/run-capture-golden.ts) where `expo-modules-core` does not exist.
+  // A top-level require would break those.
+  //
+  // If the native module is absent the error says so plainly. It is NEVER
+  // caught and replaced with a fallback vector - a build/link failure must
+  // surface as a failure, not as plausible-looking pixel statistics.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { requireNativeModule } = require("expo-modules-core");
+  const native = requireNativeModule("CaptureNative");
+  const path = fileUri.startsWith("file://") ? fileUri.slice("file://".length) : fileUri;
+  return native.computeFeaturesFromFile(path, corners, outSize);
+}
+
+/** True only when the compiled native leg is actually linked and callable. */
+export function isNativeAvailable(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { requireNativeModule } = require("expo-modules-core");
+    return requireNativeModule("CaptureNative").isAvailable() === true;
+  } catch {
+    return false;
+  }
 }

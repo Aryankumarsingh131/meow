@@ -1,0 +1,259 @@
+{
+  "_status": "SYNTHETIC FIXTURES. These exercise the deterministic quality rules. They are not photographs of a real kit, and passing them is not validation of real-world capture quality.",
+  "_no_calibration_claim": "No value here is a water-quality measurement. Quality rules judge the PHOTOGRAPH, never the water. A rejected capture yields reason codes and no class, bin or reading.",
+  "rules_version": "quality-rules-v1",
+  "generated_by": "python ml/quality_fixtures_run.py",
+  "reference_card": {
+    "protocol": "SYN-COLOR-001",
+    "source": "jalsakshi-blueprint/docs/synthetic-demo-protocol.md",
+    "swatches": {
+      "SYN-A": [
+        59,
+        130,
+        246
+      ],
+      "SYN-B": [
+        16,
+        185,
+        129
+      ],
+      "SYN-C": [
+        245,
+        158,
+        11
+      ],
+      "SYN-D": [
+        239,
+        68,
+        68
+      ]
+    },
+    "states": [
+      "detected",
+      "partially_occluded",
+      "unreadable",
+      "not_detected"
+    ]
+  },
+  "thresholds": {
+    "status": "PROVISIONAL - fitted from the synthetic fixtures below by taking the midpoint between the worst good value and the best bad value. These are NOT approved limits. T27 approves against real data.",
+    "fitted": {
+      "min_roi_pixels": 40,
+      "max_blur_variance": 2637.4152,
+      "max_clipped_fraction": 0.659722,
+      "max_glare_fraction": 0.149306
+    },
+    "unset_policy_behaviour": {
+      "decision_on_a_good_image": "review",
+      "reasons": [
+        "THRESHOLD_UNSET"
+      ],
+      "skipped_checks": [
+        "max_blur_variance",
+        "max_clipped_fraction",
+        "max_glare_fraction"
+      ],
+      "rule": "protocol-schema.md line 79 - a null threshold is skipped and recorded as THRESHOLD_UNSET; it must never silently pass as if it succeeded."
+    }
+  },
+  "fixtures": [
+    {
+      "fixture": "good_sharp_card_present",
+      "description": "Well-exposed, in-focus, all four swatches present.",
+      "expected_decision": "accept",
+      "expected_reference_state": "detected",
+      "actual": {
+        "decision": "accept",
+        "reasons": [],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 5247.0247,
+          "clipped_fraction": 0.581597,
+          "glare_fraction": 0.0,
+          "reference_card": {
+            "state": "detected",
+            "swatches_matched": 4,
+            "swatches_expected": 4,
+            "mean_distance": 3.461
+          }
+        }
+      },
+      "matches_expectation": true
+    },
+    {
+      "fixture": "reference_absent",
+      "description": "Card not in frame. Caller supplied no patches; nothing is guessed.",
+      "expected_decision": "retake",
+      "expected_reference_state": "not_detected",
+      "actual": {
+        "decision": "retake",
+        "reasons": [
+          "REFERENCE_CARD_NOT_DETECTED"
+        ],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 5247.0247,
+          "clipped_fraction": 0.581597,
+          "glare_fraction": 0.0,
+          "reference_card": {
+            "state": "not_detected",
+            "swatches_matched": 0,
+            "swatches_expected": 4,
+            "mean_distance": null
+          }
+        }
+      },
+      "matches_expectation": true
+    },
+    {
+      "fixture": "reference_partially_occluded",
+      "description": "Two swatches visible, two covered.",
+      "expected_decision": "retake",
+      "expected_reference_state": "partially_occluded",
+      "actual": {
+        "decision": "retake",
+        "reasons": [
+          "REFERENCE_CARD_UNREADABLE"
+        ],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 5247.0247,
+          "clipped_fraction": 0.581597,
+          "glare_fraction": 0.0,
+          "reference_card": {
+            "state": "partially_occluded",
+            "swatches_matched": 2,
+            "swatches_expected": 4,
+            "mean_distance": 3.464
+          }
+        }
+      },
+      "matches_expectation": true
+    },
+    {
+      "fixture": "reference_unreadable_washed",
+      "description": "All four swatches in place but washed beyond the match tolerance: present-but-unreadable, a DIFFERENT fact from absent.",
+      "expected_decision": "retake",
+      "expected_reference_state": "unreadable",
+      "actual": {
+        "decision": "retake",
+        "reasons": [
+          "BLUR_SUSPECTED",
+          "REFERENCE_CARD_UNREADABLE"
+        ],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 0.0,
+          "clipped_fraction": 0.0,
+          "glare_fraction": 0.0,
+          "reference_card": {
+            "state": "unreadable",
+            "swatches_matched": 0,
+            "swatches_expected": 4,
+            "mean_distance": null
+          }
+        }
+      },
+      "matches_expectation": true
+    },
+    {
+      "fixture": "blur_defocused",
+      "description": "Same scene, defocused.",
+      "expected_decision": "review",
+      "expected_reference_state": "detected",
+      "actual": {
+        "decision": "review",
+        "reasons": [
+          "BLUR_SUSPECTED"
+        ],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 27.8058,
+          "clipped_fraction": 0.085069,
+          "glare_fraction": 0.0,
+          "reference_card": {
+            "state": "detected",
+            "swatches_matched": 4,
+            "swatches_expected": 4,
+            "mean_distance": 3.461
+          }
+        }
+      },
+      "matches_expectation": true
+    },
+    {
+      "fixture": "glare_specular_30pct",
+      "description": "30% of the ROI is specular highlight.",
+      "expected_decision": "review",
+      "expected_reference_state": "detected",
+      "actual": {
+        "decision": "review",
+        "reasons": [
+          "GLARE_EXCESSIVE"
+        ],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 5542.5374,
+          "clipped_fraction": 0.439236,
+          "glare_fraction": 0.298611,
+          "reference_card": {
+            "state": "detected",
+            "swatches_matched": 4,
+            "swatches_expected": 4,
+            "mean_distance": 3.461
+          }
+        }
+      },
+      "matches_expectation": true
+    },
+    {
+      "fixture": "clipping_30pct",
+      "description": "30% of the ROI is clipped to 0/255.",
+      "expected_decision": "review",
+      "expected_reference_state": "detected",
+      "actual": {
+        "decision": "review",
+        "reasons": [
+          "CLIPPING_EXCESSIVE"
+        ],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 72297.135,
+          "clipped_fraction": 0.737847,
+          "glare_fraction": 0.0,
+          "reference_card": {
+            "state": "detected",
+            "swatches_matched": 4,
+            "swatches_expected": 4,
+            "mean_distance": 3.461
+          }
+        }
+      },
+      "matches_expectation": true
+    }
+  ],
+  "false_rejects_for_T23": [],
+  "false_reject_note": "Empty means no GOOD fixture was rejected by the fitted thresholds. With only one good synthetic fixture that says little about the real false-reject rate; T23 must collect real captures.",
+  "mismatches": []
+}

@@ -24,3 +24,9 @@ Thumbs.db
 # Local artifacts
 *.db
 *.sqlite3
+
+# Android/Gradle build output
+**/android/build/
+**/.gradle/
+*.iml
+local.properties

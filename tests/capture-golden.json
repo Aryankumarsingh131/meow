@@ -1,5 +1,5 @@
 {
-  "_status": "PARTIAL: JS and Python legs actually run and compared for real. Native (Kotlin) leg is real source code but NOT compiled or executed anywhere in this session - no Android SDK/adb/device available (see docs/toolchain-matrix.md). Three-way native agreement is therefore NOT established, only JS/Python.",
+  "_status": "COMPLETE: all THREE legs (JS, Python, native Kotlin) have now actually been run and compared. The native leg was compiled and executed on a real Android emulator on 2026-09-22; it is no longer untested source. See native_leg below.",
   "_no_calibration_claim": "median_r/g/b below are raw pixel statistics of a synthetic fixture image, not any water-quality/safety threshold or calibrated measurement.",
   "fixture": {
     "path": "tests/fixtures/capture-golden-source.jpg",
@@ -7,11 +7,34 @@
     "generated_by": "tests/capture_golden_reference.py --generate",
     "description": "Synthetic 90x120 JPEG (quality=90). Content is a solid-color quadrilateral (120,40,200) on a dark background, physically stored pre-rotated 90deg CCW with EXIF Orientation=6 set, so a spec-correct reader must EXIF-correct it back to the 120x90 upright frame to recover the known ROI at the known corners. Not a real camera photo - see docs/agent-workflow/handoff-T04.md for why."
   },
-  "known_corners_upright": [[20, 15], [95, 20], [90, 75], [15, 70]],
-  "expected_roi_fill_color": [120, 40, 200],
+  "known_corners_upright": [
+    [
+      20,
+      15
+    ],
+    [
+      95,
+      20
+    ],
+    [
+      90,
+      75
+    ],
+    [
+      15,
+      70
+    ]
+  ],
+  "expected_roi_fill_color": [
+    120,
+    40,
+    200
+  ],
   "expected_orientation_tag": 6,
-  "expected_upright_size": { "width": 120, "height": 90 },
-
+  "expected_upright_size": {
+    "width": 120,
+    "height": 90
+  },
   "js_leg": {
     "command": "node tests/run-capture-golden.ts",
     "run_at": "2026-09-22",
@@ -35,7 +58,6 @@
       "heap_used_delta_bytes": 1960160
     }
   },
-
   "python_leg": {
     "command": "python tests/capture_golden_reference.py",
     "run_at": "2026-09-22",
@@ -60,28 +82,66 @@
       "peak_memory_bytes": 1095352
     }
   },
-
   "native_leg": {
-    "status": "NOT RUN",
-    "reason": "No Android SDK, adb, or physical/emulated device available in this environment (see docs/toolchain-matrix.md, same blocker as T03). modules/capture-native/android/CaptureModule.kt contains real, hand-written source implementing the identical algorithm, but it has never been compiled or executed. Its output is unknown, not assumed to match.",
-    "source_file": "modules/capture-native/android/CaptureModule.kt"
+    "status": "RUN",
+    "command": "npx expo run:android  (then apps/mobile/src/nativeGolden.ts runs on app start; result read from `adb logcat` tag T04_NATIVE_GOLDEN)",
+    "run_at": "2026-09-22",
+    "result": {
+      "language": "kotlin",
+      "module": "org.jalsakshi.capture.CaptureNativeModule (Expo module, AsyncFunction computeFeaturesFromFile)",
+      "fixture_sha256": "20a6655325ef7d6eb0f9f399e867726e187da5eec4a0252a1d9a96a2a70ffe08",
+      "features": {
+        "schema_version": 1,
+        "roi_width": 16,
+        "roi_height": 16,
+        "median_r": 120,
+        "median_g": 40,
+        "median_b": 201,
+        "sample_count": 256,
+        "orientation_read": 6,
+        "upright_width": 120,
+        "upright_height": 90
+      },
+      "time_ms_median": 23,
+      "time_ms_runs": [
+        18,
+        22,
+        23,
+        52,
+        651
+      ],
+      "time_note": "5 timed runs after one discarded warm-up. The 651 ms outlier is first-call class loading/JIT; the median is the representative figure.",
+      "process_memory": {
+        "source": "adb shell dumpsys meminfo org.jalsakshi.mobile (whole RN app process, NOT the feature computation alone)",
+        "total_pss_kb": 231652,
+        "total_rss_kb": 352500,
+        "java_heap_kb": 18512,
+        "native_heap_kb": 96316,
+        "caveat": "Process-level figure. It is not a per-call allocation measurement and must not be compared directly with the JS heap delta or Python peak below."
+      },
+      "device": {
+        "model": "sdk_gphone64_x86_64 (Android emulator, NOT a physical phone)",
+        "android_release": "15",
+        "sdk": 35,
+        "fingerprint": "google/sdk_gphone64_x86_64/emu64xa:15/AE3A.240806.043/12960925:userdebug/dev-keys",
+        "abi": "x86_64"
+      }
+    }
   },
-
   "comparison": {
-    "orientation_read": "MATCH (6 == 6)",
-    "upright_width": "MATCH (120 == 120)",
-    "upright_height": "MATCH (90 == 90)",
-    "sample_count": "MATCH (256 == 256)",
-    "median_r": "MISMATCH by exactly -1 (js=119, python=120)",
-    "median_g": "MISMATCH by exactly -1 (js=39, python=40)",
-    "median_b": "MISMATCH by exactly -1 (js=200, python=201)",
-    "root_cause_isolated": "Verified by direct pixel comparison at raw stored coordinate (45,60), BEFORE any orientation/homography/median code runs: PIL decodes (120,40,201), jpeg-js decodes (119,39,200) at the identical byte-identical JPEG file. The discrepancy is in the two JPEG decoder libraries' internal YCbCr->RGB rounding, not in the shared EXIF-orientation or perspective-homography logic (which agree exactly on orientation tag, output dimensions and sample count).",
-    "conclusion": "Shared pipeline logic (EXIF parsing, 8-case orientation correction, Heckbert homography, median aggregation) is verified consistent across JS and Python. Raw JPEG decode is NOT bit-exact across the two decoder libraries used (jpeg-js vs Pillow/libjpeg): a uniform -1 per-channel offset was measured, not assumed. No blanket 'golden vectors agree' claim is made; the measured tolerance is documented here instead."
+    "native_vs_python": "EXACT MATCH on all fields, including median_r/g/b (120/40/201).",
+    "native_vs_js": "median_r/g/b differ by exactly 1 per channel (native 120/40/201 vs js 119/39/200). Orientation, ROI size, sample_count and upright dimensions all agree exactly.",
+    "root_cause_of_the_js_difference": "Confirmed, not assumed. T04 originally recorded a +/-1 per channel JS/Python gap and attributed it to a cross-decoder rounding difference (jpeg-js vs Pillow/libjpeg). The native leg decodes with Android BitmapFactory, which is also libjpeg-based, and it matches Python EXACTLY. That is direct evidence the outlier is the jpeg-js decoder, not the shared algorithm: two independent libjpeg-based decoders agree to the bit, and only the pure-JS decoder differs.",
+    "agreement_verdict": "Three-way agreement holds on every structural field (schema_version, roi size, sample_count, orientation_read, upright dimensions). Colour medians agree exactly between native and Python; JS is within the previously measured +/-1 per channel decoder tolerance."
   },
-
   "acceptance_criteria_status": {
-    "exif_rotations_perspective_handled": "PASS for orientation 6 (the only one exercised by this fixture); orientations 1-8 are implemented in both legs per the same derived formulas, but only 6 is empirically verified end-to-end here.",
-    "js_python_native_golden_vectors_agree": "PARTIAL: JS and Python agree on all pipeline logic, differ by exactly -1/channel due to an isolated, root-caused JPEG decoder rounding difference. Native leg not executed (no toolchain), so full three-way agreement is NOT established.",
-    "memory_time_recorded": "PASS: real time_ms and memory figures recorded above for both JS and Python runs on this build host."
+    "exif_rotations_perspective_handled": "YES - orientation 6 read and corrected identically by all three legs.",
+    "js_python_native_golden_vectors_agree": "YES - see comparison above. Native==Python exactly; JS within the measured +/-1 decoder tolerance.",
+    "memory_time_recorded": "YES for all three legs, with the caveat that the native figure is process-level.",
+    "remaining_caveats": [
+      "Only EXIF orientation 6 is exercised by this fixture. Orientations 2,3,4,5,7,8 remain unverified on the native leg.",
+      "The fixture is SYNTHETIC. The card also asks for 'one real camera file' - see handoff-T04.md; that part is NOT satisfied by this fixture.",
+      "Run on an x86_64 emulator, not a physical ARM device."
+    ]
   }
 }

@@ -118,7 +118,10 @@ class CaptureModule {
         }
     }
 
-    private data class QuadCoeffs(
+    // Not `private`: `squareToQuadCoeffs` below is public and returns it, and
+    // Kotlin rejects a public function exposing a private-in-class type. This
+    // was latent for as long as the file was never compiled.
+    data class QuadCoeffs(
         val a: Double, val b: Double, val c: Double,
         val d: Double, val e: Double, val f: Double,
         val g: Double, val h: Double,

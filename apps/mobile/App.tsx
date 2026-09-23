@@ -7,6 +7,7 @@ import { SourcesScreen } from './src/sources';
 import type { CachedSource, HistoryRow } from './src/sourceCatalog';
 import { ProtocolScreen } from './src/protocol';
 import { CaptureScreen } from './src/capture';
+import { runNativeGolden } from './src/nativeGolden';
 import type { ClockReading, KitLot, Protocol } from './src/timer';
 
 // ===========================================================================
@@ -119,6 +120,14 @@ const TABS: ReadonlyArray<readonly [Tab, string]> = [
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('demo');
+
+  // T04 acceptance: run the native golden vector once on mount and log it.
+  // Temporary verification scaffolding.
+  React.useEffect(() => {
+    runNativeGolden()
+      .then((r) => console.log('T04_NATIVE_GOLDEN ' + r))
+      .catch((e) => console.log('T04_NATIVE_GOLDEN_ERROR ' + String(e && e.message ? e.message : e)));
+  }, []);
 
   return (
     <View style={styles.root}>

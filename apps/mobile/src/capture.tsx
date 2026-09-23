@@ -124,12 +124,22 @@ export function CaptureScreen({
         return;
       }
 
-      // Native analysis. Rejects in every build today — surfaced, not faked.
-      const features = await computeFeaturesNative(new Uint8Array());
+      // Native analysis. The bridge now takes a file URI plus the ROI quad in
+      // the upright frame (T04 interface change, 2026-09-22 — the old
+      // byte-array signature was never callable).
+      //
+      // Without corners there is nothing to analyse, so this reports
+      // roi_invalid rather than calling native with an empty quad and letting
+      // it fail deeper down.
+      if (!roi) {
+        setState((s) => settleJob(s, jobId, { kind: 'failed', reason: 'roi_invalid' }).state);
+        return;
+      }
+      const features = await computeFeaturesNative(photo.uri, roi, 16);
       setState((s) => settleJob(s, jobId, {
         kind: 'analysed',
         features,
-        corners: roi ?? [],
+        corners: roi,
         orientation,
       }).state);
     } catch {

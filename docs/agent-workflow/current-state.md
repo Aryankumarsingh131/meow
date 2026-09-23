@@ -31,9 +31,28 @@ against a real (synthetically-generated, not phone-captured) EXIF-tagged
 JPEG fixture. Both legs agree exactly on EXIF orientation handling and ROI
 geometry; median color values differ by a measured, root-caused ±1/channel
 due to a real cross-decoder (jpeg-js vs Pillow/libjpeg) rounding difference,
-recorded honestly rather than claimed as exact agreement. The Kotlin native
-leg (`modules/capture-native/android/CaptureModule.kt`) is real source,
-never compiled or executed — same missing-Android-toolchain blocker as T03.
+recorded honestly rather than claimed as exact agreement.
+**Superseded 2026-09-22: the Kotlin native leg is now COMPILED, LINKED AND
+RUN on a device.** It was previously real-but-never-compiled source.
+Diagnosis of why `computeFeaturesNative` always rejected: **it was not a build
+failure.** `CaptureModule` was a plain Kotlin class with no Expo `Module`, no
+`ModuleDefinition` and no JS-callable surface, and the module had no
+`package.json`, `expo-module.config.json` or `android/build.gradle` — so it sat
+in **no build graph at all**, while the JS side was a hardcoded
+`Promise.reject` whose "no Android SDK" message had gone stale. Fixed by
+adding the build target, writing the missing binding
+(`CaptureNativeModule.kt`), and pointing Expo autolinking at the repo-root
+`modules/` directory. Compiling it for the first time exposed two latent
+defects in the never-compiled source: a public function exposing a
+`private-in-class` return type, and a `minSdk` floor conflicting with the app.
+**Result: native median_r/g/b = 120/40/201, an EXACT match with the Python
+leg** (Android 15 / API 35 emulator, x86_64). That also root-causes T04's
+original ±1/channel JS gap as a **jpeg-js decoder artifact** — Android
+`BitmapFactory` and Pillow are both libjpeg-based and agree to the bit, while
+only the pure-JS decoder differs. Median 23 ms/call; process memory recorded
+in `tests/capture-golden.json` `native_leg`. **Still outstanding for T04:**
+the card's "one real camera file" (the fixture is synthetic), EXIF
+orientations other than 6 on the native leg, and a physical ARM device.
 **Note: T04 was still uncommitted when T05 began; both will reach `main` in
 the same or consecutive commits.**
 

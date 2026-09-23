@@ -1,0 +1,33 @@
+// T04: build target for the native capture leg.
+//
+// Before this existed, CaptureModule.kt was orphaned source in no build
+// graph at all - which is why `computeFeaturesNative` could only ever reject.
+// There was nothing to compile, not a compilation that failed.
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'org.jalsakshi.capture'
+version = '0.1.0'
+
+android {
+  namespace "org.jalsakshi.capture"
+  defaultConfig {
+    // Matches the app. The algorithm only uses Bitmap/BitmapFactory/ExifInterface,
+    // all long available, so nothing here needs a higher floor.
+    minSdk 24
+    // expo-module-gradle-plugin requires both; without them the build fails
+    // at configuration time with "android.defaultConfig.versionName is not
+    // defined".
+    versionCode 1
+    versionName "0.1.0"
+  }
+}
+
+dependencies {
+  // EXIF orientation is read with androidx, deliberately not hand-rolled on
+  // this leg: the JS leg parses the bytes by hand, so the two legs agreeing
+  // is evidence rather than the same bug twice.
+  implementation "androidx.exifinterface:exifinterface:1.3.7"
+}
