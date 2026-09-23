@@ -26,6 +26,16 @@ class Settings(BaseSettings):
     # data_mode is server-owned, never client-supplied (jalsakshi-blueprint/docs/architecture/data-model.md).
     tenant_data_mode: Literal["synthetic", "research", "operational"] = "synthetic"
 
+    # Supabase. Declared explicitly because pydantic-settings forbids extra
+    # inputs: an undeclared JALSAKSHI_* variable in .env makes Settings() raise
+    # at import time and takes the whole API test suite down with it.
+    #
+    # The publishable ("anon") key is client-visible by design. The service_role
+    # key must NEVER be added here - it bypasses row-level security, so it does
+    # not belong in a value the application layer can read.
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
+
     request_timeout_seconds: float = Field(default=8.0, gt=0)
 
     @model_validator(mode="after")

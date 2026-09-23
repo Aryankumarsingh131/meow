@@ -28,7 +28,11 @@ def test_ready_reports_unwired_dependencies_instead_of_claiming_ready():
 
 
 def test_development_allows_empty_config():
-    assert Settings(environment="development").database_url == ""
+    # `_env_file=None` isolates this from the developer's real .env. Without
+    # it the test asserts "development defaults to empty" while actually
+    # reading whatever database happens to be configured locally, so it
+    # passes on a clean machine and fails on a configured one.
+    assert Settings(environment="development", _env_file=None).database_url == ""
 
 
 def test_production_refuses_development_defaults():
