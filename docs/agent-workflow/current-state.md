@@ -1,6 +1,6 @@
 # Current state — meow1 (JalSakshi implementation, using jalsakshi-blueprint as reference)
 
-Updated: 2026-09-22.
+Updated: 2026-09-24.
 
 ## What exists
 
@@ -192,6 +192,15 @@ rendering correctly with fictional fixtures says nothing about any real kit.
   disagreement paths are tested and rendered. Only an explicitly supplied,
   valid versioned profile may produce a suggestion; the repository still has
   no real approved kit profile. See [handoff-T11.md](handoff-T11.md).
+- T12 (Crash-safe local save) — owner/reviewer: Codex (role A/storage),
+  completed 24 September 2026 IST on `feature/t12-local-save`. The asset is
+  hashed before rename, sample/asset/outbox rows commit atomically, and no
+  receipt is returned before commit. Fault injection covers both sides of
+  rename and commit; startup recovery removes only owned unreferenced files,
+  preserves unknown/referenced files and reports missing referenced assets.
+  Expo exposes no public filesystem `fsync`, encryption remains T32, and no
+  physical-device process kill has been claimed. See
+  [handoff-T12.md](handoff-T12.md).
 
 **Android toolchain and visual evidence (2026-09-22, explicitly authorized by
 the user).** JDK 17, the Android SDK (platform 35, build-tools 35.0.0,
