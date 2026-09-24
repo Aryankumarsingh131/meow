@@ -319,7 +319,7 @@ export async function openLocalStorage(sql: Sql) {
   };
 }
 
-function hex(value: ArrayBuffer) {
+export function hex(value: ArrayBuffer) {
   return Array.from(new Uint8Array(value), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 

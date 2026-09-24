@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 
 import { colors, radius, spacing, type } from './theme';
-import { DEV_API_BASE, requestOfflineGrant, signIn } from './api';
+import { API_BASE, HOSTED_AUTH, requestOfflineGrant, signIn } from './api';
 import { deviceId, deviceSql } from './deviceDb';
 import { OFFLINE_LIMIT_NOTE, offlineAccounts, recordGrant, revokeOfflineAccess } from './offlineAccess';
 import {
@@ -56,7 +56,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
       return;
     }
     setBusy(true);
-    const result = await signIn(DEV_API_BASE, username, password);
+    const result = await signIn(API_BASE, username, password);
     setBusy(false);
     if (result.kind !== 'ok') {
       setError(SIGN_IN_ERROR[signInFailureFor(result.kind)]);
@@ -67,7 +67,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
     setError(null);
     // T45: provision offline access while online. The server decides scope and
     // lease; a refusal (revoked membership) removes any lease already held.
-    const grant = await requestOfflineGrant(DEV_API_BASE, result.value.token, deviceId(), CLIENT_BUILD);
+    const grant = await requestOfflineGrant(API_BASE, result.value.token, deviceId(), CLIENT_BUILD);
     if (grant.kind === 'ok') recordGrant(deviceSql(), username, grant.value, result.value.subject, Date.now());
     else if (grant.kind === 'failed' && grant.status === 403) revokeOfflineAccess(deviceSql(), result.value.subject);
     onSession(staffSession(username, result.value));
@@ -93,7 +93,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
             For trained field workers and supervisors.
           </Text>
 
-          <Text style={s.label}>Username</Text>
+          <Text style={s.label}>{HOSTED_AUTH ? 'Email' : 'Username'}</Text>
           <TextInput
             style={s.input}
             value={username}
@@ -101,7 +101,8 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
               setUsername(t);
               setError(null);
             }}
-            placeholder="worker"
+            placeholder={HOSTED_AUTH ? 'you@example.org' : 'worker'}
+            keyboardType={HOSTED_AUTH ? 'email-address' : 'default'}
             placeholderTextColor={colors.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
@@ -158,14 +159,14 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
           ))}
           {offline.length > 0 && <Text style={s.cardSub}>{OFFLINE_LIMIT_NOTE}</Text>}
 
-          <View style={s.demoNote}>
+          {!HOSTED_AUTH && <View style={s.demoNote}>
             <Text style={s.demoTitle}>Synthetic sign-in</Text>
             <Text style={s.demoText}>
               Checked by the JalSakshi server's synthetic test issuer, not a real
               identity provider. All data is synthetic. Use{' '}
               {DEMO_USERNAMES.join(' or ')} with the password “jalsakshi”.
             </Text>
-          </View>
+          </View>}
         </View>
 
         <View style={s.divider}>

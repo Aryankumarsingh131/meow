@@ -35,18 +35,27 @@ settings = load_settings()  # Validate deployment configuration at startup.
 #: to start production with synthetic data.
 SYNTHETIC_DEV = settings.environment == "development" and settings.tenant_data_mode == "synthetic"
 
+#: Staging/production with a real identity provider (Supabase Auth) and a real
+#: database. config.py already refuses to start these without database_url,
+#: oidc_issuer and oidc_audience.
+HOSTED = settings.environment != "development" and bool(settings.database_url and settings.oidc_issuer)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Migrate and seed at startup, not import: importing this module must not
-    # touch the network (tests import it freely).
-    if SYNTHETIC_DEV:
+    # touch the network (tests import it freely). All DDL is IF NOT EXISTS and
+    # all seed inserts ON CONFLICT DO NOTHING, so every restart is safe.
+    if SYNTHETIC_DEV or HOSTED:
         from . import db, dev_seed
 
         conn = app.state.connect()
         try:
             db.migrate(conn)
-            dev_seed.seed(conn)
+            # The synthetic catalogue only ever goes into a synthetic tenant
+            # (production refuses synthetic mode in config.py).
+            if settings.tenant_data_mode == "synthetic":
+                dev_seed.seed(conn)
         finally:
             conn.close()
     yield
@@ -80,8 +89,8 @@ if SYNTHETIC_DEV:
     app.state.demo_data_dir = ".data/demo"
     app.include_router(demo_router)
 
-    # Imported inside the gate on purpose: outside development+synthetic the
-    # issuer module is never even loaded, so no key is generated.
+    # Created inside the gate on purpose: outside development+synthetic no
+    # issuer is built, so no signing key is ever generated or loaded.
     from .db import connector
     from .dev_issuer import DevIssuer, build_router, load_or_create_key
 
@@ -99,6 +108,14 @@ if SYNTHETIC_DEV:
     app.state.evidence_upload_enabled = True
     app.state.evidence_key = secrets.token_bytes(32)
     app.state.evidence_dir = Path(".data") / "evidence"
+
+
+if HOSTED:
+    from .db import connector
+    from .provider import HostedAuth, db_membership_lookup
+
+    app.state.connect = connector(settings.database_url, Path(".data") / "unused.sqlite3")
+    app.state.auth = HostedAuth(settings.oidc_issuer, settings.oidc_audience, db_membership_lookup(app.state.connect))
 
 
 @app.get("/health/live")

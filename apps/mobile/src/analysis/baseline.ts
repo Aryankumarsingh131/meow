@@ -38,7 +38,10 @@ export type ReviewReason =
   | 'profile_invalid'
   | 'quality_uncertain'
   | 'quality_retake'
-  | 'timing_invalid';
+  | 'timing_invalid'
+  | 'model_unavailable'
+  | 'model_uncertain'
+  | 'model_out_of_range';
 
 export interface ReviewAnalysis {
   status: 'suggested' | 'manual_required' | 'retake';
@@ -50,6 +53,10 @@ export interface ReviewAnalysis {
   baselineVersion: string | null;
   protocolVersion: number | null;
   researchOnly: boolean;
+  /** T26: set only by the on-device model path, for sample provenance. */
+  calibrationVersion?: string | null;
+  /** T26: why the on-device model could not be used (see analysis/model.ts). */
+  modelProblem?: string | null;
 }
 
 export interface ReviewObservation {
@@ -63,6 +70,7 @@ export interface ReviewObservation {
   protocolVersion: number | null;
   confidence: null;
   overrideReason: string | null;
+  calibrationVersion?: string | null;
 }
 
 export const MANUAL_REASON_MAX_LENGTH = 2000;
@@ -115,16 +123,26 @@ function validProfile(profile: BaselineProfile): boolean {
   return profile.bins.every((_, ordinal) => ordinals.has(ordinal));
 }
 
-export function analyseBaseline(input: ReviewInput): ReviewAnalysis {
+/**
+ * The checks every analysis path shares: an abstention if timing, capture
+ * quality or the features rule out any machine reading, otherwise null.
+ */
+export function gate(input: ReviewInput): ReviewAnalysis | null {
   if (!input.timingValid) return abstain(input, 'timing_invalid', 'manual_required', 'invalid');
   if (input.quality.decision === 'retake') return abstain(input, 'quality_retake', 'retake');
   if (input.quality.decision === 'review') return abstain(input, 'quality_uncertain');
   if (!input.features) return abstain(input, 'features_unavailable');
-
-  const rgb = [input.features.median_r, input.features.median_g, input.features.median_b] as const;
+  const rgb = [input.features.median_r, input.features.median_g, input.features.median_b];
   if (input.features.schema_version !== 1 || rgb.some((channel) => !Number.isFinite(channel) || channel < 0 || channel > 255)) {
     return abstain(input, 'features_invalid');
   }
+  return null;
+}
+
+export function analyseBaseline(input: ReviewInput): ReviewAnalysis {
+  const gated = gate(input);
+  if (gated) return gated;
+  const rgb = [input.features!.median_r, input.features!.median_g, input.features!.median_b] as const;
   if (!input.profile) return abstain(input, 'profile_unavailable');
   if (!validProfile(input.profile)) return abstain(input, 'profile_invalid');
 
@@ -163,6 +181,7 @@ export function confirmSuggestion(analysis: ReviewAnalysis): ReviewObservation {
     protocolVersion: analysis.protocolVersion,
     confidence: null,
     overrideReason: null,
+    calibrationVersion: analysis.calibrationVersion ?? null,
   };
 }
 
@@ -189,5 +208,6 @@ export function recordManualInterpretation(
     protocolVersion: analysis.protocolVersion,
     confidence: null,
     overrideReason: cleanReason,
+    calibrationVersion: analysis.calibrationVersion ?? null,
   };
 }

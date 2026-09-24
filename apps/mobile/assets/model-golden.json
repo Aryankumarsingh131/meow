@@ -1,0 +1,578 @@
+{
+ "status": "SYNTHETIC validation captures and constructed probes; parity fixtures, not water readings.",
+ "model_sha256": "597d667fa37a90c10b06263b2cac38b3f8771e77c4ec58e526ce384869e0202e",
+ "calibration_version": "cal-v1",
+ "logit_tolerance": 0.001,
+ "vectors": [
+  {
+   "record_id": "35098553-bd37-55a0-91e6-cb0863ea7b45",
+   "label": "bin_0",
+   "domain": "daylight_phone_a",
+   "features": [
+    63.0,
+    133.0,
+    244.0
+   ],
+   "logits": [
+    20.597141,
+    1.741333,
+    -29.56353,
+    -3.279802
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_0"
+   }
+  },
+  {
+   "record_id": "19a8b690-4830-5b9c-b609-8cd3238c123b",
+   "label": "bin_0",
+   "domain": "tungsten_phone_a",
+   "features": [
+    62.0,
+    104.0,
+    165.0
+   ],
+   "logits": [
+    11.979441,
+    -2.81506,
+    -18.298231,
+    0.670957
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_0"
+   }
+  },
+  {
+   "record_id": "89664c74-10ae-5e1b-91e9-aa750f939d0e",
+   "label": "bin_0",
+   "domain": "fluorescent_phone_b",
+   "features": [
+    57.0,
+    133.0,
+    233.0
+   ],
+   "logits": [
+    19.370571,
+    2.88563,
+    -28.137829,
+    -4.056734
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_0"
+   }
+  },
+  {
+   "record_id": "ef676f09-ca37-5288-8115-694e5c8ac585",
+   "label": "bin_0",
+   "domain": "shade_phone_b",
+   "features": [
+    51.0,
+    120.0,
+    243.0
+   ],
+   "logits": [
+    21.117773,
+    -0.900499,
+    -31.060226,
+    -1.080101
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_0"
+   }
+  },
+  {
+   "record_id": "a3cca12d-7de1-58c5-be0e-d2c8ef3af5c8",
+   "label": "bin_1",
+   "domain": "daylight_phone_a",
+   "features": [
+    15.0,
+    162.0,
+    108.0
+   ],
+   "logits": [
+    2.864047,
+    13.539504,
+    -11.076678,
+    -9.594721
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "e8a4f676-0da6-5b40-8f5f-f444d9852fd0",
+   "label": "bin_1",
+   "domain": "tungsten_phone_a",
+   "features": [
+    18.0,
+    230.0,
+    116.0
+   ],
+   "logits": [
+    2.878104,
+    17.119478,
+    -13.259371,
+    -13.084656
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "b3d26889-5681-54a2-a629-3b35865d9ada",
+   "label": "bin_1",
+   "domain": "tungsten_phone_a",
+   "features": [
+    9.0,
+    118.0,
+    79.0
+   ],
+   "logits": [
+    2.396473,
+    9.25686,
+    -7.524384,
+    -7.522785
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "ae1dccac-de8c-5cac-a97c-0e5038124b87",
+   "label": "bin_1",
+   "domain": "tungsten_phone_a",
+   "features": [
+    11.0,
+    126.0,
+    85.0
+   ],
+   "logits": [
+    2.314977,
+    10.115969,
+    -8.0255,
+    -7.880865
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "bad67b6e-4d56-5a3c-bc45-e9f5721a910a",
+   "label": "bin_1",
+   "domain": "tungsten_phone_a",
+   "features": [
+    25.0,
+    133.0,
+    95.0
+   ],
+   "logits": [
+    2.593115,
+    10.006705,
+    -8.176994,
+    -7.918021
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "df4221d1-aa57-5b5a-aa93-070a7acc719a",
+   "label": "bin_1",
+   "domain": "fluorescent_phone_b",
+   "features": [
+    23.5,
+    192.0,
+    134.0
+   ],
+   "logits": [
+    3.462697,
+    16.100235,
+    -13.416321,
+    -11.413094
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "fa403602-5b67-5c5a-9a1f-3ccca3844a7c",
+   "label": "bin_1",
+   "domain": "shade_phone_b",
+   "features": [
+    9.0,
+    161.0,
+    115.0
+   ],
+   "logits": [
+    3.154085,
+    14.352645,
+    -12.019808,
+    -10.017032
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "4c5eef8a-7d95-51f3-81b9-4427ee77eed2",
+   "label": "bin_1",
+   "domain": "shade_phone_b",
+   "features": [
+    67.5,
+    171.5,
+    152.0
+   ],
+   "logits": [
+    5.232229,
+    11.682036,
+    -12.124735,
+    -9.050886
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "5a8c2c51-2d0f-5f06-b8e7-49f0de12e2d6",
+   "label": "bin_1",
+   "domain": "shade_phone_b",
+   "features": [
+    14.0,
+    145.0,
+    119.0
+   ],
+   "logits": [
+    4.4018,
+    12.486953,
+    -12.101473,
+    -9.535031
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_1"
+   }
+  },
+  {
+   "record_id": "be36a93b-d002-5449-a17f-e54105986674",
+   "label": "bin_2",
+   "domain": "daylight_phone_a",
+   "features": [
+    224.0,
+    156.0,
+    11.0
+   ],
+   "logits": [
+    -3.818568,
+    -2.750001,
+    7.826405,
+    -3.619957
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_2"
+   }
+  },
+  {
+   "record_id": "90945f63-48de-5c60-9aec-9e8350f04c0c",
+   "label": "bin_2",
+   "domain": "tungsten_phone_a",
+   "features": [
+    220.0,
+    112.0,
+    11.0
+   ],
+   "logits": [
+    -3.859413,
+    -3.154843,
+    6.484517,
+    -1.683116
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_2"
+   }
+  },
+  {
+   "record_id": "3491991e-7139-5d91-bcc2-ac3e4402cba7",
+   "label": "bin_2",
+   "domain": "fluorescent_phone_b",
+   "features": [
+    255.0,
+    171.0,
+    9.0
+   ],
+   "logits": [
+    -4.115669,
+    -3.057057,
+    8.575344,
+    -4.157118
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_2"
+   }
+  },
+  {
+   "record_id": "d467726d-a168-5c57-8b50-07206ba442a6",
+   "label": "bin_2",
+   "domain": "shade_phone_b",
+   "features": [
+    253.0,
+    176.0,
+    9.0
+   ],
+   "logits": [
+    -4.162158,
+    -3.105104,
+    8.692534,
+    -4.24117
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_2"
+   }
+  },
+  {
+   "record_id": "52b46cc8-a588-52b8-90d9-66666dc64c79",
+   "label": "bin_2",
+   "domain": "shade_phone_b",
+   "features": [
+    164.0,
+    114.0,
+    12.0
+   ],
+   "logits": [
+    -3.117229,
+    -2.025158,
+    6.058448,
+    -2.35193
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_2"
+   }
+  },
+  {
+   "record_id": "54cc6c25-926c-5fca-9e78-6efdb90c8b1c",
+   "label": "bin_3",
+   "domain": "daylight_phone_a",
+   "features": [
+    219.0,
+    63.0,
+    67.0
+   ],
+   "logits": [
+    -1.24517,
+    -17.324194,
+    -2.277947,
+    13.399472
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_3"
+   }
+  },
+  {
+   "record_id": "f84b71d1-f71c-5ec1-8e96-c1ceeade8d95",
+   "label": "bin_3",
+   "domain": "tungsten_phone_a",
+   "features": [
+    255.0,
+    55.0,
+    45.0
+   ],
+   "logits": [
+    -3.066043,
+    -17.767632,
+    -1.329207,
+    14.419544
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_3"
+   }
+  },
+  {
+   "record_id": "51d243ee-3638-5eef-835d-7f3d962d4d90",
+   "label": "bin_3",
+   "domain": "tungsten_phone_a",
+   "features": [
+    246.0,
+    124.5,
+    124.0
+   ],
+   "logits": [
+    1.213304,
+    -10.11716,
+    0.310473,
+    4.910842
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_3"
+   }
+  },
+  {
+   "record_id": "dad92a6a-ffb6-561f-a1c7-7f88d97da79f",
+   "label": "bin_3",
+   "domain": "fluorescent_phone_b",
+   "features": [
+    255.0,
+    85.0,
+    68.0
+   ],
+   "logits": [
+    -2.334332,
+    -13.392557,
+    0.55229,
+    9.545651
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_3"
+   }
+  },
+  {
+   "record_id": "6ff03742-7b4c-53b6-8df2-54b11dc39618",
+   "label": "bin_3",
+   "domain": "shade_phone_b",
+   "features": [
+    234.0,
+    84.5,
+    97.0
+   ],
+   "logits": [
+    0.648173,
+    -15.987774,
+    -2.58406,
+    11.430886
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_3"
+   }
+  }
+ ],
+ "probes": [
+  {
+   "name": "bare paper",
+   "features": [
+    240.0,
+    240.0,
+    235.0
+   ],
+   "logits": [
+    5.788631,
+    5.793543,
+    -7.778931,
+    -7.455532
+   ],
+   "expected": {
+    "kind": "abstain",
+    "reason": "out_of_range"
+   }
+  },
+  {
+   "name": "black",
+   "features": [
+    10.0,
+    10.0,
+    10.0
+   ],
+   "logits": [
+    -3.936605,
+    -17.306421,
+    -2.14075,
+    13.635341
+   ],
+   "expected": {
+    "kind": "abstain",
+    "reason": "out_of_range"
+   }
+  },
+  {
+   "name": "mid grey",
+   "features": [
+    128.0,
+    128.0,
+    128.0
+   ],
+   "logits": [
+    4.782587,
+    -0.054668,
+    -6.281586,
+    -1.759217
+   ],
+   "expected": {
+    "kind": "abstain",
+    "reason": "out_of_range"
+   }
+  },
+  {
+   "name": "blue/green midpoint",
+   "features": [
+    37.0,
+    157.0,
+    187.0
+   ],
+   "logits": [
+    12.033012,
+    12.052525,
+    -20.51045,
+    -9.979506
+   ],
+   "expected": {
+    "kind": "abstain",
+    "reason": "model_uncertain"
+   }
+  },
+  {
+   "name": "amber/red midpoint",
+   "features": [
+    242.0,
+    113.0,
+    40.0
+   ],
+   "logits": [
+    -4.233554,
+    -4.896065,
+    5.864143,
+    0.712478
+   ],
+   "expected": {
+    "kind": "suggest",
+    "bin": "bin_2"
+   }
+  },
+  {
+   "name": "magenta",
+   "features": [
+    230.0,
+    40.0,
+    230.0
+   ],
+   "logits": [
+    15.700092,
+    -39.934776,
+    -21.79841,
+    28.525705
+   ],
+   "expected": {
+    "kind": "abstain",
+    "reason": "out_of_range"
+   }
+  }
+ ]
+}

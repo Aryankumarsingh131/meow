@@ -17,7 +17,10 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Callable
 
-from ..migrations import cases, changefeed, communications, evidence, lab, samples, source
+from ..migrations import cases, changefeed, communications, evidence, lab, memberships, samples, source
+
+# Dependency order: each table's foreign keys point at tables earlier in the list.
+MIGRATIONS = (source, samples, changefeed, evidence, cases, lab, communications, memberships)
 
 SCHEMA = "jalsakshi"
 
@@ -54,12 +57,11 @@ def connector(database_url: str, sqlite_path: Path) -> Connector:
 
 def migrate(conn: Any) -> None:
     """Apply every migration idempotently (all DDL is `IF NOT EXISTS`)."""
-    if isinstance(conn, sqlite3.Connection):
-        for statement in source.statements("sqlite") + samples.statements("sqlite") + changefeed.statements("sqlite") + evidence.statements("sqlite") + cases.statements("sqlite") + lab.statements("sqlite") + communications.statements("sqlite"):
-            conn.execute(statement)
-    else:
+    dialect = "sqlite" if isinstance(conn, sqlite3.Connection) else "postgresql"
+    if dialect == "postgresql":
         conn.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
         conn.execute(f"SET search_path TO {SCHEMA}")
-        for statement in source.statements("postgresql") + samples.statements("postgresql") + changefeed.statements("postgresql") + evidence.statements("postgresql") + cases.statements("postgresql") + lab.statements("postgresql") + communications.statements("postgresql"):
+    for module in MIGRATIONS:
+        for statement in module.statements(dialect):
             conn.execute(statement)
     conn.commit()

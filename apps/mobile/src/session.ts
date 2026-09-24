@@ -27,7 +27,7 @@
  * goes to the field surface (see `surfaceFor`), so routing does not need it.
  */
 
-import type { SignedIn } from './api';
+import { ISSUER, type Issuer, type SignedIn } from './api.ts';
 
 /** Fixed by authorization-matrix.md. `resident` is deliberately NOT here. */
 export type Role = 'worker' | 'supervisor' | 'lab_reviewer' | 'admin';
@@ -44,7 +44,7 @@ export interface Session {
   /** In memory only; never persisted until secure storage exists (T06/T45). */
   auth: SignedIn;
   /** Who vouched for this session. Surfaces must show a synthetic issuer. */
-  issuer: 'synthetic_dev_issuer';
+  issuer: Issuer;
   /**
    * T45. Null for an online sign-in. For an offline session (no token, entry
    * gated by the phone's screen lock) the end of the server-issued lease.
@@ -80,13 +80,13 @@ export function signInFailureFor(kind: 'auth_required' | 'offline' | 'failed'): 
 }
 
 export function staffSession(username: string, auth: SignedIn): Session {
-  return { kind: 'staff', username: username.trim().toLowerCase(), auth, issuer: 'synthetic_dev_issuer', offlineUntilMs: null };
+  return { kind: 'staff', username: username.trim().toLowerCase(), auth, issuer: ISSUER, offlineUntilMs: null };
 }
 
 /** T45: continue under a stored offline grant. There is no token; nothing can be sent until sign-in. */
 export function offlineSession(username: string, subject: string, expiresAtMs: number): Session {
   return {
-    kind: 'staff', username, issuer: 'synthetic_dev_issuer', offlineUntilMs: expiresAtMs,
+    kind: 'staff', username, issuer: ISSUER, offlineUntilMs: expiresAtMs,
     auth: { token: '', subject, expiresAtMs },
   };
 }

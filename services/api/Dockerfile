@@ -7,11 +7,10 @@ WORKDIR /build
 
 # Install pip dependencies into an isolated prefix so we can COPY them cleanly.
 # psycopg[binary] bundles libpq so we never need a system libpq in the image.
-COPY requirements.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements.txt \
-    && pip install --no-cache-dir --prefix=/install \
-       uvicorn[standard]==0.32.0 \
-       pydantic-settings>=2.6
+# Build context is the REPOSITORY ROOT (render.yaml dockerContext), filtered by
+# the root .dockerignore to services/api/ and protocols/.
+COPY services/api/requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Stage 2: runtime image ───────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
@@ -31,10 +30,14 @@ COPY --from=builder /install /usr/local
 # `services.api.app.main`. Copying it to /app and running `app.main` makes
 # `app` the top-level package and every `..` import fails at startup with
 # "attempted relative import beyond top-level package".
-# Build context is services/api/ (render.yaml rootDir), so services/__init__.py
-# is outside it and is recreated here (it is empty in the repo).
-COPY . services/api/
+# services/__init__.py is empty in the repo; recreated rather than copied.
+COPY services/api/ services/api/
 RUN touch services/__init__.py
+
+# The case engine reads canonical protocol files from <root>/protocols
+# (case_policy._PROTOCOLS = parents[3]). Without them every guard that needs a
+# protocol fails closed and every lab report is flagged protocol_unknown.
+COPY protocols/ protocols/
 
 ENV PYTHONPATH=/app
 
@@ -51,7 +54,8 @@ USER api
 # Expose the port uvicorn listens on.
 EXPOSE ${PORT}
 
-# Production entrypoint. --workers 2 is safe on Render's free/starter tier
-# (512 MB RAM). Raise to 4 on Standard+ instances.
-# --no-access-log keeps log volume low; structured app logs are sufficient.
-CMD ["sh", "-c", "uvicorn services.api.app.main:app --host 0.0.0.0 --port ${PORT} --workers 2 --no-access-log --proxy-headers --forwarded-allow-ips '*'"]
+# ONE worker. Export jobs (jobs.py) and the signing-key cache are per-process;
+# with two workers a client polling an export can land on the process that
+# never ran it. ponytail: single process; move jobs to the database before
+# scaling out. --no-access-log keeps log volume low.
+CMD ["sh", "-c", "uvicorn services.api.app.main:app --host 0.0.0.0 --port ${PORT} --workers 1 --no-access-log --proxy-headers --forwarded-allow-ips '*'"]

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://jalsakshi.invalid/ml/data/manifest.schema.json",
+  "title": "Feasibility-set manifest (T23)",
+  "description": "One record per capture. A group is one physical preparation; every capture of a group shares its preparation and must stay in one split. label_source can never be a model: there is no generated ground truth.",
+  "type": "object",
+  "required": ["manifest_version", "status", "protocol", "generator", "classes", "domains", "record_count", "group_count", "records"],
+  "properties": {
+    "manifest_version": { "const": 1 },
+    "status": { "type": "string", "minLength": 20 },
+    "protocol": { "$ref": "#/$defs/protocol" },
+    "generator": { "type": "object", "required": ["module", "seed", "feature_pipeline"] },
+    "classes": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["key", "chart_value", "fixture_rgb"],
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "chart_value": { "type": "string", "minLength": 1 },
+          "fixture_rgb": { "$ref": "#/$defs/rgb" }
+        }
+      }
+    },
+    "domains": { "type": "object", "minProperties": 1 },
+    "record_count": { "type": "integer", "minimum": 1 },
+    "group_count": { "type": "integer", "minimum": 1 },
+    "records": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/record" } }
+  },
+  "$defs": {
+    "protocol": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": { "id": { "type": "string", "format": "uuid" }, "version": { "type": "integer", "minimum": 1 } }
+    },
+    "rgb": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 255 }, "minItems": 3, "maxItems": 3 },
+    "record": {
+      "type": "object",
+      "required": ["record_id", "group_id", "capture_index", "domain", "label", "label_chart_value", "label_source",
+                   "data_mode", "protocol", "render", "features", "permissions"],
+      "properties": {
+        "record_id": { "type": "string", "format": "uuid" },
+        "group_id": { "type": "string", "minLength": 1 },
+        "capture_index": { "type": "integer", "minimum": 0 },
+        "domain": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "label_chart_value": { "type": "string", "minLength": 1 },
+        "label_source": {
+          "description": "synthetic_render: the fixture that was rendered. reference_method: a laboratory reference result (real data only). A model's output is never a label.",
+          "enum": ["synthetic_render", "reference_method"]
+        },
+        "data_mode": { "enum": ["synthetic", "research", "operational"] },
+        "protocol": { "$ref": "#/$defs/protocol" },
+        "render": { "type": "object" },
+        "features": {
+          "type": "object",
+          "required": ["schema_version", "median_r", "median_g", "median_b", "sample_count", "orientation_read"],
+          "properties": {
+            "schema_version": { "const": 1 },
+            "median_r": { "type": "number", "minimum": 0, "maximum": 255 },
+            "median_g": { "type": "number", "minimum": 0, "maximum": 255 },
+            "median_b": { "type": "number", "minimum": 0, "maximum": 255 },
+            "sample_count": { "type": "integer", "minimum": 1 },
+            "orientation_read": { "type": "integer", "minimum": 1, "maximum": 8 }
+          }
+        },
+        "permissions": {
+          "type": "object",
+          "required": ["personal_data", "consent", "reuse"],
+          "properties": {
+            "personal_data": { "type": "boolean" },
+            "consent": { "enum": ["not_applicable_synthetic", "recorded"] },
+            "reuse": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "data_mode": { "const": "synthetic" } } },
+          "then": { "properties": { "label_source": { "const": "synthetic_render" }, "permissions": { "properties": { "consent": { "const": "not_applicable_synthetic" } } } } },
+          "else": { "properties": { "label_source": { "const": "reference_method" }, "permissions": { "properties": { "consent": { "const": "recorded" } } } } }
+        }
+      ]
+    }
+  }
+}

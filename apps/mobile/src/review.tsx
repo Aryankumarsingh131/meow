@@ -9,6 +9,7 @@ import {
   type ManualBin,
   type ReviewObservation,
 } from './analysis/baseline';
+import { MODEL_PROBLEM_TEXT, type ModelProblem } from './analysis/model';
 
 export interface ReviewScreenProps {
   analysis: ReviewAnalysis;
@@ -25,6 +26,9 @@ const REASON_TEXT: Record<string, string> = {
   quality_uncertain: 'Capture quality needs human review.',
   quality_retake: 'Capture quality is too low to interpret.',
   timing_invalid: 'The prescribed read time could not be verified.',
+  model_unavailable: 'The on-device model cannot be used for this reading.',
+  model_uncertain: 'The on-device model is not sure enough to suggest a reading.',
+  model_out_of_range: 'The captured colour is unlike anything the on-device model was trained on.',
 };
 
 export function ReviewScreen({ analysis, bins, onComplete, onRetake }: ReviewScreenProps): React.JSX.Element {
@@ -68,8 +72,17 @@ export function ReviewScreen({ analysis, bins, onComplete, onRetake }: ReviewScr
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Experimental suggestion</Text>
           <Text style={styles.binLabel}>{bins.find((bin) => bin.key === analysis.machineBin)?.label ?? analysis.machineBin}</Text>
-          <Text style={styles.meta}>Profile {analysis.baselineVersion} · protocol {analysis.protocolVersion}</Text>
-          {analysis.researchOnly && <Text style={styles.warning}>Research profile — not approved for operational use.</Text>}
+          {analysis.calibrationVersion ? (
+            <>
+              <Text style={styles.meta}>Model {analysis.baselineVersion} · calibration {analysis.calibrationVersion} · protocol {analysis.protocolVersion}</Text>
+              {analysis.researchOnly && <Text style={styles.warning}>Research model trained on synthetic data — not approved for operational use.</Text>}
+            </>
+          ) : (
+            <>
+              <Text style={styles.meta}>Profile {analysis.baselineVersion} · protocol {analysis.protocolVersion}</Text>
+              {analysis.researchOnly && <Text style={styles.warning}>Research profile — not approved for operational use.</Text>}
+            </>
+          )}
           <Pressable style={styles.primary} onPress={() => onComplete(confirmSuggestion(analysis))} accessibilityRole="button">
             <Text style={styles.primaryText}>Confirm this reading</Text>
           </Pressable>
@@ -83,6 +96,9 @@ export function ReviewScreen({ analysis, bins, onComplete, onRetake }: ReviewScr
         <View style={styles.notice} accessibilityLiveRegion="polite">
           <Text style={styles.noticeTitle}>Enter the kit reading manually</Text>
           <Text style={styles.body}>{REASON_TEXT[analysis.reason ?? ''] ?? 'No assisted suggestion is available.'}</Text>
+          {analysis.modelProblem && (
+            <Text style={styles.reason}>• {MODEL_PROBLEM_TEXT[analysis.modelProblem as ModelProblem] ?? analysis.modelProblem}</Text>
+          )}
           {analysis.qualityReasons.map((item) => <Text key={item} style={styles.reason}>• {item.replaceAll('_', ' ')}</Text>)}
         </View>
       )}

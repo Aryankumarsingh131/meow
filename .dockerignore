@@ -1,0 +1,7 @@
+# The API image needs exactly two folders. Everything else (node_modules,
+# .env, APKs, the mobile app, ML data) stays out of the build context.
+*
+!services/api/
+!protocols/
+services/api/**/__pycache__
+services/api/**/.data

@@ -33,10 +33,12 @@ from typing import Any, Callable, Literal, Mapping, Sequence
 from jose import jwt
 from jose.exceptions import JWTError
 
-# The only signature algorithm accepted. Pinning this is what makes an
-# `alg: none` token and an HS256 token signed with the (public) JWKS modulus
-# both fail closed instead of verifying.
-ALLOWED_ALGORITHMS = ("RS256",)
+# The only signature algorithms accepted, each bound to the one key type that
+# can verify it. Pinning this is what makes an `alg: none` token and an HS256
+# token signed with public key material both fail closed instead of verifying.
+# ES256 is Supabase Auth's default asymmetric algorithm (production provider).
+KEY_TYPE_FOR_ALGORITHM = {"RS256": ("RSA", None), "ES256": ("EC", "P-256")}
+ALLOWED_ALGORITHMS = tuple(KEY_TYPE_FOR_ALGORITHM)
 
 # Clock skew tolerance between this API and the identity provider.
 DEFAULT_LEEWAY_SECONDS = 60
@@ -133,14 +135,16 @@ MembershipLookup = Callable[[str], Sequence[Membership]]
 
 
 def _select_key(header: Mapping[str, Any], jwks: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """Pick the one RSA verification key named by the token's `kid`.
+    """Pick the one verification key named by the token's `kid`, of the key
+    type its (already allow-listed) algorithm requires.
 
-    Only `RSA` keys are considered: a symmetric (`oct`) entry in a published
-    key set is either a provider misconfiguration or an attack, and either way
-    its "public" key is a signing key. Returns `None` when no single key can be
+    A symmetric (`oct`) entry in a published key set is never considered: it
+    is either a provider misconfiguration or an attack, and either way its
+    "public" key is a signing key. Returns `None` when no single key can be
     chosen, which the caller turns into a denial - failing closed.
     """
-    candidates = [k for k in jwks.get("keys", []) if k.get("kty") == "RSA"]
+    kty, crv = KEY_TYPE_FOR_ALGORITHM[header["alg"]]
+    candidates = [k for k in jwks.get("keys", []) if k.get("kty") == kty and (crv is None or k.get("crv") == crv)]
     kid = header.get("kid")
     if kid is not None:
         candidates = [k for k in candidates if k.get("kid") == kid]
@@ -194,7 +198,7 @@ def verify_token(token: str, config: OIDCConfig, *, now: int | None = None) -> V
         claims = jwt.decode(
             token,
             key,
-            algorithms=list(ALLOWED_ALGORITHMS),
+            algorithms=[header["alg"]],  # exactly the algorithm the key type was chosen for
             audience=config.audience,
             issuer=config.issuer,
             options=options,

@@ -59,7 +59,7 @@ export function buildSample(context: SampleContext, timing: TimingVerdict, obser
       indicative_flag: observation.indicativeFlag,
       quality_reasons: [...observation.qualityReasons],
       model_version: observation.baselineVersion,
-      calibration_version: null,
+      calibration_version: observation.calibrationVersion ?? null,
       confidence: null,
       override_reason: observation.overrideReason,
     },

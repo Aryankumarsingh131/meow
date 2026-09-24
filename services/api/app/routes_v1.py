@@ -43,12 +43,25 @@ from .sync_push import PushResponse, push_events
 router = APIRouter(prefix="/v1", tags=["v1"])
 
 
-def require_session(request: Request, authorization: str | None = Header(default=None)) -> Session:
+def _auth_for(request: Request, token: str):
+    """(OIDCConfig, lookup) from either the dev issuer's fixed pair or the
+    hosted provider (provider.HostedAuth), whose signing keys are fetched.
+    No provider, or no key set ever fetched, is 503 - never unauthenticated."""
     auth = getattr(request.app.state, "auth", None)
     if auth is None:
         raise ApiError(code="TEMPORARILY_UNAVAILABLE", detail="No identity provider is configured.")
-    config, lookup = auth
-    outcome = authenticate(bearer_token(authorization), config, lookup)
+    if not hasattr(auth, "resolve"):
+        return auth
+    config = auth.resolve(token)
+    if config is None:
+        raise ApiError(code="TEMPORARILY_UNAVAILABLE", detail="The identity provider's signing keys are unavailable.")
+    return config, auth.lookup
+
+
+def require_session(request: Request, authorization: str | None = Header(default=None)) -> Session:
+    token = bearer_token(authorization)
+    config, lookup = _auth_for(request, token)
+    outcome = authenticate(token, config, lookup)
     if isinstance(outcome, Denied):
         raise ApiError(code=outcome.code, detail=outcome.detail)
     return outcome.session
@@ -312,7 +325,8 @@ def get_evidence_content(
 
 
 def _active_member_check(request: Request, tenant_id: str):
-    _, lookup = request.app.state.auth
+    auth = request.app.state.auth
+    lookup = auth.lookup if hasattr(auth, "resolve") else auth[1]
 
     def is_active_member(user_id: str) -> bool:
         return any(m.active and m.tenant_id == tenant_id for m in lookup(user_id))

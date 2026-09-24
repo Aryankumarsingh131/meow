@@ -4,9 +4,13 @@
  *   1. Source   — T07: server catalogue, cached on the phone per account
  *   2. Protocol — T08: SYN-COLOR-001 read window (SYNTHETIC, ADR-M1-001)
  *   3. Capture  — T09: photo + manual region, or manual without a photo
- *   4. Review   — T11: manual reading (no approved profile exists)
+ *   4. Review   — T11/T26: the bundled research model may suggest a bin, but
+ *                 only after timing, capture quality and features pass
  *   5. Save     — T12: durable local receipt before anything is claimed
  *   6. Queue    — T15: foreground sync, Sync now, per-record status
+ *
+ * Plus Model check (T26): runs the bundled model offline on golden synthetic
+ * captures and compares it with the desktop build.
  *
  * Wording rules (tests/status-label.test.ts, tests/sync-client.test.ts): no
  * potability claim, no confidence percentage, no closed-app sync claim.
@@ -15,20 +19,25 @@
  *   - The monotonic clock is `performance.now()` (process-relative) with a
  *     null boot id: a restart mid-test yields `indeterminate`, the safe
  *     direction. Binding SystemClock.elapsedRealtime() is role B's (T08).
- *   - T10 quality rules and native features are not wired to capture, so
- *     quality is recorded as QUALITY_NOT_ASSESSED and every reading is manual.
+ *   - SYN-COLOR-001 requires a reference card and no card locator exists, so
+ *     capture quality is recorded as QUALITY_NOT_ASSESSED. The quality gate
+ *     therefore never passes, the model is never asked, and every reading is
+ *     manual - by design, until a locator exists (project-owner decision).
  */
 
 import { randomUUID } from 'expo-crypto';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { analyseBaseline, type ReviewAnalysis, type ReviewObservation } from './analysis/baseline';
-import { DEV_API_BASE, fetchCatalogue, httpTransport } from './api';
+import { gate, type ReviewAnalysis, type ReviewObservation } from './analysis/baseline';
+import { analyseWithModel, type ModelInput } from './analysis/model';
+import { loadBundledModel } from './analysis/modelLoader';
+import { API_BASE, fetchCatalogue, httpTransport } from './api';
 import { CaptureScreen } from './capture';
 import { deviceId, deviceSql } from './deviceDb';
 import { checkOfflineAccess, LOCK_TEXT, revokeOfflineAccess, type OfflineAccess } from './offlineAccess';
 import { BINS, INSTRUCTIONS, PROTOCOL, REQUIRE_REFERENCE_CARD, SYNTHETIC_LOT } from './m1Protocol';
+import { ModelCheckScreen } from './modelCheck';
 import { ProtocolScreen } from './protocol';
 import { QueueScreen } from './queue';
 import { ReviewScreen } from './review';
@@ -61,7 +70,28 @@ type Step =
   | { name: 'review'; source: CachedSource; timing: TimingVerdict; photoUri: string | null; capturedAt: string }
   | { name: 'saving'; input: LocalSaveInput; error: string | null }
   | { name: 'saved'; receipt: LocalReceipt }
-  | { name: 'queue' };
+  | { name: 'queue' }
+  | { name: 'model_check' };
+
+/** Review with the on-device model. The gate answers synchronously; the model
+ *  is only loaded and asked when timing, quality and features all pass. */
+function ModelReview({ input, onComplete, onRetake }: {
+  input: ModelInput; onComplete(o: ReviewObservation): void; onRetake(): void;
+}): React.JSX.Element {
+  const [analysis, setAnalysis] = useState<ReviewAnalysis | null>(() => gate({ ...input, profile: null }));
+  useEffect(() => {
+    if (analysis) return;
+    let live = true;
+    void loadBundledModel()
+      .then((state) => analyseWithModel(input, state, BINS))
+      .then((result) => { if (live) setAnalysis(result); });
+    return () => { live = false; };
+    // Once per review: the input does not change while this step is shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (!analysis) return <Text style={s.body}>Analysing on this phone…</Text>;
+  return <ReviewScreen analysis={analysis} bins={BINS} onComplete={onComplete} onRetake={onRetake} />;
+}
 
 export interface WorkerAppProps {
   session: Session;
@@ -109,7 +139,7 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
     let result: SyncResult | null = null;
     try {
       result = await syncOnce(
-        { sql: deviceSql(), transport: httpTransport(DEV_API_BASE, session.auth.token), owner, deviceId: deviceId(), now: Date.now, random: Math.random },
+        { sql: deviceSql(), transport: httpTransport(API_BASE, session.auth.token), owner, deviceId: deviceId(), now: Date.now, random: Math.random },
         syncSession.current,
         { manual },
       );
@@ -134,7 +164,7 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
 
   const refresh = async () => {
     setRefreshing(true);
-    const outcome = await fetchCatalogue(DEV_API_BASE, session.auth.token);
+    const outcome = await fetchCatalogue(API_BASE, session.auth.token);
     setCatalogue(applyCatalogueFetch(deviceSql(), owner, outcome));
     setRefreshing(false);
     if (outcome.kind === 'auth_required') onAuthExpired();
@@ -227,6 +257,9 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
               {catalogue.servedAt ? ` ${age.replace('Last known record', 'Saved list')}.` : ''}
             </Text>
             {queueButton}
+            <Pressable style={s.btnGhost} onPress={() => setStep({ name: 'model_check' })} accessibilityRole="button" testID="open-model-check">
+              <Text style={s.btnGhostText}>Model check (research)</Text>
+            </Pressable>
           </View>
           <SourcesScreen cache={catalogue.items} onSelectSource={(source) => setStep({ name: 'protocol', source })} now={now} />
         </View>
@@ -264,28 +297,26 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
         </View>
       );
     }
-    case 'review': {
-      const analysis: ReviewAnalysis = analyseBaseline({
-        features: null,
-        quality: { decision: 'review', reasons: ['QUALITY_NOT_ASSESSED'] },
-        timingValid: step.timing.timingValid,
-        profile: null,
-      });
+    case 'review':
       return (
         <View style={s.screen}>
           <View style={s.pad}>
             <StepRail steps={STEPS} current={3} />
             <Text style={s.meta}>{step.photoUri ? 'Photo kept on this phone.' : 'No photo — manual reading only.'}</Text>
           </View>
-          <ReviewScreen
-            analysis={analysis}
-            bins={BINS}
+          <ModelReview
+            input={{
+              features: null,
+              quality: { decision: 'review', reasons: ['QUALITY_NOT_ASSESSED'] },
+              timingValid: step.timing.timingValid,
+            }}
             onComplete={(observation) => onReviewed(step, observation)}
             onRetake={() => setStep({ name: 'protocol', source: step.source })}
           />
         </View>
       );
-    }
+    case 'model_check':
+      return <ModelCheckScreen onBack={() => setStep({ name: 'source' })} />;
     case 'saving':
       return (
         <View style={[s.screen, s.pad]}>

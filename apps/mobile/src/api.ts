@@ -9,14 +9,27 @@
  * is reported as `offline`; for a mutation it does NOT prove the server did
  * nothing (T15 reconciles by idempotency key before retrying).
  *
- * Sign-in goes to the synthetic dev issuer (ADR-M1-002). The token is held in
- * memory only: T06's handoff forbids persisting it until secure storage exists.
+ * Sign-in goes to Supabase Auth when the build sets EXPO_PUBLIC_SUPABASE_URL
+ * and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (hosted deployments), otherwise to
+ * the synthetic dev issuer (ADR-M1-002). The token is held in memory only:
+ * T06's handoff forbids persisting it until secure storage exists.
  */
 
 import type { CachedSource } from './sourceCatalog';
 
-/** Android emulator's alias for the host machine. */
-export const DEV_API_BASE = 'http://10.0.2.2:8000';
+/** Set at build time (EXPO_PUBLIC_API_BASE); defaults to the Android
+ *  emulator's alias for the host machine, for the local dev stack. */
+export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:8000';
+
+/** Supabase Auth, when the build is configured for it. The publishable key is
+ *  client-visible by design; the service_role key must never be in the app. */
+export const HOSTED_AUTH =
+  process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+    ? { url: process.env.EXPO_PUBLIC_SUPABASE_URL.replace(/\/$/, ''), key: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }
+    : null;
+
+export type Issuer = 'synthetic_dev_issuer' | 'supabase';
+export const ISSUER: Issuer = HOSTED_AUTH ? 'supabase' : 'synthetic_dev_issuer';
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -32,10 +45,11 @@ export interface RequestOptions {
   body?: unknown;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  headers?: Record<string, string>;
 }
 
 export async function request<T>(base: string, path: string, opts: RequestOptions = {}): Promise<ApiOutcome<T>> {
-  const { method = 'GET', token, body, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS } = opts;
+  const { method = 'GET', token, body, fetchImpl = fetch, timeoutMs = REQUEST_TIMEOUT_MS, headers = {} } = opts;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
@@ -47,6 +61,7 @@ export async function request<T>(base: string, path: string, opts: RequestOption
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
@@ -94,11 +109,19 @@ export function jwtSubject(token: string): string | null {
 }
 
 export async function signIn(
-  base: string, username: string, password: string, opts: { fetchImpl?: typeof fetch; now?: () => number } = {},
+  base: string, username: string, password: string,
+  opts: { fetchImpl?: typeof fetch; now?: () => number; hosted?: { url: string; key: string } | null } = {},
 ): Promise<ApiOutcome<SignedIn>> {
-  const r = await request<{ access_token: string; expires_in: number }>(base, '/dev/v1/token', {
-    method: 'POST', body: { username: username.trim(), password }, fetchImpl: opts.fetchImpl,
-  });
+  const hosted = opts.hosted === undefined ? HOSTED_AUTH : opts.hosted;
+  const r = hosted
+    // Supabase's password grant. A wrong email or password is 400 there, not 401.
+    ? await request<{ access_token: string; expires_in: number }>(hosted.url, '/auth/v1/token?grant_type=password', {
+        method: 'POST', body: { email: username.trim(), password }, fetchImpl: opts.fetchImpl,
+        headers: { apikey: hosted.key },
+      }).then((o) => (o.kind === 'failed' && o.status === 400 ? { kind: 'auth_required' as const } : o))
+    : await request<{ access_token: string; expires_in: number }>(base, '/dev/v1/token', {
+        method: 'POST', body: { username: username.trim(), password }, fetchImpl: opts.fetchImpl,
+      });
   if (r.kind !== 'ok') return r;
   const subject = jwtSubject(r.value.access_token);
   if (!subject) return { kind: 'failed', status: 200, code: 'MALFORMED_TOKEN', retryable: false };

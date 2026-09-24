@@ -32,3 +32,5 @@ psycopg[binary]==3.3.6
 # enough). Already installed on the build host - no new download. Licence:
 # MIT-CMU (HPND). Keep current: image decoders are an attack surface.
 pillow==12.1.0
+pydantic-settings==2.15.0   # config.py; the version the test suite runs on
+uvicorn[standard]==0.32.0   # production server (Dockerfile CMD)

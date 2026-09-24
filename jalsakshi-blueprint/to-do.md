@@ -301,7 +301,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T23 — Collect a protocol-grounded feasibility set
 
-- [ ] T23 complete with evidence
+- [!] T23 complete with evidence — BLOCKED for real data (kit, lab reference, domain audit). Synthetic stand-in: 640 captures / 128 preparations through the real feature pipeline (handoff-T23.md).
 
 - Requirements: REQ-019.
 - Owner: B/domain. Estimated effort: 2 h sessions + acquisition waits.
@@ -314,7 +314,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T24 — Implement leakage-safe evaluation
 
-- [ ] T24 complete with evidence
+- [~] T24 complete with evidence — built on the synthetic set: preparation-level frozen splits, locked test, CIs; 15/15 incl. deliberate duplicate-group failure (handoff-T24.md).
 
 - Requirements: REQ-019 REQ-027.
 - Owner: B/ML. Estimated effort: 1–2 h.
@@ -327,7 +327,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T25 — Train and select small local model
 
-- [ ] T25 complete with evidence
+- [~] T25 complete with evidence — MLP 3-8-4 selected on validation, ONNX 896 B, CPU parity on 480 captures; repo licence undeclared (handoff-T25.md).
 
 - Requirements: REQ-005 REQ-019.
 - Owner: B/ML. Estimated effort: 2 h experiment sessions.
@@ -340,7 +340,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T26 — Integrate bundled model offline
 
-- [ ] T26 complete with evidence
+- [~] T26 complete with evidence — offline model with SHA/schema checks and manual fallback; emulator Model check 29/29 match; live capture still gated (no card locator) (handoff-T26.md).
 
 - Requirements: REQ-005.
 - Owner: B/mobile-ML. Estimated effort: 1–2 h.
@@ -353,7 +353,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T27 — Calibrate and evaluate optimized variants
 
-- [ ] T27 complete with evidence
+- [~] T27 complete with evidence — calibrated (T=1 floor, 0.90, range guard), locked-test + LODO report, int8 not adopted; status RESEARCH (handoff-T27.md).
 
 - Requirements: REQ-005 REQ-019.
 - Owner: B/ML. Estimated effort: 2 h experiment sessions.

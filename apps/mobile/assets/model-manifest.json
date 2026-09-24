@@ -1,0 +1,74 @@
+{
+ "manifest_version": 1,
+ "model_id": "syn-color-001-mlp",
+ "version": 1,
+ "status": "research",
+ "data_mode": "synthetic",
+ "file": "syn-color-001-mlp.v1.onnx",
+ "sha256": "597d667fa37a90c10b06263b2cac38b3f8771e77c4ec58e526ce384869e0202e",
+ "bytes": 896,
+ "protocol": {
+  "id": "f96bdca3-5020-5313-b65a-072967c46292",
+  "version": 1
+ },
+ "input": {
+  "name": "features",
+  "shape": [
+   "N",
+   3
+  ],
+  "dtype": "float32",
+  "feature_schema_version": 1,
+  "features": [
+   "median_r",
+   "median_g",
+   "median_b"
+  ]
+ },
+ "output": {
+  "name": "logits",
+  "classes": [
+   "bin_0",
+   "bin_1",
+   "bin_2",
+   "bin_3"
+  ]
+ },
+ "calibration": {
+  "version": "cal-v1",
+  "temperature": 1.0,
+  "abstain_below": 0.9,
+  "range": {
+   "centroids": [
+    [
+     57.175,
+     126.981,
+     219.756
+    ],
+    [
+     15.05,
+     179.431,
+     120.188
+    ],
+    [
+     226.675,
+     152.519,
+     13.294
+    ],
+    [
+     217.988,
+     66.7,
+     65.581
+    ]
+   ],
+   "max_distance": 109.177,
+   "train_max_distance": 87.342,
+   "margin": 1.25
+  },
+  "fitted_on": "temperature: validation NLL (floored at 1); range: train split; threshold: policy",
+  "validation_nll": {
+   "at_1": 0.00027964,
+   "at_fitted": 0.00027964
+  }
+ }
+}
