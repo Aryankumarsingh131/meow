@@ -29,7 +29,13 @@ jobs:
           cache: pip
       - run: pip install -r services/api/requirements.txt -r ml/requirements.txt
       - name: API, security and PostgreSQL suites
-        run: python -m unittest discover -s tests -p "*_test.py"
+        run: |
+          python -m unittest discover -s tests -p "*_test.py" 2>&1 | grep -v '^{"ts"' > out.txt || true
+          cat out.txt
+          if ! tail -n 3 out.txt | grep -q '^OK'; then
+            echo "::error title=python suites::$(grep -A25 -E '^(FAIL|ERROR):' out.txt | tail -c 3000 | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+            exit 1
+          fi
       - name: ML pipeline
         run: python -m unittest discover -s ml/tests
 
