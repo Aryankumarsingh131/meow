@@ -58,12 +58,17 @@ services:
       # JALSAKSHI_SUPABASE_PUBLISHABLE_KEY
       #   sb_publishable_...  (Supabase → Settings → API → anon public key)
       #
-      # JALSAKSHI_OIDC_ISSUER
-      #   The issuer URL of your real identity provider when you switch from
-      #   the synthetic dev issuer. Leave empty to keep the API in dev mode.
+      # JALSAKSHI_OIDC_ISSUER   (REQUIRED)
+      #   The issuer URL of your real identity provider.
       #
-      # JALSAKSHI_OIDC_AUDIENCE
+      # JALSAKSHI_OIDC_AUDIENCE (REQUIRED)
       #   The audience claim your IdP puts in the JWT (e.g. "jalsakshi-api").
+      #
+      # With JALSAKSHI_ENVIRONMENT=production, config.py REFUSES TO START if
+      # DATABASE_URL, OIDC_ISSUER or OIDC_AUDIENCE is empty - leaving them blank
+      # does not fall back to dev mode, it crash-loops the deploy.
+      # Note: production does not yet wire a real IdP into app.state.auth, so
+      # every /v1/* route answers 503 there by design; only /health/live is up.
 
       # Reference a secret from the environment group (optional, keeps secrets
       # centralised if you run multiple services).

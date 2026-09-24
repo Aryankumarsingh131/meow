@@ -25,13 +25,17 @@ WORKDIR /app
 # Copy installed packages from builder.
 COPY --from=builder /install /usr/local
 
-# Copy the application source.
-# The repo layout is:  services/api/app/   — the FastAPI package
-#                      services/api/migrations/ — DDL
-# We copy from the build context, which is set to services/api/ in render.yaml.
-COPY . .
+# Copy the application source into the SAME package path it has in the repo.
+# The code's package root is `services.api` (app/db.py and app/sources.py do
+# `from ..migrations import ...`), so it must be importable as
+# `services.api.app.main`. Copying it to /app and running `app.main` makes
+# `app` the top-level package and every `..` import fails at startup with
+# "attempted relative import beyond top-level package".
+# Build context is services/api/ (render.yaml rootDir), so services/__init__.py
+# is outside it and is recreated here (it is empty in the repo).
+COPY . services/api/
+RUN touch services/__init__.py
 
-# Ensure Python can find the app package.
 ENV PYTHONPATH=/app
 
 # Render injects PORT at runtime; default 8000 for local docker run.
@@ -50,4 +54,4 @@ EXPOSE ${PORT}
 # Production entrypoint. --workers 2 is safe on Render's free/starter tier
 # (512 MB RAM). Raise to 4 on Standard+ instances.
 # --no-access-log keeps log volume low; structured app logs are sufficient.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers 2 --no-access-log --proxy-headers --forwarded-allow-ips '*'"]
+CMD ["sh", "-c", "uvicorn services.api.app.main:app --host 0.0.0.0 --port ${PORT} --workers 2 --no-access-log --proxy-headers --forwarded-allow-ips '*'"]
