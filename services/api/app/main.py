@@ -17,7 +17,7 @@ synthetic demo paths to the frozen document. See `contracts_app.py`.
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -65,6 +65,27 @@ app = FastAPI(title="JalSakshi API", version="0.1.0", lifespan=lifespan)
 app.state.tenant_data_mode = settings.tenant_data_mode
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
+
+
+async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """Convert FastAPI's bare HTTPException (including 404 Not Found) into the
+    RFC 7807 problem+json shape used by the rest of the API, so clients never
+    see a raw {"detail": "..."} from framework internals."""
+    from .errors import ApiError, problem_response
+
+    code_map = {
+        401: "AUTH_REQUIRED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        429: "RATE_LIMITED",
+        503: "TEMPORARILY_UNAVAILABLE",
+    }
+    code = code_map.get(exc.status_code, "NOT_FOUND")
+    detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+    return problem_response(request, ApiError(code=code, detail=detail))
+
+
+app.add_exception_handler(HTTPException, _http_exception_handler)
 
 # The supervisor board is a separate web app at its own address, calling this
 # API from the browser. CORS is opened ONLY to the origins listed in
@@ -118,6 +139,12 @@ if HOSTED:
     app.state.auth = HostedAuth(settings.oidc_issuer, settings.oidc_audience, db_membership_lookup(app.state.connect))
 
 
+@app.get("/")
+def root() -> dict[str, str]:
+    """API root. Confirms the service is up; directs clients to the right path."""
+    return {"service": "JalSakshi API", "version": "0.1.0", "docs": "/docs", "health": "/health/live"}
+
+
 @app.get("/health/live")
 def live() -> dict[str, str]:
     """Public liveness. Exposes no dependency or configuration detail."""
@@ -126,5 +153,7 @@ def live() -> dict[str, str]:
 
 @app.get("/health/ready")
 def ready() -> JSONResponse:
-    """Stay unready until database and identity checks are implemented."""
+    """Readiness check. Returns 200 when the database connector is configured."""
+    if getattr(app.state, "connect", None) is not None:
+        return JSONResponse(status_code=200, content={"ready": True})
     return JSONResponse(status_code=503, content={"ready": False})

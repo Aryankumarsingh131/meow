@@ -43,3 +43,6 @@ services:
       # Origin of the supervisor board, if any (comma-separated, exact). Empty = none.
       - key: JALSAKSHI_CORS_ALLOWED_ORIGINS
         sync: false
+      # Supabase publishable (anon) key - client-visible by design, but kept out of git.
+      - key: JALSAKSHI_SUPABASE_PUBLISHABLE_KEY
+        sync: false
