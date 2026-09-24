@@ -379,7 +379,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T29 — Device critical-path benchmark
 
-- [ ] T29 complete with evidence
+- [!] T29 complete with evidence — BLOCKED: no physical phone; emulator cold start p50 3.3 s is over budget (handoff-T29-T48.md).
 
 - Requirements: REQ-020.
 - Owner: B/performance. Estimated effort: 1–2 h harness + repeated runs.
@@ -392,7 +392,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T30 — Server and reconnect load benchmark
 
-- [ ] T30 complete with evidence
+- [~] T30 complete with evidence — OUTSTANDING: PostgreSQL load not measured; 50 req/s saturates SQLite; independent review (handoff-T29-T48.md).
 
 - Requirements: REQ-020.
 - Owner: C/performance. Estimated effort: 1–2 h harness + repeated runs.
@@ -405,7 +405,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T31 — Tenant and state security regression
 
-- [ ] T31 complete with evidence
+- [!] T31 complete with evidence — BLOCKED: finding F1 (high) — RLS off and API connects as table owner; remediation needs owner approval (handoff-T29-T48.md).
 
 - Requirements: REQ-017 REQ-027.
 - Owner: C + independent reviewer. Estimated effort: 2 h focused matrix.
@@ -418,7 +418,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T32 — Offline storage and privacy hardening
 
-- [ ] T32 complete with evidence
+- [!] T32 complete with evidence — BLOCKED: encryption at rest (SQLCipher / secure store / photo encryption) needs a decision and rebuild (handoff-T29-T48.md).
 
 - Requirements: REQ-018.
 - Owner: C/native-security. Estimated effort: 2 h slices by boundary.
@@ -431,7 +431,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T33 — Operational signals and safe logging
 
-- [ ] T33 complete with evidence
+- [~] T33 complete with evidence — OUTSTANDING: alerts not wired to a paging channel; independent review (handoff-T29-T48.md).
 
 - Requirements: REQ-021.
 - Owner: C/operations. Estimated effort: 1–2 h.
@@ -444,7 +444,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T34 — Full regression and truthful demo harness
 
-- [ ] T34 complete with evidence
+- [~] T34 complete with evidence — OUTSTANDING: physical-phone cold journeys; HTTP journey 8/8 on local dev API (handoff-T29-T48.md).
 
 - Requirements: REQ-025 REQ-027.
 - Owner: A/test + reviewer. Estimated effort: 2 h sessions.
@@ -457,7 +457,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T35 — Staging deployment pipeline
 
-- [ ] T35 complete with evidence
+- [~] T35 complete with evidence — OUTSTANDING: compose stack not run (no Docker); CI green, staging smoke 7/7 (handoff-T29-T48.md).
 
 - Requirements: REQ-022.
 - Owner: C/release. Estimated effort: 2 h slice.
@@ -470,7 +470,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T36 — Backup and restore rehearsal
 
-- [ ] T36 complete with evidence
+- [~] T36 complete with evidence — OUTSTANDING: photo store has no backup, no scheduled dump, cut-over not timed; DB restore verified (handoff-T29-T48.md).
 
 - Requirements: REQ-022.
 - Owner: C/release. Estimated effort: 1–2 h + restore wait.
@@ -483,7 +483,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T37 — Rollback and old-client rehearsal
 
-- [ ] T37 complete with evidence
+- [~] T37 complete with evidence — OUTSTANDING: Render rollback not performed; kill switch needs next APK; rollback floor 1052e76 (handoff-T29-T48.md).
 
 - Requirements: REQ-022.
 - Owner: C/release. Estimated effort: 1–2 h.
@@ -496,7 +496,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T38 — Authorized shadow pilot and buyer learning
 
-- [ ] T38 complete with evidence
+- [!] T38 complete with evidence — BLOCKED: no operator agreement, real kit or sign-offs; draft docs/pilot-protocol.md (handoff-T29-T48.md).
 
 - Requirements: REQ-026.
 - Owner: A/domain lead. Estimated effort: 2 h analysis sessions + weeks of field time.
@@ -509,7 +509,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T39 — Production release verification
 
-- [ ] T39 complete with evidence
+- [!] T39 complete with evidence — BLOCKED: not released; T38 and the T48 blockers first (docs/production-evidence.md) (handoff-T29-T48.md).
 
 - Requirements: REQ-022.
 - Owner: C/release + A approval. Estimated effort: 1–2 h + monitoring.
@@ -522,7 +522,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T40 — Second-kit configuration exercise
 
-- [ ] T40 complete with evidence
+- [!] T40 complete with evidence — BLOCKED: no second kit or data (docs/second-kit-validation.md) (handoff-T29-T48.md).
 
 - Requirements: REQ-024.
 - Owner: B/domain + A. Estimated effort: 2 h config sessions + new data collection.
@@ -535,7 +535,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T41 — Expansion and capacity validation
 
-- [ ] T41 complete with evidence
+- [~] T41 complete with evidence — OUTSTANDING: PostgreSQL load and device bound unmeasured; backup scale measured (docs/scale-decision.md) (handoff-T29-T48.md).
 
 - Requirements: REQ-024.
 - Owner: C/performance. Estimated effort: 1–2 h harness + runs.
@@ -548,7 +548,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T42 — Independent full-product handoff
 
-- [ ] T42 complete with evidence
+- [!] T42 complete with evidence — BLOCKED: needs a fresh reviewer; draft docs/release-evidence-index.md (handoff-T29-T48.md).
 
 - Requirements: REQ-028.
 - Owner: A/coordinator + fresh reviewer. Estimated effort: 1–2 h.
@@ -613,7 +613,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T47 — Retention and deletion recovery
 
-- [ ] T47 complete with evidence
+- [~] T47 complete with evidence — OUTSTANDING: retention policy A10 provisional; independent review (handoff-T29-T48.md).
 
 - Requirements: REQ-018 REQ-022.
 - Owner: C/privacy. Estimated effort: 1–2 h.
@@ -626,7 +626,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T48 — Final release security and accessibility review
 
-- [ ] T48 complete with evidence
+- [!] T48 complete with evidence — BLOCKED: not cleared for production, 10 named blockers (docs/final-review.md) (handoff-T29-T48.md).
 
 - Requirements: REQ-016 REQ-017 REQ-018 REQ-027.
 - Owner: Independent reviewer/tester. Estimated effort: 1–2 h.

@@ -565,7 +565,24 @@ Release config change: **requires independent review** per AGENTS.md.
 - T08 has not had independent review and its `to-do.md` checkbox is
   deliberately left unchecked.
 
+## Release hardening batch: T29–T37, T47, T48, T38–T42 (2026-09-25)
+
+Everything is built as far as this machine allows. Per-task marks and
+evidence: `docs/agent-workflow/handoff-T29-T48.md`; requirement map:
+`docs/release-evidence-index.md`. CI (`.github/workflows/ci.yml`) is green;
+staging smoke 7/7; 330 Python tests (12 skipped locally), 19 Node suites.
+**Not cleared for production** (docs/final-review.md, 10 blockers).
+
 ## Next exact action
+
+Human decisions unblock the most: (1) approve T31 F1's remediation (RLS plus
+a non-owner database role); (2) choose phone encryption for T32 (then
+rebuild the APK, which also ships T37's model kill switch); (3) rotate the
+database and demo passwords; (4) choose a licence. Without those, the next
+agent task is moving evidence photos to object storage with a backup (T36
+gap), then a scheduled logical dump (infra/backup.md).
+
+### Earlier per-task next actions (kept for history; T06's provider is now chosen: Supabase Auth)
 
 If/when real kit and event information becomes available, replace (not append
 to) both T01 files with the real transcribed values and a cited source, then

@@ -66,6 +66,8 @@ def _canonical(row: list[Any]) -> str:
     return json.dumps([int(v) if isinstance(v, bool) else v for v in row], separators=(",", ":"))
 
 
+# ponytail: whole table in memory (about 26 MB per 10k samples, T41); stream
+# with a server-side cursor once a table nears a million rows.
 def _read(conn: Any, table: str) -> tuple[list[str], list[list[Any]]]:
     cursor = conn.cursor()
     cursor.execute(f"SELECT * FROM {table}")
