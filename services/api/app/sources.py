@@ -45,6 +45,9 @@ from typing import Any, Literal, Sequence
 from .auth import Denied, Session
 from ..migrations.source import MAX_LABEL_LENGTH, MAX_QR_CODE_LENGTH
 
+#: Query-string bound for a catalogue cursor; see `_encode_cursor`.
+MAX_CURSOR_LENGTH = 1024
+
 # Bounds for list/history paging. A caller asking for more gets the maximum,
 # not an error: a bounded result is always a correct answer to "give me some".
 DEFAULT_LIMIT = 50
@@ -343,7 +346,10 @@ def _encode_cursor(label: str, source_id: str) -> str:
     import base64
     import json
 
-    raw = json.dumps([label, source_id], separators=(",", ":")).encode()
+    # UTF-8, not \uXXXX escapes: a 120-character Devanagari label escaped is a
+    # 1,340-character cursor, past MAX_CURSOR_LENGTH, which made every page
+    # after it unreachable. UTF-8 bounds it at ~704 even for 4-byte characters.
+    raw = json.dumps([label, source_id], separators=(",", ":"), ensure_ascii=False).encode()
     return base64.urlsafe_b64encode(raw).decode()
 
 

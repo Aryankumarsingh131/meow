@@ -25,6 +25,8 @@ ERROR_CODES: dict[str, tuple[int, str, bool]] = {
     "CASE_VERSION_CONFLICT": (409, "Case version conflict", False),
     "CASE_TRANSITION_ILLEGAL": (409, "Illegal case transition", False),
     "CLOSURE_EVIDENCE_INCOMPLETE": (409, "Closure evidence incomplete", False),
+    # api-contracts.md: expired sync cursor -> 410 with safe rebootstrap instructions.
+    "RESET_REQUIRED": (410, "Sync reset required", False),
     "PAYLOAD_TOO_LARGE": (413, "Payload too large", False),
     "RATE_LIMITED": (429, "Rate limited", True),
     "TEMPORARILY_UNAVAILABLE": (503, "Temporarily unavailable", True),

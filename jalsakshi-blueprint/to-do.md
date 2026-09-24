@@ -184,7 +184,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T14 — Commit-ordered pull and conflicts
 
-- [ ] T14 complete with evidence
+- [~] T14 complete with evidence — OUTSTANDING: independent sync-ordering review. 12/12 incl. PostgreSQL late-commit test; global-sequence mutant caught (handoff-T14.md).
 
 - Requirements: REQ-008.
 - Owner: C/backend. Estimated effort: 2 h slice.

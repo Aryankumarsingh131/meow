@@ -17,7 +17,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Callable
 
-from ..migrations import samples, source
+from ..migrations import changefeed, samples, source
 
 SCHEMA = "jalsakshi"
 
@@ -55,11 +55,11 @@ def connector(database_url: str, sqlite_path: Path) -> Connector:
 def migrate(conn: Any) -> None:
     """Apply every migration idempotently (all DDL is `IF NOT EXISTS`)."""
     if isinstance(conn, sqlite3.Connection):
-        for statement in source.statements("sqlite") + samples.statements("sqlite"):
+        for statement in source.statements("sqlite") + samples.statements("sqlite") + changefeed.statements("sqlite"):
             conn.execute(statement)
     else:
         conn.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
         conn.execute(f"SET search_path TO {SCHEMA}")
-        for statement in source.statements("postgresql") + samples.statements("postgresql"):
+        for statement in source.statements("postgresql") + samples.statements("postgresql") + changefeed.statements("postgresql"):
             conn.execute(statement)
     conn.commit()

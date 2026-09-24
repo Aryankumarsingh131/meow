@@ -10,6 +10,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from .auth import Denied, Session, require_role
+from .changefeed import record_change
 from .samples import SampleEventModel, SampleRejected, insert_sample, sample_exists, sql
 from .schemas import PushRequest
 
@@ -123,6 +124,10 @@ def _process_event(
         return _resolve_prior(prior, payload_hash, event.event_id, server_time)
 
     try:
+        # Tenant change lock first (T14): sequence order must equal commit order.
+        record_change(
+            connection, session.tenant_id, "sample", str(event.payload.sample_id), "upsert", 1, server_time
+        )
         insert_sample(
             connection,
             session,
