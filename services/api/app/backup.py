@@ -62,8 +62,21 @@ def _plain(value: Any) -> Any:
     return value
 
 
+_TIMESTAMP = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$")
+
+
+def _canon_value(v: Any) -> Any:
+    """SQLite keeps booleans as 0/1 and timestamps as whatever text was written
+    ('+00:00' or 'Z'); PostgreSQL returns bool and datetime. Hash both alike."""
+    if isinstance(v, bool):
+        return int(v)
+    if isinstance(v, str) and _TIMESTAMP.match(v):
+        return _plain(datetime.fromisoformat(v))
+    return v
+
+
 def _canonical(row: list[Any]) -> str:
-    return json.dumps([int(v) if isinstance(v, bool) else v for v in row], separators=(",", ":"))
+    return json.dumps([_canon_value(v) for v in row], separators=(",", ":"))
 
 
 # ponytail: whole table in memory (about 26 MB per 10k samples, T41); stream
@@ -106,6 +119,16 @@ def dump(url: str, directory: Path) -> dict[str, Any]:
     return manifest
 
 
+def _boolean_positions(conn: Any, table: str, columns: list[str]) -> list[int]:
+    if isinstance(conn, sqlite3.Connection):
+        return []
+    cursor = conn.cursor()
+    cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_schema = %s AND table_name = %s "
+                   "AND data_type = 'boolean'", (db.SCHEMA, table))
+    names = {r[0] for r in cursor.fetchall()}
+    return [i for i, c in enumerate(columns) if c in names]
+
+
 def restore(directory: Path, url: str, *, evidence: Path | None = None,
             ledger: Path | None = None) -> tuple[list[str], list[str]]:
     """Load a dump into an empty database and check it against the manifest,
@@ -125,8 +148,12 @@ def restore(directory: Path, url: str, *, evidence: Path | None = None,
             columns = json.loads(lines[0])
             marks = ", ".join(["?"] * len(columns))
             statement = sql(f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({marks})", conn)
+            flags = _boolean_positions(conn, table, columns)
             for line in lines[1:]:
-                cursor.execute(statement, json.loads(line))
+                row = json.loads(line)
+                for i in flags:  # a SQLite dump holds booleans as 0/1
+                    row[i] = None if row[i] is None else bool(row[i])
+                cursor.execute(statement, row)
         conn.commit()
         mismatched = verify(directory, url)
         return mismatched, retention.reapply_deletions(conn, evidence, ledger) if evidence and ledger else []

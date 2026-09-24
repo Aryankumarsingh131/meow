@@ -374,9 +374,12 @@ try {
     const a = await saveOne(sql, W, sourceId);
     const b = await saveOne(sql, W, sourceId);
     const foreign = randomUUID();
+    // Saved in the same millisecond, a and b are ordered by their random event
+    // ids, so the acknowledged one is whichever the phone sent first.
+    let acked = '';
     const partial: SyncTransport = {
       ...real,
-      push: async (_d, events) => ({
+      push: async (_d, events) => (acked = events[0].event_id, {
         kind: 'ok',
         value: {
           results: [
@@ -388,13 +391,15 @@ try {
     };
     const r = await syncOnce(deps(sql, partial, W), session, { manual: true });
     assert.equal(r.accepted, 1);
-    assert.equal(state(sql, W, a.sampleId).state === 'accepted' || state(sql, W, a.sampleId).state === 'accepted_confirmed', true);
-    assert.equal(state(sql, W, b.sampleId).state, 'waiting_to_retry');
+    const [first, second] = a.eventId === acked ? [a, b] : [b, a];
+    assert.equal(second.eventId !== acked && first.eventId === acked, true, 'one of a/b was acknowledged');
+    assert.equal(['accepted', 'accepted_confirmed'].includes(state(sql, W, first.sampleId).state), true);
+    assert.equal(state(sql, W, second.sampleId).state, 'waiting_to_retry');
     assert.equal(sql.all('SELECT 1 FROM sync_receipts WHERE event_id = ?', [foreign]).length, 0);
-    // The real server then settles both: `a` was never really sent, so it is
-    // accepted now; `b` likewise.
+    // The real server then settles both: neither was really sent, so both are
+    // accepted now.
     await syncOnce(deps(sql, real, W), session, { manual: true });
-    assert.equal(state(sql, W, b.sampleId).state, 'accepted_confirmed');
+    assert.equal(state(sql, W, second.sampleId).state, 'accepted_confirmed');
   });
 
   await check('automatic retries stop at the per-session cap; Sync Now still works', async () => {
