@@ -198,3 +198,35 @@ class AuthConfigTests(unittest.TestCase):
         self.assertTrue(_is_publishable(legacy("anon")))
         for secret in ("sb_secret_abc", legacy("service_role"), "", "random-string", "a.b.c"):
             self.assertFalse(_is_publishable(secret), secret)
+
+
+class TransientDbErrorTests(unittest.TestCase):
+    """T30: database contention answers 503 (retryable), never a bare 500."""
+
+    def test_contention_is_classified_as_transient(self) -> None:
+        from services.api.app.main import is_transient_db_error
+
+        class PgError(Exception):
+            def __init__(self, sqlstate: str) -> None:
+                self.diag = type("Diag", (), {"sqlstate": sqlstate})()
+
+        self.assertTrue(is_transient_db_error(sqlite3.OperationalError("database is locked")))
+        for state in ("57014", "55P03", "40P01", "40001"):
+            self.assertTrue(is_transient_db_error(PgError(state)), state)
+        self.assertFalse(is_transient_db_error(sqlite3.OperationalError("no such table: x")))
+        self.assertFalse(is_transient_db_error(PgError("23505")))  # unique violation is a real error
+        self.assertFalse(is_transient_db_error(ValueError("x")))
+
+    def test_a_locked_database_answers_503_over_http(self) -> None:
+        from unittest import mock
+
+        with mock.patch("services.api.app.routes_v1.authenticate", side_effect=sqlite3.OperationalError("database is locked")):
+            saved = getattr(app.state, "auth", None)
+            app.state.auth = ("config", lambda _u: [])
+            try:
+                with TestClient(app, raise_server_exceptions=False) as client:
+                    response = client.get("/v1/me", headers={"Authorization": "Bearer x"})
+            finally:
+                app.state.auth = saved
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["code"], "TEMPORARILY_UNAVAILABLE")

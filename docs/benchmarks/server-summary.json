@@ -1,0 +1,74 @@
+[
+ {
+  "step": "1rps-hot",
+  "target_rps": 1,
+  "seconds": 60,
+  "requests": 60,
+  "achieved_rps": 1,
+  "new_sent": 58,
+  "accepted": 58,
+  "duplicate_on_replay": 2,
+  "replays": 2,
+  "errors": 0,
+  "ms": {
+   "p50": 40.9,
+   "p95": 53.3,
+   "p99": 88.2,
+   "max": 88.2
+  }
+ },
+ {
+  "step": "10rps-hot",
+  "target_rps": 10,
+  "seconds": 60,
+  "requests": 600,
+  "achieved_rps": 10,
+  "new_sent": 571,
+  "accepted": 571,
+  "duplicate_on_replay": 29,
+  "replays": 29,
+  "errors": 0,
+  "ms": {
+   "p50": 38.2,
+   "p95": 50.1,
+   "p99": 60.4,
+   "max": 68.5
+  }
+ },
+ {
+  "step": "50rps-hot",
+  "target_rps": 50,
+  "seconds": 60,
+  "requests": 3000,
+  "achieved_rps": 47.5,
+  "new_sent": 2851,
+  "accepted": 2665,
+  "duplicate_on_replay": 133,
+  "replays": 149,
+  "errors": 201,
+  "ms": {
+   "p50": 2509,
+   "p95": 7823.4,
+   "p99": 9041.6,
+   "max": 10802.5
+  }
+ },
+ {
+  "step": "50rps-two-tenants",
+  "target_rps": 50,
+  "seconds": 60,
+  "requests": 3000,
+  "achieved_rps": 49.7,
+  "new_sent": 2852,
+  "accepted": 2721,
+  "duplicate_on_replay": 145,
+  "replays": 148,
+  "errors": 134,
+  "ms": {
+   "p50": 170,
+   "p95": 5755.4,
+   "p99": 6424.6,
+   "max": 6717.2
+  }
+ }
+]

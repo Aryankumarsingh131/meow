@@ -87,6 +87,31 @@ async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONR
 
 app.add_exception_handler(HTTPException, _http_exception_handler)
 
+
+def is_transient_db_error(exc: BaseException) -> bool:
+    """Contention, not a fault: SQLite's single-writer lock, and PostgreSQL's
+    statement timeout (3 s budget), lock timeout, deadlock and serialization
+    failures. Every write is idempotent, so the client may simply retry."""
+    import sqlite3
+
+    if isinstance(exc, sqlite3.OperationalError):
+        return "locked" in str(exc) or "busy" in str(exc)
+    return getattr(getattr(exc, "diag", None), "sqlstate", None) in {"57014", "55P03", "40P01", "40001"}
+
+
+@app.middleware("http")
+async def transient_db_errors_are_retryable(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as exc:  # noqa: BLE001 - re-raised unless transient
+        if not is_transient_db_error(exc):
+            raise
+        from .errors import problem_response
+
+        # T30: at 50 req/s the SQLite stack returned 500 for lock waits.
+        return problem_response(request, ApiError(code="TEMPORARILY_UNAVAILABLE",
+                                                  detail="The database is busy. Retry shortly."))
+
 # The supervisor board is a separate web app at its own address, calling this
 # API from the browser. CORS is opened ONLY to the origins listed in
 # JALSAKSHI_CORS_ALLOWED_ORIGINS (comma-separated; empty = no cross-origin

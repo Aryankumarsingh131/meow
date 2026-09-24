@@ -48,7 +48,12 @@ def connector(database_url: str, sqlite_path: Path) -> Connector:
 
     def connect_sqlite() -> Any:
         sqlite_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(sqlite_path)
+        # FastAPI may open a request's connection (db dependency) on one
+        # threadpool thread and run the handler or teardown on another. Each
+        # connection still belongs to exactly one request and is used strictly
+        # sequentially, so the thread check only produced false 500s under
+        # load (T30: 4,732 errors at 50 req/s). PostgreSQL has no such check.
+        conn = sqlite3.connect(sqlite_path, check_same_thread=False)
         conn.execute("PRAGMA foreign_keys = ON")
         return conn
 
