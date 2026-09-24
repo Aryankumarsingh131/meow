@@ -32,6 +32,7 @@ import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { gate, type ReviewAnalysis, type ReviewObservation } from './analysis/baseline';
 import { analyseWithModel, type ModelInput } from './analysis/model';
 import { loadBundledModel } from './analysis/modelLoader';
+import { applyModelSwitch, refreshDisabledModels } from './analysis/modelSwitch';
 import { API_BASE, fetchCatalogue, httpTransport } from './api';
 import { CaptureScreen } from './capture';
 import { deviceId, deviceSql } from './deviceDb';
@@ -83,7 +84,7 @@ function ModelReview({ input, onComplete, onRetake }: {
     if (analysis) return;
     let live = true;
     void loadBundledModel()
-      .then((state) => analyseWithModel(input, state, BINS))
+      .then((state) => analyseWithModel(input, applyModelSwitch(state, deviceSql()), BINS))
       .then((result) => { if (live) setAnalysis(result); });
     return () => { live = false; };
     // Once per review: the input does not change while this step is shown.
@@ -164,6 +165,7 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
 
   const refresh = async () => {
     setRefreshing(true);
+    void refreshDisabledModels(deviceSql(), API_BASE);
     const outcome = await fetchCatalogue(API_BASE, session.auth.token);
     setCatalogue(applyCatalogueFetch(deviceSql(), owner, outcome));
     setRefreshing(false);

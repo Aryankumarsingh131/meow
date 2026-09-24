@@ -47,9 +47,11 @@ export type ModelProblem =
   | 'not_calibrated'
   | 'load_failed'
   | 'inference_failed'
-  | 'output_invalid';
+  | 'output_invalid'
+  | 'model_disabled';
 
 export const MODEL_PROBLEM_TEXT: Record<ModelProblem, string> = {
+  model_disabled: 'This model version has been switched off by the programme.',
   manifest_invalid: 'The bundled model description is invalid.',
   protocol_mismatch: 'The bundled model was built for a different protocol.',
   schema_mismatch: 'The bundled model expects different camera features.',

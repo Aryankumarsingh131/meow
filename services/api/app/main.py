@@ -208,6 +208,13 @@ def auth_config() -> JSONResponse:
     return JSONResponse(status_code=503, content={"provider": None})
 
 
+@app.get("/models/disabled")
+def disabled_models() -> dict[str, list[str]]:
+    """T37: on-device models switched off without an app release. Public: a
+    file hash reveals nothing, and a phone must learn it even mid-sign-in."""
+    return {"sha256": sorted({s.strip().lower() for s in settings.disabled_models.split(",") if s.strip()})}
+
+
 @app.api_route("/health/live", methods=["GET", "HEAD"])
 def live() -> dict[str, str]:
     """Public liveness. Exposes no dependency or configuration detail."""

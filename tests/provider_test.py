@@ -199,6 +199,16 @@ class AuthConfigTests(unittest.TestCase):
         for secret in ("sb_secret_abc", legacy("service_role"), "", "random-string", "a.b.c"):
             self.assertFalse(_is_publishable(secret), secret)
 
+    def test_the_model_kill_switch_is_public_and_normalised(self) -> None:
+        from unittest import mock
+
+        from services.api.app import main
+
+        with mock.patch.object(main.settings, "disabled_models", " ABC ,def,,abc"):
+            response = TestClient(app).get("/models/disabled")
+        self.assertEqual((response.status_code, response.json()), (200, {"sha256": ["abc", "def"]}))
+        self.assertEqual(TestClient(app).get("/models/disabled").json(), {"sha256": []}, "nothing is disabled by default")
+
 
 class TransientDbErrorTests(unittest.TestCase):
     """T30: database contention answers 503 (retryable), never a bare 500."""

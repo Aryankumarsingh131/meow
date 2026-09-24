@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # comma-separated, exact scheme://host[:port]. Empty = no CORS at all.
     cors_allowed_origins: str = ""
 
+    # T37 kill switch: SHA-256 of on-device model files the app must stop
+    # using, comma-separated. Phones pick it up on their next online refresh.
+    disabled_models: str = ""
+
     @model_validator(mode="after")
     def refuse_unsafe_production_defaults(self) -> "Settings":
         if self.environment == "development":
