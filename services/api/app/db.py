@@ -17,10 +17,10 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Callable
 
-from ..migrations import actions, cases, changefeed, communications, evidence, lab, memberships, samples, source
+from ..migrations import actions, cases, changefeed, communications, evidence, lab, memberships, retention, samples, source
 
 # Dependency order: each table's foreign keys point at tables earlier in the list.
-MIGRATIONS = (source, samples, changefeed, evidence, cases, lab, actions, communications, memberships)
+MIGRATIONS = (source, samples, changefeed, evidence, cases, lab, actions, communications, memberships, retention)
 
 SCHEMA = "jalsakshi"
 
