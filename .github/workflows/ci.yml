@@ -1,0 +1,64 @@
+# T35: every push and pull request runs the release test matrix
+# (docs/release-test-matrix.md). No secrets are needed: every suite uses
+# synthetic data, a throwaway Postgres service and the local test issuer.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # The PostgreSQL race and dialect tests run only when this is set.
+      TEST_DATABASE_URL: postgresql://postgres:ci-only-password@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # the Render image's version
+          cache: pip
+      - run: pip install -r services/api/requirements.txt -r ml/requirements.txt
+      - name: API, security and PostgreSQL suites
+        run: python -m unittest discover -s tests -p "*_test.py"
+      - name: ML pipeline
+        run: python -m unittest discover -s ml/tests
+
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - name: Node suites
+        run: for f in tests/*.test.ts; do echo "== $f"; node "$f" || exit 1; done
+      - name: Type-check tests and contracts
+        run: npx tsc --noEmit
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - run: npm ci
+      - name: Type-check the app
+        run: npx tsc --noEmit -p tsconfig.json

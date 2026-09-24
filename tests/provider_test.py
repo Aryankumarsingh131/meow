@@ -230,3 +230,38 @@ class TransientDbErrorTests(unittest.TestCase):
                 app.state.auth = saved
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()["code"], "TEMPORARILY_UNAVAILABLE")
+
+
+class MigrationLockTests(unittest.TestCase):
+    """T35: on PostgreSQL, migrations run inside an advisory lock, released even on failure."""
+
+    def fake(self, fail_on: str | None = None):
+        log: list[str] = []
+
+        class Conn:
+            def execute(self, statement, params=None):
+                log.append(statement)
+                if fail_on and fail_on in statement:
+                    raise RuntimeError("DDL failed")
+
+            def commit(self):
+                log.append("COMMIT")
+
+        return Conn(), log
+
+    def test_ddl_runs_between_lock_and_unlock(self) -> None:
+        from services.api.app import db
+
+        conn, log = self.fake()
+        db.migrate(conn)
+        self.assertIn("pg_advisory_lock", log[0])
+        self.assertIn("pg_advisory_unlock", log[-2])
+        self.assertTrue(any("CREATE TABLE IF NOT EXISTS memberships" in s for s in log[1:-2]))
+
+    def test_the_lock_is_released_when_a_migration_fails(self) -> None:
+        from services.api.app import db
+
+        conn, log = self.fake(fail_on="CREATE TABLE IF NOT EXISTS cases")
+        with self.assertRaises(RuntimeError):
+            db.migrate(conn)
+        self.assertIn("pg_advisory_unlock", log[-2])

@@ -60,13 +60,26 @@ def connector(database_url: str, sqlite_path: Path) -> Connector:
     return connect_sqlite
 
 
+#: T35: one arbitrary, fixed key for pg_advisory_lock. Two instances starting
+#: together (a deploy overlapping the old one, or a scale-out) would otherwise
+#: run the same DDL concurrently; the second now waits for the first.
+MIGRATION_LOCK_KEY = 7_202_609_250
+
+
 def migrate(conn: Any) -> None:
     """Apply every migration idempotently (all DDL is `IF NOT EXISTS`)."""
     dialect = "sqlite" if isinstance(conn, sqlite3.Connection) else "postgresql"
     if dialect == "postgresql":
-        conn.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
-        conn.execute(f"SET search_path TO {SCHEMA}")
-    for module in MIGRATIONS:
-        for statement in module.statements(dialect):
-            conn.execute(statement)
-    conn.commit()
+        conn.execute("SELECT pg_advisory_lock(%s)", (MIGRATION_LOCK_KEY,))
+    try:
+        if dialect == "postgresql":
+            conn.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
+            conn.execute(f"SET search_path TO {SCHEMA}")
+        for module in MIGRATIONS:
+            for statement in module.statements(dialect):
+                conn.execute(statement)
+        conn.commit()
+    finally:
+        if dialect == "postgresql":
+            conn.execute("SELECT pg_advisory_unlock(%s)", (MIGRATION_LOCK_KEY,))
+            conn.commit()

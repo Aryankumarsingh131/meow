@@ -1,0 +1,37 @@
+# Local staging-like stack: the API image Render runs, against a real Postgres.
+# For rehearsals (T36 backup/restore, T37 rollback) without touching Supabase.
+#
+#   docker compose -f infra/compose.yaml up --build
+#
+# Not used by Render (render.yaml). Not run on the build machine at the time of
+# writing (no Docker there); CI runs the same code against a Postgres service.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: local-only-password
+    ports: ["5433:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: services/api/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    ports: ["8000:8000"]
+    environment:
+      JALSAKSHI_ENVIRONMENT: staging
+      JALSAKSHI_TENANT_DATA_MODE: synthetic
+      JALSAKSHI_DATABASE_URL: postgresql://postgres:local-only-password@db:5432/postgres
+      # Point at a real Supabase project for sign-in, or requests answer 503.
+      JALSAKSHI_SUPABASE_URL: ${JALSAKSHI_SUPABASE_URL:-}
+      JALSAKSHI_SUPABASE_PUBLISHABLE_KEY: ${JALSAKSHI_SUPABASE_PUBLISHABLE_KEY:-}
+
+volumes:
+  pgdata:

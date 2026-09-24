@@ -1,0 +1,5 @@
+# ML pipeline (T23-T27). The versions the committed reports were produced with.
+numpy==2.3.2
+scikit-learn==1.7.1
+onnxruntime==1.23.2
+pillow==12.1.0
