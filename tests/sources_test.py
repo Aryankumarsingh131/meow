@@ -22,6 +22,7 @@ import uuid
 from services.api.app.auth import Denied, Membership, Session, VerifiedToken
 from services.api.app.sources import (
     MAX_LIMIT,
+    InvalidCursor,
     MAX_SEARCH_LENGTH,
     QrMalformed,
     QrMatched,
@@ -310,11 +311,24 @@ class TestPaging(SourcesTestBase):
     def test_last_page_has_no_next_cursor(self) -> None:
         self.assertIsNone(list_sources(self.db, self.session_a, limit=50).next_cursor)
 
-    def test_malformed_cursor_yields_first_page_not_an_error(self) -> None:
+    def test_malformed_cursor_is_a_validation_error(self) -> None:
+        # api-contracts.md: "Invalid filters/cursors return 422". Silently
+        # restarting at page one would make a paging client loop forever.
         for bad in ("not-base64!!", "", "eyJhIjoxfQ==", "YWJj"):
             with self.subTest(cursor=bad):
-                page = list_sources(self.db, self.session_a, cursor=bad)
-                self.assertEqual(len(page.items), 3)
+                self.assertIsInstance(list_sources(self.db, self.session_a, cursor=bad), InvalidCursor)
+
+    def test_malformed_history_cursor_is_a_validation_error(self) -> None:
+        outcome = source_history(self.db, self.session_a, uid("src-a1"),
+                                 served_at="2026-09-22T00:00:00Z", cursor="YWJj")
+        self.assertIsInstance(outcome, InvalidCursor)
+
+    def test_history_checks_the_source_before_the_cursor(self) -> None:
+        # Another tenant's id with a junk cursor must still be NOT_FOUND:
+        # a 422 would confirm the id passed the ownership check.
+        outcome = source_history(self.db, self.session_a, uid("src-b1"),
+                                 served_at="2026-09-22T00:00:00Z", cursor="YWJj")
+        self.assertIsInstance(outcome, Denied)
 
     def test_cursor_cannot_smuggle_sql(self) -> None:
         import base64
@@ -323,9 +337,8 @@ class TestPaging(SourcesTestBase):
         payload = base64.urlsafe_b64encode(
             json.dumps(["' OR '1'='1", "x"], separators=(",", ":")).encode()
         ).decode()
-        page = list_sources(self.db, self.session_a, cursor=payload)
-        for item in page.items:
-            self.assertEqual(item.tenant_id, TENANT_A)
+        # Not a uuid id, so rejected before it reaches SQL at all.
+        self.assertIsInstance(list_sources(self.db, self.session_a, cursor=payload), InvalidCursor)
         self.assertEqual(self.db.execute("SELECT count(*) FROM sources").fetchone()[0], 5)
 
 

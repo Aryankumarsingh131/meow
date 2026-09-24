@@ -48,7 +48,7 @@ from ..migrations.source import MAX_LABEL_LENGTH, MAX_QR_CODE_LENGTH
 # Bounds for list/history paging. A caller asking for more gets the maximum,
 # not an error: a bounded result is always a correct answer to "give me some".
 DEFAULT_LIMIT = 50
-MAX_LIMIT = 200
+MAX_LIMIT = 100  # api-contracts.md: default 50, max 100
 MAX_SEARCH_LENGTH = 60
 
 # Columns `source_history` expects T13 to provide on `samples`.
@@ -104,6 +104,18 @@ class Source:
 class SourcePage:
     items: tuple[Source, ...]
     next_cursor: str | None
+
+
+@dataclass(frozen=True)
+class InvalidCursor:
+    """The cursor is not one this server issued (api-contracts.md: 422).
+
+    Returned, not silently treated as "first page": a client that loops on
+    `next_cursor` would otherwise restart from page one forever.
+    """
+
+    code: Literal["VALIDATION_FAILED"] = "VALIDATION_FAILED"
+    detail: str = "Unrecognised paging cursor."
 
 
 @dataclass(frozen=True)
@@ -274,7 +286,7 @@ def list_sources(
     include_inactive: bool = False,
     cursor: str | None = None,
     limit: int | None = None,
-) -> SourcePage:
+) -> SourcePage | InvalidCursor:
     """Tenant-scoped, searchable, keyset-paginated source catalogue.
 
     `include_inactive` is available for completeness but the field catalogue
@@ -304,10 +316,11 @@ def list_sources(
 
     if cursor is not None:
         decoded = _decode_cursor(cursor)
-        if decoded is not None:
-            last_label, last_id = decoded
-            conditions.append("(label, id) > (?, ?)")
-            params.extend([last_label, last_id])
+        if decoded is None:
+            return InvalidCursor()
+        last_label, last_id = decoded
+        conditions.append("(label, id) > (?, ?)")
+        params.extend([last_label, last_id])
 
     # `page_size + 1` tells us whether a further page exists without a second
     # COUNT query over the whole catalogue.
@@ -337,10 +350,8 @@ def _encode_cursor(label: str, source_id: str) -> str:
 def _decode_cursor(cursor: str) -> tuple[str, str] | None:
     """Decode a paging cursor, or `None` if it is not one.
 
-    A bad cursor yields the first page rather than an error: cursors are
-    opaque to the client, so a malformed one is our bug or a stale link, and
-    neither should show the worker a failure. It is never trusted as SQL - the
-    decoded values are bound as parameters like everything else.
+    Callers turn `None` into `InvalidCursor` (422). The decoded values are
+    never trusted as SQL - they are bound as parameters like everything else.
     """
     import base64
     import json
@@ -367,7 +378,7 @@ def source_history(
     served_at: str,
     cursor: str | None = None,
     limit: int | None = None,
-) -> HistoryPage | Denied:
+) -> HistoryPage | Denied | InvalidCursor:
     """Accepted tests for one source, newest first.
 
     Returns `Denied("NOT_FOUND")` when the source is not in the session
@@ -395,10 +406,11 @@ def source_history(
 
     if cursor is not None:
         decoded = _decode_cursor(cursor)
-        if decoded is not None:
-            last_received, last_id = decoded
-            conditions.append("(received_at_server, id) < (?, ?)")
-            params.extend([last_received, last_id])
+        if decoded is None:
+            return InvalidCursor()
+        last_received, last_id = decoded
+        conditions.append("(received_at_server, id) < (?, ?)")
+        params.extend([last_received, last_id])
 
     statement = (
         "SELECT id, received_at_server, status, method, indicative_flag FROM samples "

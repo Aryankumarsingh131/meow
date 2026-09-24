@@ -25,7 +25,7 @@ import unittest
 import uuid
 
 from services.api.app.auth import Denied
-from services.api.app.sources import QrMatched, QrUnknown, list_sources, resolve_qr, source_history
+from services.api.app.sources import InvalidCursor, QrMatched, QrUnknown, list_sources, resolve_qr, source_history
 from services.api.migrations.source import statements
 from tests.sources_test import session_for
 
@@ -248,10 +248,8 @@ class PostgresSourcesTests(unittest.TestCase):
     def test_tampered_list_cursor_is_safe_on_postgres(self) -> None:
         from services.api.app.sources import _encode_cursor
         forged = _encode_cursor("Handpump 1", "not-a-uuid")
-        page = list_sources(self.conn, self.session_a, cursor=forged)
-        # Treated like an unreadable cursor: first page, no crash.
-        self.assertEqual([s.id for s in page.items],
-                         [uid(n) for n in ["src-a1", "src-a2", "src-a3"]])
+        # Rejected as a 422-class outcome, not a database error.
+        self.assertIsInstance(list_sources(self.conn, self.session_a, cursor=forged), InvalidCursor)
 
 
 if __name__ == "__main__":
