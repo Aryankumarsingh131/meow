@@ -28,6 +28,8 @@ Regeneration command (updated for the rename):
 
 from __future__ import annotations
 
+import http.client
+
 from fastapi import FastAPI, Response
 
 from .schemas import CaseCommandRequest, ProblemDetail, PushRequest
@@ -58,3 +60,22 @@ def sync_push(body: PushRequest) -> Response:
 )
 def case_command(case_id: str, body: CaseCommandRequest) -> Response:
     raise NotImplementedError("contract-only stub; see docs/agent-workflow/handoff-T05.md")
+
+
+def _frozen_openapi() -> dict:
+    """Generate with the 422 phrase the contract was frozen with.
+
+    FastAPI labels responses from `http.client.responses`, and Python 3.13
+    renamed 422 from "Unprocessable Entity" to "Unprocessable Content". Without
+    this the frozen document changes with the interpreter (requires-python is
+    >=3.11). Scoped to this call and restored, so no other code sees it.
+    """
+    saved = http.client.responses[422]
+    http.client.responses[422] = "Unprocessable Entity"
+    try:
+        return FastAPI.openapi(app)
+    finally:
+        http.client.responses[422] = saved
+
+
+app.openapi = _frozen_openapi
