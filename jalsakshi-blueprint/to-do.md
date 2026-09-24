@@ -236,7 +236,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T18 — Supervisor queue and detail slice
 
-- [ ] T18 complete with evidence
+- [~] T18 complete with evidence — API ONLY: the supervisor board is a separate app owned elsewhere (owner decision 2026-09-24). GET /v1/cases, /v1/cases/{id}, /v1/me + CORS allowlist; 11/11. OUTSTANDING: board-side E2E/keyboard/states (external), independent review (handoff-T18.md).
 
 - Requirements: REQ-010 REQ-015.
 - Owner: A/web. Estimated effort: 2 h slice.

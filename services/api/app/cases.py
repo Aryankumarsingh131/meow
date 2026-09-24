@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import timezone
 from typing import Any, Callable
 from uuid import uuid4
 
@@ -177,7 +178,9 @@ def _assign(_conn: Any, ctx: policy.Context) -> dict[str, Any]:
     payload = ctx.command.payload
     changes = {"owner_id": str(payload.owner_id)}
     if payload.due_at is not None:
-        changes["due_at"] = payload.due_at.isoformat()
+        # Stored as UTC "Z" text: overdue is compared in SQL, and on SQLite that
+        # is a text comparison, so every stored instant must share one format.
+        changes["due_at"] = payload.due_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
     return changes
 
 

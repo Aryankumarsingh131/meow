@@ -58,6 +58,13 @@ services:
       # JALSAKSHI_SUPABASE_PUBLISHABLE_KEY
       #   sb_publishable_...  (Supabase → Settings → API → anon public key)
       #
+      # JALSAKSHI_CORS_ALLOWED_ORIGINS  (needed for the supervisor board)
+      #   The board is a separate web app, so the browser only lets it call
+      #   this API if its origin is listed here, e.g.
+      #   https://your-board.example.com   (comma-separate several; exact
+      #   scheme://host[:port], no trailing slash). Empty = no browser access
+      #   from other origins. Bearer tokens only; no cookies are ever accepted.
+      #
       # JALSAKSHI_OIDC_ISSUER   (REQUIRED)
       #   The issuer URL of your real identity provider.
       #

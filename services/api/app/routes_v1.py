@@ -22,6 +22,7 @@ from .auth import Denied, Session, authenticate, bearer_token
 from .errors import ApiError
 from . import evidence as ev
 from .offline_grants import OfflineGrant, OfflineGrantRequest, issue_grant
+from . import case_reads
 from . import cases as case_engine
 from .schemas import CaseCommandRequest, PushRequest
 from .sources import (
@@ -327,4 +328,43 @@ def post_case_command(
     )
     if isinstance(outcome, case_engine.Refused):
         raise ApiError(code=outcome.code, detail=outcome.detail, field_errors=outcome.field_errors, extra=outcome.extra)
+    return outcome
+
+
+# --- T18: who am I, case board and detail ---------------------------------
+
+
+@router.get("/me")
+def get_me(session: Session = Depends(require_session)) -> dict[str, str]:
+    """The caller's own membership, so a client can pick its surface. Never
+    another user's."""
+    return {"user_id": session.user_id, "tenant_id": session.tenant_id, "role": session.role}
+
+
+def _case_refused(outcome: case_engine.Refused) -> ApiError:
+    return ApiError(code=outcome.code, detail=outcome.detail, field_errors=outcome.field_errors, extra=outcome.extra)
+
+
+@router.get("/cases", response_model=case_reads.CasePage)
+def get_cases(
+    session: Session = Depends(require_session), conn: Any = Depends(db),
+    status: str | None = Query(default=None, max_length=32),
+    owner_id: str | None = Query(default=None, max_length=64),
+    overdue: bool | None = Query(default=None),
+    source_id: str | None = Query(default=None, max_length=64),
+    cursor: str | None = Query(default=None, max_length=1024),
+    limit: int = Query(default=DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
+) -> case_reads.CasePage:
+    outcome = case_reads.list_cases(conn, session, status=status, owner_id=owner_id, overdue=overdue,
+                                    source_id=source_id, cursor=cursor, limit=limit, now=_now())
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
+    return outcome
+
+
+@router.get("/cases/{case_id}")
+def get_case(case_id: str, session: Session = Depends(require_session), conn: Any = Depends(db)) -> dict[str, Any]:
+    outcome = case_reads.case_detail(conn, session, case_id, now=_now())
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
     return outcome

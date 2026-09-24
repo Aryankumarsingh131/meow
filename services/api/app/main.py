@@ -19,6 +19,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import load_settings
@@ -55,6 +56,23 @@ app = FastAPI(title="JalSakshi API", version="0.1.0", lifespan=lifespan)
 app.state.tenant_data_mode = settings.tenant_data_mode
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
+
+# The supervisor board is a separate web app at its own address, calling this
+# API from the browser. CORS is opened ONLY to the origins listed in
+# JALSAKSHI_CORS_ALLOWED_ORIGINS (comma-separated; empty = no cross-origin
+# access). Bearer tokens, no cookies: allow_credentials stays False, so no
+# ambient credential ever crosses origins and CSRF does not apply.
+_origins = [o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()]
+if _origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT"],
+        allow_headers=["Authorization", "Content-Type", "X-Request-Id"],
+        max_age=600,
+    )
+
 # Mounted everywhere; without `app.state.auth` every route answers 503.
 app.include_router(v1_router)
 

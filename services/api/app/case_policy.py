@@ -70,6 +70,9 @@ def g_owner(ctx: Context) -> str | None:
 
 
 def g_assign(ctx: Context) -> str | None:
+    due = ctx.command.payload.due_at
+    if due is not None and due.tzinfo is None:
+        return "VALIDATION_FAILED"  # a due date without a zone cannot be compared honestly
     owner = str(ctx.command.payload.owner_id)
     return None if ctx.is_active_member(owner) else "CASE_OWNER_REQUIRED"
 

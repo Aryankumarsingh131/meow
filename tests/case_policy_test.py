@@ -211,6 +211,15 @@ class GuardTests(Harness):
         self.assertEqual((ok.status, case["owner_id"], case["version"]), ("review_needed", SUPERVISOR.user_id, 2))
         self.assertTrue(case["due_at"].startswith("2026-10-01"))
 
+    def test_due_dates_are_stored_in_utc_and_zone_less_ones_refused(self) -> None:
+        """Overdue is compared in SQL; on SQLite that is text, so a stored
+        '+05:30' value would sort wrongly against a 'Z' one."""
+        ok = self.run_cmd(self.cid, command("assign", 1, {"owner_id": SUPERVISOR.user_id, "due_at": "2026-09-24T02:00:00+05:30"}))
+        self.assertEqual(ok.version, 2)
+        self.assertEqual(load_case(self.db, t13.TENANT_A, self.cid)["due_at"], "2026-09-23T20:30:00Z")
+        naive = self.run_cmd(self.cid, command("assign", 2, {"owner_id": SUPERVISOR.user_id, "due_at": "2026-10-01T00:00:00"}))
+        self.assertEqual(naive.code, "VALIDATION_FAILED")
+
     def test_referral_needs_owner_and_due_date(self) -> None:
         self.assertEqual(self.run_cmd(self.cid, command("refer_to_lab", 1)).code, "CASE_OWNER_REQUIRED")
         self.run_cmd(self.cid, command("assign", 1, {"owner_id": SUPERVISOR.user_id}))  # owner, no due date

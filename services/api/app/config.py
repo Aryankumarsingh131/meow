@@ -38,6 +38,10 @@ class Settings(BaseSettings):
 
     request_timeout_seconds: float = Field(default=8.0, gt=0)
 
+    # Origins of the separate supervisor board (and any other browser client),
+    # comma-separated, exact scheme://host[:port]. Empty = no CORS at all.
+    cors_allowed_origins: str = ""
+
     @model_validator(mode="after")
     def refuse_unsafe_production_defaults(self) -> "Settings":
         if self.environment == "development":
