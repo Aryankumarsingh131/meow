@@ -21,12 +21,14 @@ import {
 } from 'react-native';
 
 import { colors, radius, spacing, type } from './theme';
+import { DEV_API_BASE, signIn } from './api';
 import {
-  DEMO_ACCOUNTS,
+  DEMO_USERNAMES,
   SIGN_IN_ERROR,
+  checkSignInInput,
   continueAsPublic,
-  isRealAuthentication,
-  signIn,
+  signInFailureFor,
+  staffSession,
   type AppSession,
 } from './session';
 
@@ -40,16 +42,22 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = () => {
+  const submit = async () => {
+    if (busy) return;
+    const invalid = checkSignInInput(username, password);
+    if (invalid) {
+      setError(SIGN_IN_ERROR[invalid]);
+      return;
+    }
     setBusy(true);
-    const result = signIn(username, password);
+    const result = await signIn(DEV_API_BASE, username, password);
     setBusy(false);
-    if (!result.ok) {
-      setError(SIGN_IN_ERROR[result.reason]);
+    if (result.kind !== 'ok') {
+      setError(SIGN_IN_ERROR[signInFailureFor(result.kind)]);
       return;
     }
     setError(null);
-    onSession(result.session);
+    onSession(staffSession(username, result.value));
   };
 
   return (
@@ -122,17 +130,14 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
             <Text style={s.btnPrimaryText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
           </Pressable>
 
-          {!isRealAuthentication && (
-            <View style={s.demoNote}>
-              <Text style={s.demoTitle}>Demo sign-in</Text>
-              <Text style={s.demoText}>
-                No identity provider is connected yet, so these credentials are
-                checked on the device and verify nothing. Use{' '}
-                {DEMO_ACCOUNTS.map((a) => a.username).join(' or ')} with the
-                password “jalsakshi”.
-              </Text>
-            </View>
-          )}
+          <View style={s.demoNote}>
+            <Text style={s.demoTitle}>Synthetic sign-in</Text>
+            <Text style={s.demoText}>
+              Checked by the JalSakshi server's synthetic test issuer, not a real
+              identity provider. All data is synthetic. Use{' '}
+              {DEMO_USERNAMES.join(' or ')} with the password “jalsakshi”.
+            </Text>
+          </View>
         </View>
 
         <View style={s.divider}>

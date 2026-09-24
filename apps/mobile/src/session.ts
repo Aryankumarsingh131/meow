@@ -12,22 +12,22 @@
  * operator-recorded communication only."
  *
  * That is why the public water-quality portal is reachable WITHOUT credentials
- * rather than via a "resident" login. Inventing a resident account would add a
- * fifth identity the matrix deliberately does not have, and would imply
- * residents have permissions they do not.
+ * rather than via a "resident" login.
  *
- * ## This is not authentication yet
+ * ## Sign-in is checked by the server, not by this file
  *
- * T06 built real OIDC token verification, but no provider has been chosen and
- * no test accounts exist, so there is nothing to authenticate against. The
- * accounts below are DEMO accounts checked locally. They are clearly labelled
- * as such in the UI, and `isRealAuthentication` is false so no caller can
- * mistake this for a verified session.
+ * Until M1 (2026-09-24) this file compared passwords against a local table,
+ * which authenticated nothing. Credentials now go to the API's synthetic dev
+ * issuer (ADR-M1-002, `api.signIn`), which returns an RS256 token that every
+ * API route verifies with T06's real code. The issuer is still SYNTHETIC -
+ * not a real identity provider - and the session says so (`issuer`).
  *
- * When the provider is wired, `signIn` is the single function that changes:
- * it starts the PKCE flow in `auth.ts` and resolves the role from the
- * membership lookup instead of this table.
+ * The role is not known here: the token carries no role claim, because the
+ * server resolves it from membership on every request. Every staff member
+ * goes to the field surface (see `surfaceFor`), so routing does not need it.
  */
+
+import type { SignedIn } from './api';
 
 /** Fixed by authorization-matrix.md. `resident` is deliberately NOT here. */
 export type Role = 'worker' | 'supervisor' | 'lab_reviewer' | 'admin';
@@ -35,46 +35,16 @@ export type Role = 'worker' | 'supervisor' | 'lab_reviewer' | 'admin';
 /** The two product surfaces. */
 export type Surface = 'field' | 'public';
 
-export interface DemoAccount {
-  username: string;
-  password: string;
-  role: Role;
-  displayName: string;
-  tenantName: string;
-}
-
-/**
- * Demo accounts. Not secrets: they authenticate nothing real, grant no access
- * to any server, and exist only so the two surfaces can be demonstrated before
- * an identity provider exists. Replaced wholesale by OIDC, not extended.
- */
-export const DEMO_ACCOUNTS: readonly DemoAccount[] = [
-  {
-    username: 'worker',
-    password: 'jalsakshi',
-    role: 'worker',
-    displayName: 'Field worker (demo)',
-    tenantName: 'Riverside District',
-  },
-  {
-    username: 'supervisor',
-    password: 'jalsakshi',
-    role: 'supervisor',
-    displayName: 'Block supervisor (demo)',
-    tenantName: 'Riverside District',
-  },
-];
-
-/** True only when a real identity provider has verified the session. */
-export const isRealAuthentication = false;
+/** Public synthetic demo usernames (password "jalsakshi"), shown on the login screen. */
+export const DEMO_USERNAMES = ['worker', 'supervisor'] as const;
 
 export interface Session {
   kind: 'staff';
-  role: Role;
-  displayName: string;
-  tenantName: string;
-  /** Always false until OIDC is wired. Surfaces must show this. */
-  verified: boolean;
+  username: string;
+  /** In memory only; never persisted until secure storage exists (T06/T45). */
+  auth: SignedIn;
+  /** Who vouched for this session. Surfaces must show a synthetic issuer. */
+  issuer: 'synthetic_dev_issuer';
 }
 
 export interface PublicVisitor {
@@ -83,47 +53,39 @@ export interface PublicVisitor {
 
 export type AppSession = Session | PublicVisitor | null;
 
-export type SignInResult =
-  | { ok: true; session: Session }
-  | { ok: false; reason: 'empty_username' | 'empty_password' | 'unknown_account' };
+export type SignInFailure = 'empty_username' | 'empty_password' | 'unknown_account' | 'offline' | 'server_error';
 
-/**
- * Check demo credentials.
- *
- * Distinguishes empty input from a wrong credential, but does NOT distinguish
- * "no such user" from "wrong password" — that difference tells an attacker
- * which usernames exist, and the habit matters even in a demo, because this is
- * the function the real implementation replaces.
- */
-export function signIn(username: string, password: string): SignInResult {
-  const u = username.trim().toLowerCase();
-  if (!u) return { ok: false, reason: 'empty_username' };
-  if (!password) return { ok: false, reason: 'empty_password' };
-
-  const account = DEMO_ACCOUNTS.find(
-    (a) => a.username === u && a.password === password,
-  );
-  if (!account) return { ok: false, reason: 'unknown_account' };
-
-  return {
-    ok: true,
-    session: {
-      kind: 'staff',
-      role: account.role,
-      displayName: account.displayName,
-      tenantName: account.tenantName,
-      verified: isRealAuthentication,
-    },
-  };
+/** Checked before any network call; empty input is not a credential failure. */
+export function checkSignInInput(username: string, password: string): SignInFailure | null {
+  if (!username.trim()) return 'empty_username';
+  if (!password) return 'empty_password';
+  return null;
 }
 
-export const SIGN_IN_ERROR: Record<
-  Exclude<SignInResult & { ok: false }, { ok: true }>['reason'],
-  string
-> = {
+/** Map an API sign-in outcome kind to what the worker is told. */
+export function signInFailureFor(kind: 'auth_required' | 'offline' | 'failed'): SignInFailure {
+  switch (kind) {
+    case 'auth_required':
+      return 'unknown_account';
+    case 'offline':
+      return 'offline';
+    case 'failed':
+      return 'server_error';
+  }
+}
+
+export function staffSession(username: string, auth: SignedIn): Session {
+  return { kind: 'staff', username: username.trim().toLowerCase(), auth, issuer: 'synthetic_dev_issuer' };
+}
+
+export const SIGN_IN_ERROR: Record<SignInFailure, string> = {
   empty_username: 'Enter your username.',
   empty_password: 'Enter your password.',
+  // One message for unknown user and wrong password: the difference tells an
+  // attacker which usernames exist. The server enforces the same rule.
   unknown_account: 'Those details were not recognised.',
+  offline: 'Cannot reach the server. First sign-in needs a connection.',
+  server_error: 'The server could not sign you in. Try again shortly.',
 };
 
 /**

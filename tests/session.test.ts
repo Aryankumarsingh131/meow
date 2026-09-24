@@ -7,60 +7,55 @@
 import assert from 'node:assert/strict';
 
 import {
-  DEMO_ACCOUNTS,
+  DEMO_USERNAMES,
   SIGN_IN_ERROR,
+  checkSignInInput,
   continueAsPublic,
-  isRealAuthentication,
-  signIn,
+  signInFailureFor,
+  staffSession,
   surfaceFor,
+  type SignInFailure,
 } from '../apps/mobile/src/session.ts';
 
 const tests: Array<[string, () => void | Promise<void>]> = [];
 const test = (n: string, f: () => void | Promise<void>) => tests.push([n, f]);
 
-test('valid staff credentials route to the field app', () => {
-  const r = signIn('worker', 'jalsakshi');
-  assert.equal(r.ok, true);
-  assert.ok(r.ok && r.session.role === 'worker');
-  assert.equal(surfaceFor(r.ok ? r.session : null), 'field');
+const AUTH = { token: 'h.p.s', subject: 'user-1', expiresAtMs: 0 };
+
+// Credential matching (case, enumeration resistance) is enforced by the SERVER
+// since M1 and tested in tests/dev_issuer_test.py. These are the client's half.
+
+test('a staff session routes to the field app', () => {
+  assert.equal(surfaceFor(staffSession('worker', AUTH)), 'field');
 });
 
-test('username is case-insensitive and trimmed', () => {
-  assert.equal(signIn('  WORKER ', 'jalsakshi').ok, true);
+test('username is normalised; the token is kept as issued', () => {
+  const s = staffSession('  WORKER ', AUTH);
+  assert.equal(s.username, 'worker');
+  assert.equal(s.auth, AUTH);
 });
 
-test('password is NOT case-insensitive', () => {
-  // Trimming a username is a usability nicety; loosening a password is not.
-  assert.equal(signIn('worker', 'JALSAKSHI').ok, false);
-  assert.equal(signIn('worker', ' jalsakshi').ok, false);
+test('empty fields are caught before any network call', () => {
+  assert.equal(checkSignInInput('', 'x'), 'empty_username');
+  assert.equal(checkSignInInput('   ', 'x'), 'empty_username');
+  assert.equal(checkSignInInput('worker', ''), 'empty_password');
+  assert.equal(checkSignInInput('worker', 'x'), null);
 });
 
-test('a wrong password and an unknown user are indistinguishable', () => {
-  // Distinguishing them tells an attacker which usernames exist.
-  const wrongPassword = signIn('worker', 'nope');
-  const noSuchUser = signIn('nobody', 'nope');
-  assert.equal(wrongPassword.ok, false);
-  assert.equal(noSuchUser.ok, false);
-  assert.deepEqual(wrongPassword, noSuchUser);
+test('password is not trimmed or otherwise loosened on the client', () => {
+  assert.equal(checkSignInInput('worker', ' '), null); // sent as-is; server decides
 });
 
-test('empty fields are reported separately from a bad credential', () => {
-  // Bound to variables so TypeScript can narrow the discriminated union;
-  // calling signIn twice inline defeats narrowing.
-  const noUser = signIn('', 'x');
-  assert.equal(noUser.ok, false);
-  assert.equal(noUser.ok === false ? noUser.reason : null, 'empty_username');
-
-  const noPassword = signIn('worker', '');
-  assert.equal(noPassword.ok, false);
-  assert.equal(noPassword.ok === false ? noPassword.reason : null, 'empty_password');
+test('offline is told apart from wrong details', () => {
+  assert.equal(signInFailureFor('auth_required'), 'unknown_account');
+  assert.equal(signInFailureFor('offline'), 'offline');
+  assert.equal(signInFailureFor('failed'), 'server_error');
+  assert.notEqual(SIGN_IN_ERROR.offline, SIGN_IN_ERROR.unknown_account);
 });
 
-test('every error reason has user-facing text, and none leaks which field matched', () => {
-  for (const reason of ['empty_username', 'empty_password', 'unknown_account'] as const) {
-    const text = SIGN_IN_ERROR[reason];
-    assert.ok(text && text.length > 0, reason);
-  }
+test('every failure has text, and none leaks which field matched', () => {
+  const all: SignInFailure[] = ['empty_username', 'empty_password', 'unknown_account', 'offline', 'server_error'];
+  for (const reason of all) assert.ok(SIGN_IN_ERROR[reason].length > 0, reason);
   assert.ok(!/password.*incorrect|no such user|user not found/i.test(SIGN_IN_ERROR.unknown_account));
 });
 
@@ -74,27 +69,21 @@ test('no session shows neither surface', () => {
   assert.equal(surfaceFor(null), null);
 });
 
-test('a demo session is never marked verified', () => {
-  // Until OIDC is wired nothing here authenticates anyone, and the UI must be
-  // able to say so.
-  assert.equal(isRealAuthentication, false);
-  const r = signIn('worker', 'jalsakshi');
-  assert.equal(r.ok && r.session.verified, false);
+test('a session always names its issuer as synthetic', () => {
+  // The issuer is ADR-M1-002's dev issuer, not a real identity provider,
+  // and the UI must be able to say so.
+  assert.equal(staffSession('worker', AUTH).issuer, 'synthetic_dev_issuer');
 });
 
 test('there is no resident account', () => {
   // authorization-matrix.md: a resident is not a user and has no login.
-  for (const a of DEMO_ACCOUNTS) {
-    assert.notEqual(a.role as string, 'resident');
-  }
-  assert.equal(signIn('resident', 'jalsakshi').ok, false);
+  assert.ok(!(DEMO_USERNAMES as readonly string[]).includes('resident'));
 });
 
-test('demo roles are all in the fixed role enum', () => {
-  const allowed = ['worker', 'supervisor', 'lab_reviewer', 'admin'];
-  for (const a of DEMO_ACCOUNTS) {
-    assert.ok(allowed.includes(a.role), `unexpected role ${a.role}`);
-  }
+test('the session module no longer checks passwords locally', async () => {
+  const src = await (await import('node:fs/promises')).readFile(
+    new URL('../apps/mobile/src/session.ts', import.meta.url), 'utf8');
+  assert.ok(!/password\s*===|===\s*password|DEMO_ACCOUNTS/.test(src), 'local password check is back');
 });
 
 test('the root routes only to the two product surfaces', async () => {

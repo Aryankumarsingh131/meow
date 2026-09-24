@@ -58,7 +58,7 @@ export default function App(): React.JSX.Element {
           </Text>
           <Text style={styles.barSub}>
             {isStaff
-              ? `${session.displayName} · ${session.tenantName}`
+              ? `Signed in as ${session.username}`
               : 'Open information — no account'}
           </Text>
         </View>
@@ -72,16 +72,15 @@ export default function App(): React.JSX.Element {
         </Pressable>
       </View>
 
-      {/* An unverified session must say so. It is a demo sign-in until an
-          identity provider is connected (T06). */}
-      {isStaff && !session.verified && (
+      {/* The issuer is synthetic (ADR-M1-002) and the screen must say so. */}
+      {isStaff && session.issuer === 'synthetic_dev_issuer' && (
         <Text style={styles.unverified}>
-          Demo session — not verified by an identity provider.
+          Synthetic session — issued by the test issuer, not a real identity provider.
         </Text>
       )}
 
       <View style={styles.body}>
-        {surface === 'field' ? <WorkerApp /> : <PublicApp />}
+        {surface === 'field' && isStaff ? <WorkerApp session={session} onAuthExpired={() => setSession(null)} /> : <PublicApp />}
       </View>
 
       <StatusBar style="auto" />
