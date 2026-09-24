@@ -98,6 +98,9 @@ function memoryStore(failAt?: FailurePoint) {
       async remove(uri) {
         files.delete(uri);
       },
+      async discardCapture(sourceUri) {
+        files.delete(sourceUri); // the camera's temporary original
+      },
     },
     database: {
       async commit(bundle) {
@@ -148,6 +151,19 @@ test('save returns a receipt only after the asset, sample and outbox are durable
   assert.equal((await store.dependencies.database.receipt(SAMPLE_ID))?.status, 'saved');
 });
 
+test('T32: the camera original is deleted after a committed save, not before', async () => {
+  const saved = memoryStore();
+  await saveConfirmedSample(input, saved.dependencies);
+  assert.equal(saved.files.has(SOURCE_URI), false, 'plaintext camera original must not outlive the save');
+  assert.equal((await saved.dependencies.files.list()).length, 1, 'the saved copy stays');
+
+  for (const point of ['disk', 'before_move', 'after_move', 'before_commit'] as const) {
+    const failed = memoryStore(point);
+    await assert.rejects(saveConfirmedSample(input, failed.dependencies));
+    assert.equal(failed.files.has(SOURCE_URI), true, `${point}: an unsaved capture must survive for a retry`);
+  }
+});
+
 test('disk failure never reports success or creates database rows', async () => {
   const store = memoryStore('disk');
   await assert.rejects(saveConfirmedSample(input, store.dependencies), /disk full/);
@@ -172,7 +188,7 @@ test('lost commit acknowledgement recovers one receipt without deleting its asse
   assert.deepEqual([store.samples.size, store.assets.size, store.outbox.size], [1, 1, 1]);
 
   const recovery = await recoverLocalStorage(store.dependencies);
-  assert.deepEqual(recovery, { removed: [], missing: [] });
+  assert.deepEqual(recovery, { removed: [], missing: [], sweptCaptures: 0 });
   const recovered = await store.dependencies.database.receipt(SAMPLE_ID);
   assert.equal(recovered?.assetSha256, sha256(CAPTURE));
 

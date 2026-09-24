@@ -64,6 +64,10 @@ export type LocalSaveDependencies = {
     list(): Promise<Array<{ uri: string; name: string }>>;
     exists(uri: string): Promise<boolean>;
     remove(uri: string): Promise<void>;
+    /** T32: delete the camera's own temporary original, and nothing else. */
+    discardCapture?(sourceUri: string): Promise<void>;
+    /** T32: delete leftover camera temporaries from captures never saved. */
+    sweepCaptures?(): Promise<number>;
   };
   database: {
     commit(bundle: LocalSaveBundle): Promise<void>;
@@ -233,6 +237,9 @@ export async function saveConfirmedSample(
   };
 
   await dependencies.database.commit(bundle);
+  // T32: the saved copy is committed; the camera's plaintext original in the
+  // cache folder must not outlive it. Only after commit, never before.
+  if (input.sourceUri) await dependencies.files.discardCapture?.(input.sourceUri);
   return toReceipt(bundle);
 }
 
@@ -251,7 +258,8 @@ export async function recoverLocalStorage(dependencies: LocalSaveDependencies) {
   for (const uri of referenced) {
     if (!(await dependencies.files.exists(uri))) missing.push(uri);
   }
-  return { removed: removed.sort(), missing: missing.sort() };
+  const sweptCaptures = (await dependencies.files.sweepCaptures?.()) ?? 0;
+  return { removed: removed.sort(), missing: missing.sort(), sweptCaptures };
 }
 
 /**
@@ -292,6 +300,21 @@ export async function openLocalStorage(sql: Sql) {
       async remove(uri) {
         const file = new File(uri);
         if (file.exists) file.delete();
+      },
+      async discardCapture(sourceUri) {
+        // Only ever a file inside the app's cache folder: never a saved asset.
+        if (!sourceUri.startsWith(Paths.cache.uri)) return;
+        const file = new File(sourceUri);
+        if (file.exists) file.delete();
+      },
+      async sweepCaptures() {
+        // expo-camera writes to <cache>/Camera. At startup nothing is being
+        // captured, so anything left there belongs to a capture never saved.
+        const camera = new Directory(Paths.cache, 'Camera');
+        if (!camera.exists) return 0;
+        const leftovers = camera.list().filter((item): item is InstanceType<typeof File> => item instanceof File);
+        for (const file of leftovers) file.delete();
+        return leftovers.length;
       },
     },
     database: {
