@@ -115,6 +115,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
             autoCapitalize="none"
             autoCorrect={false}
             testID="login-username"
+            accessibilityLabel={hosted === false ? 'Username' : 'Email'}
           />
 
           <Text style={s.label}>Password</Text>
@@ -133,6 +134,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
             secureTextEntry
             autoCapitalize="none"
             testID="login-password"
+            accessibilityLabel="Password"
             onSubmitEditing={submit}
           />
 

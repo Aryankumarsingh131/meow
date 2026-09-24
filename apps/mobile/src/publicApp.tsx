@@ -89,6 +89,8 @@ export function PublicApp({ now = Date.now }: PublicAppProps): React.JSX.Element
             testID={`public-tab-${key}`}
             style={[s.tab, panel === key && s.tabActive]}
             onPress={() => setPanel(key)}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: panel === key }}
           >
             <Text style={[s.tabText, panel === key && s.tabTextActive]}>{label}</Text>
           </Pressable>
@@ -188,12 +190,18 @@ export function PublicApp({ now = Date.now }: PublicAppProps): React.JSX.Element
                 Tell the water authority if something has changed at this source — a
                 break, a leak, or a change you have noticed.
               </Text>
-              <Pressable style={[s.btn, s.btnPrimary]}>
+              {/* T48: these did nothing when tapped. Until in-app reporting
+                  exists they are visibly and programmatically disabled, and the
+                  helpline below is named as the way to do it. */}
+              <Pressable style={[s.btn, s.btnPrimary, s.btnDisabled]} disabled accessibilityRole="button"
+                accessibilityState={{ disabled: true }} accessibilityHint="Not available in the app yet. Call the helpline below.">
                 <Text style={s.btnPrimaryText}>Report an issue</Text>
               </Pressable>
-              <Pressable style={[s.btn, s.btnGhost]}>
+              <Pressable style={[s.btn, s.btnGhost, s.btnDisabled]} disabled accessibilityRole="button"
+                accessibilityState={{ disabled: true }} accessibilityHint="Not available in the app yet. Call the helpline below.">
                 <Text style={s.btnGhostText}>Request a retest</Text>
               </Pressable>
+              <Text style={s.note}>Not available in the app yet: call the reporting helpline below.</Text>
             </Card>
 
             <Card>
@@ -271,5 +279,6 @@ const s = StyleSheet.create({
   btnPrimaryText: { color: colors.onPrimary, fontWeight: '700', fontSize: 15 },
   btnGhost: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.primary },
   btnGhostText: { color: colors.primary, fontWeight: '600', fontSize: 15 },
+  btnDisabled: { opacity: 0.5 },
   footer: { ...type.tiny, textAlign: 'center', marginTop: spacing.sm },
 });
