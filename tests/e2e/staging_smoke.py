@@ -28,9 +28,9 @@ def call(url: str, *, data: dict | None = None, headers: dict | None = None, tim
                                  headers={**({"Content-Type": "application/json"} if data is not None else {}), **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # verifies the TLS certificate
-            return r.status, json.load(r), dict(r.headers)
+            return r.status, json.load(r), r.headers  # case-insensitive: proxies lowercase names
     except urllib.error.HTTPError as e:
-        return e.code, None, dict(e.headers)
+        return e.code, None, e.headers
 
 
 def main() -> int:

@@ -42,6 +42,12 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci
+      # sync-client and offline-auth start the real Python API as a subprocess.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r services/api/requirements.txt
       - name: Node suites
         run: for f in tests/*.test.ts; do echo "== $f"; node "$f" || exit 1; done
       - name: Type-check tests and contracts
