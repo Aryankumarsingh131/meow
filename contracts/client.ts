@@ -262,6 +262,8 @@ export interface components {
             calibration_version?: string | null;
             /** Confidence */
             confidence?: number | null;
+            /** Override Reason */
+            override_reason?: string | null;
         };
         /** ProblemDetail */
         ProblemDetail: {
@@ -604,7 +606,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -648,7 +650,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetail"];
                 };
             };
-            /** @description Unprocessable Content */
+            /** @description Unprocessable Entity */
             422: {
                 headers: {
                     [name: string]: unknown;

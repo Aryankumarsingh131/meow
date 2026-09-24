@@ -30,8 +30,9 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Sequence
+from typing import Literal
 
 # Bumped whenever a rule or threshold changes, so a stored observation can be
 # traced to the exact rules that produced it.

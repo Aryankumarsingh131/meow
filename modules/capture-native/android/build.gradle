@@ -30,4 +30,5 @@ dependencies {
   // this leg: the JS leg parses the bytes by hand, so the two legs agreeing
   // is evidence rather than the same bug twice.
   implementation "androidx.exifinterface:exifinterface:1.3.7"
+  testImplementation "junit:junit:4.13.2"
 }

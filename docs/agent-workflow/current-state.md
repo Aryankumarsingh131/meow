@@ -1,4 +1,4 @@
-# Current state — meow1 (JalSakshi implementation, using jalsakshi-blueprint as reference)
+# Current state â€” meow1 (JalSakshi implementation, using jalsakshi-blueprint as reference)
 
 Updated: 2026-09-24.
 
@@ -8,7 +8,7 @@ copy at `jalsakshi-blueprint/docs/agent-workflow/current-state.md` is the
 sibling `meow` repository's historical record and carries a banner saying so.
 `jalsakshi-blueprint/AGENTS.md` now links here.
 
-## Milestone M1 — crash-safe offline vertical slice (IN PROGRESS)
+## Milestone M1 â€” crash-safe offline vertical slice (IN PROGRESS)
 
 ### Entry check (2026-09-24, run before any M1 task work)
 
@@ -19,7 +19,7 @@ against evidence, not against checkboxes:
 |---|---|---|
 | Frozen v1 schema | **Met** | `openapi.json` + `client.ts` regenerated from source: byte-identical. Schema suite (15) and contract suite (8) pass. |
 | Native feasibility | **Largely met** | Native build succeeds; Kotlin feature leg == Python leg exactly on Android 15 emulator. **Open:** G0 "APK offline tensor" never run; no physical device. |
-| Protocol feasibility | **Met only via the synthetic-boundary clause** | G0 requires a signed protocol decision + domain review of timing/units — **neither exists**. G0 explicitly accepts "an explicit synthetic-only boundary" instead; the project owner adopted SYN-COLOR-001 as that boundary (ADR-M1-001). |
+| Protocol feasibility | **Met only via the synthetic-boundary clause** | G0 requires a signed protocol decision + domain review of timing/units â€” **neither exists**. G0 explicitly accepts "an explicit synthetic-only boundary" instead; the project owner adopted SYN-COLOR-001 as that boundary (ADR-M1-001). |
 
 **Therefore M1 is a "clearly synthetic" slice.** M1's own goal permits this
 ("a real *or clearly synthetic* test"). Every M1 output is labelled synthetic
@@ -27,13 +27,13 @@ and none is presented as validated real-world evidence.
 
 **G0 items that remain OPEN and are never claimed as met:** domain review of
 timing/units; APK offline tensor; any real signed kit protocol; independent
-human review of T01–T04; a physical device.
+human review of T01â€“T04; a physical device.
 
 ### Protocol under test
 
-`protocols/SYN-COLOR-001.v1.json` — canonical, conforms to `protocol-schema.md`
+`protocols/SYN-COLOR-001.v1.json` â€” canonical, conforms to `protocol-schema.md`
 (`node tests/protocol-fixture.test.ts`, 17/17). Its **read window is
-SYNTHETIC** (prepare 10 s, read 30 s ± 15 s, invalid after 120 s), chosen by
+SYNTHETIC** (prepare 10 s, read 30 s Â± 15 s, invalid after 120 s), chosen by
 the agent to exercise T08's timer states; a printed colour card has no
 reaction, so these values mean nothing about any kit. Its quality thresholds
 are T10's fitted **provisional** values. `model.enabled = false`.
@@ -46,47 +46,47 @@ done silently. A box is ticked in `to-do.md` only after real DoD evidence.
 
 | Task | Role | Depends on | Status | Evidence / blocker |
 |---|---|---|---|---|
-| T05 | C | T01 | **reviewed 2026-09-24 — CONTRACT CHANGED.** Frozen `Timing` could not carry indeterminate timing without inventing `elapsed_ms=0`, and `valid: bool` collapsed late/expired/indeterminate. Now discriminated on `state`; re-frozen deterministically (openapi.json `3ac6b2b8…`, client.ts `c92c158a…`). 26 schema + 12 contract checks; 7/7 mutants caught. **Wants independent review of the new shape** — not ticked. | handoff-T05.md |
-| T06 | C | T03 T05 | **reviewed 2026-09-24 — acceptance met; M1 input added.** Verification code unchanged. Gap found: nothing could mint a token it accepts and nothing in the API called it. Added a synthetic dev issuer (ADR-M1-002): real RS256/JWKS, `.invalid` issuer, mounted only in development+synthetic; 26 tests prove its tokens pass T06's real `authenticate()`; 6/6 mutants caught. Still open: real provider, JWKS fetching, dead mobile `refreshToken` (→ T15/T45), independent auth review. **Not ticked.** | handoff-T06.md, ADR-M1-002 |
-| T07 | A | T03 T05 | built earlier — **DoD review pending** | handoff-T07.md |
-| T08 | A | T01 T07 | mechanism built — wire to SYN-COLOR-001 | handoff-T08.md |
-| T09 | A | T04 T08 | built earlier — **DoD review pending** | handoff-T09.md |
-| T10 | B | T04 | Python leg only — `Quality.kt` missing | — |
-| T11 | A | T09 T10 | not started | — |
-| T12 | A | T11 | not started | — |
-| T13 | C | T05 T06 | not started | — |
-| T14 | C | T13 | not started | — |
-| T15 | A | T12 T14 | not started | — |
-| T45 | C+A | T06 T12 T15 | not started | — |
+| T05 | C | T01 | **reviewed 2026-09-24 â€” CONTRACT CHANGED.** Frozen `Timing` could not carry indeterminate timing without inventing `elapsed_ms=0`, and `valid: bool` collapsed late/expired/indeterminate. Now discriminated on `state`; re-frozen deterministically (openapi.json `3ac6b2b8â€¦`, client.ts `c92c158aâ€¦`). 26 schema + 12 contract checks; 7/7 mutants caught. **Wants independent review of the new shape** â€” not ticked. | handoff-T05.md |
+| T06 | C | T03 T05 | **reviewed 2026-09-24 â€” acceptance met; M1 input added.** Verification code unchanged. Gap found: nothing could mint a token it accepts and nothing in the API called it. Added a synthetic dev issuer (ADR-M1-002): real RS256/JWKS, `.invalid` issuer, mounted only in development+synthetic; 26 tests prove its tokens pass T06's real `authenticate()`; 6/6 mutants caught. Still open: real provider, JWKS fetching, dead mobile `refreshToken` (â†’ T15/T45), independent auth review. **Not ticked.** | handoff-T06.md, ADR-M1-002 |
+| T07 | A | T03 T05 | built earlier â€” **DoD review pending** | handoff-T07.md |
+| T08 | A | T01 T07 | mechanism built â€” wire to SYN-COLOR-001 | handoff-T08.md |
+| T09 | A | T04 T08 | built earlier â€” **DoD review pending** | handoff-T09.md |
+| T10 | B | T04 | Python leg only â€” `Quality.kt` missing | â€” |
+| T11 | A | T09 T10 | not started | â€” |
+| T12 | A | T11 | not started | â€” |
+| T13 | C | T05 T06 | **completed 2026-09-24.** Per-event transactions, payload-guarded idempotency, immutable corrections and real PostgreSQL concurrency verified. | handoff-T13.md |
+| T14 | C | T13 | not started | â€” |
+| T15 | A | T12 T14 | not started | â€” |
+| T45 | C+A | T06 T12 T15 | not started | â€” |
 
 ## What exists
 
-`jalsakshi-blueprint/` — planning/reference package only, untouched, not edited by this task.
+`jalsakshi-blueprint/` â€” planning/reference package only, untouched, not edited by this task.
 
-`docs/protocol-selection.md`, `docs/event-confirmation.md` — T01 deliverables.
+`docs/protocol-selection.md`, `docs/event-confirmation.md` â€” T01 deliverables.
 Both are **fictional demo templates**, explicitly authorized by the user in
 place of real kit/event data (real data was not available). No real kit,
 lot, manufacturer, or event exists yet.
 
-`docs/pilot-interviews.md`, `docs/alternative-evaluation.md` — T02 deliverables.
+`docs/pilot-interviews.md`, `docs/alternative-evaluation.md` â€” T02 deliverables.
 Both are **fictional demo templates**. The T02 dependency gate ("T01 reviewed,
 not just checkbox-complete") was explicitly waived by the user for this pass;
 T01 itself is still not really reviewed. No real worker/supervisor/buyer/lab
 partner exists, and no real mWater/ODK sandbox trial has been performed.
 
-`apps/mobile/` — real Expo/TypeScript scaffold (T03), not fictional. Real
+`apps/mobile/` â€” real Expo/TypeScript scaffold (T03), not fictional. Real
 `npm install`/`npx expo config` succeeded on this build host; real dependency
 versions are resolved and recorded in `docs/toolchain-matrix.md`. `npx expo
 run:android` was actually attempted and genuinely failed (no Android SDK, no
-`adb`, no device) — that failure is recorded as-is, not mocked. APK
+`adb`, no device) â€” that failure is recorded as-is, not mocked. APK
 install/offline-tensor acceptance criteria remain unmet.
 
 `modules/capture-native/` + `tests/capture-golden.json` + `docs/feature-schema.md`
-(T04) — real JS (TypeScript, run directly via Node 24's type stripping) and
+(T04) â€” real JS (TypeScript, run directly via Node 24's type stripping) and
 real Python implementations of the schema-v1 feature pipeline, actually run
 against a real (synthetically-generated, not phone-captured) EXIF-tagged
 JPEG fixture. Both legs agree exactly on EXIF orientation handling and ROI
-geometry; median color values differ by a measured, root-caused ±1/channel
+geometry; median color values differ by a measured, root-caused Â±1/channel
 due to a real cross-decoder (jpeg-js vs Pillow/libjpeg) rounding difference,
 recorded honestly rather than claimed as exact agreement.
 **Superseded 2026-09-22: the Kotlin native leg is now COMPILED, LINKED AND
@@ -94,7 +94,7 @@ RUN on a device.** It was previously real-but-never-compiled source.
 Diagnosis of why `computeFeaturesNative` always rejected: **it was not a build
 failure.** `CaptureModule` was a plain Kotlin class with no Expo `Module`, no
 `ModuleDefinition` and no JS-callable surface, and the module had no
-`package.json`, `expo-module.config.json` or `android/build.gradle` — so it sat
+`package.json`, `expo-module.config.json` or `android/build.gradle` â€” so it sat
 in **no build graph at all**, while the JS side was a hardcoded
 `Promise.reject` whose "no Android SDK" message had gone stale. Fixed by
 adding the build target, writing the missing binding
@@ -104,7 +104,7 @@ defects in the never-compiled source: a public function exposing a
 `private-in-class` return type, and a `minSdk` floor conflicting with the app.
 **Result: native median_r/g/b = 120/40/201, an EXACT match with the Python
 leg** (Android 15 / API 35 emulator, x86_64). That also root-causes T04's
-original ±1/channel JS gap as a **jpeg-js decoder artifact** — Android
+original Â±1/channel JS gap as a **jpeg-js decoder artifact** â€” Android
 `BitmapFactory` and Pillow are both libjpeg-based and agree to the bit, while
 only the pure-JS decoder differs. Median 23 ms/call; process memory recorded
 in `tests/capture-golden.json` `native_leg`. **Still outstanding for T04:**
@@ -115,7 +115,7 @@ the same or consecutive commits.**
 
 `services/api/app/schemas.py` + `contracts/openapi.json` + `contracts/client.ts`
 + `tests/contracts.test.ts` + `services/api/app/tests/test_schemas.py` (T05)
-— real Pydantic v2 discriminated-union schemas (sample events on `kind`,
+â€” real Pydantic v2 discriminated-union schemas (sample events on `kind`,
 case commands on `type`), a real FastAPI-generated `openapi.json` (not
 hand-typed), a real `openapi-typescript`-generated `client.ts` (never
 hand-edited), and two real test suites: 15 Python `unittest` cases (incl.
@@ -128,7 +128,7 @@ produced byte-identical output (verified by real `diff`, not assumed).
 
 `services/api/app/auth.py` + `apps/mobile/src/auth.ts` + `tests/auth_test.py`
 + `tests/auth_client.test.ts` + `docs/auth-provider.md` +
-`services/api/requirements.txt` (T06) — real OIDC access-token verification
+`services/api/requirements.txt` (T06) â€” real OIDC access-token verification
 (RS256 via JWKS, exact issuer, audience, expiry/nbf/iat with 60 s bounded
 leeway), tenant resolved from the membership lookup and never from a token
 claim or request field, and the role matrix from
@@ -136,7 +136,7 @@ claim or request field, and the role matrix from
 tests (incl. two-user/two-tenant negatives driven through a real ASGI app via
 `TestClient`, asserting cross-tenant and nonexistent IDs return
 byte-identical 404s) and 12 Node tests of the mobile PKCE public client using
-real `node:crypto`. **The cryptography is real; the issuer is not** — tokens
+real `node:crypto`. **The cryptography is real; the issuer is not** â€” tokens
 are minted from locally generated RSA keypairs because no OIDC provider has
 been chosen and no real test account exists. No end-to-end login against a
 hosted IdP has ever been performed and none is claimed. Test quality was
@@ -148,7 +148,7 @@ accepted if an `oct` key sits first). No new dependency was installed.
 
 `services/api/migrations/source.py` + `services/api/app/sources.py` +
 `apps/mobile/src/sourceCatalog.ts` + `apps/mobile/src/sources.tsx` +
-`tests/sources_test.py` + `tests/sources_client.test.ts` (T07) — real
+`tests/sources_test.py` + `tests/sources_client.test.ts` (T07) â€” real
 `sources` DDL applied to a real SQLite database by the real migration
 (per-tenant unique QR, bounded CHECKs, paired-coordinate constraint), a
 tenant-scoped catalogue with escaped bounded search and keyset paging,
@@ -159,78 +159,78 @@ Node tests. QR safety is real: 10 hostile payloads (`https:`, `javascript:`,
 app's own scheme) are all rejected by allowlist, the malformed outcome carries
 a reason code and never the payload, and there is no scan-to-navigate path at
 all. Test quality was checked by source-level mutation testing: 21 mutants,
-all caught — two initially survived and exposed that both bounded-length tests
+all caught â€” two initially survived and exposed that both bounded-length tests
 asserted something true with or without the bound; both were rewritten so the
 truncation is observable. **Superseded 2026-09-22:** at the time T07 was
 written there was no device, emulator or Android SDK, so the S02 screen had
 never been rendered. An emulator now exists and the screen has been rendered
 and screenshotted on it (`docs/evidence/`); **a screen recording is still not
 produced**, and stills on an emulator are not a substitute for it.
-**PostgreSQL has never been run against** — no server, no psycopg driver — and
+**PostgreSQL has never been run against** â€” no server, no psycopg driver â€” and
 `sources.py` uses qmark paramstyle, which psycopg does not accept, so it will
 not run on PostgreSQL as written. No dependency was added and no lockfile was
 touched.
 
 `apps/mobile/src/timer.ts` + `apps/mobile/src/protocol.tsx` +
-`tests/protocol.test.ts` (T08) — read-window timing integrity and kit
+`tests/protocol.test.ts` (T08) â€” read-window timing integrity and kit
 eligibility. Elapsed time is reconciled from **two** clocks (monotonic as the
 measurement of record, wall clock as cross-check) and yields a discriminated
 `measured | indeterminate`, where reboot, wall-clock rollback, monotonic
-regression, or divergence beyond tolerance all force `indeterminate` — which
+regression, or divergence beyond tolerance all force `indeterminate` â€” which
 blocks assisted interpretation while leaving the manual path open, per
 protocol-schema.md line 50. Elapsed time is **computed from a clock reading,
 never accumulated from ticks**, so backgrounding cannot silently under-count.
-Kit eligibility checks lot expiry, verification status, lot↔protocol-version
+Kit eligibility checks lot expiry, verification status, lotâ†”protocol-version
 match, protocol approval and validity window, reporting all failures at once.
 39 Node tests. Test quality checked by source-level mutation testing: 16
-mutants, all caught — two initially survived, one because a multi-line `sed`
+mutants, all caught â€” two initially survived, one because a multi-line `sed`
 never applied (a meaningless result, re-run properly) and one because of a
 **real gap** (no test passed a `null` read window; test added).
-**Every domain value is injected — there is no default or fallback read
+**Every domain value is injected â€” there is no default or fallback read
 window anywhere**, and a missing/malformed one yields `indeterminate` rather
 than an assumed window. **T08 is NOT domain-complete: T01 is still fictional,
 so no real kit, manufacturer, lot, expiry or read window exists.** The fixture
 timings in the tests are declared test values, labelled as such, and passing
 them is not domain validation. **Superseded 2026-09-22:** the S03 screen has
 now been rendered on the Android emulator and its full timer lifecycle
-(waiting → in-window → expired) captured from a single live run against the
-short-window fixture — see `docs/evidence/`. The domain blocker is unchanged:
+(waiting â†’ in-window â†’ expired) captured from a single live run against the
+short-window fixture â€” see `docs/evidence/`. The domain blocker is unchanged:
 rendering correctly with fictional fixtures says nothing about any real kit.
 
 ## Active claims
 
-- T01 (Protocol and event gate) — owner: agent (role A), acting on explicit
+- T01 (Protocol and event gate) â€” owner: agent (role A), acting on explicit
   user authorization to build a fictional/illustrative version since no real
   kit or event information was available. See [handoff-T01.md](handoff-T01.md).
-- T02 (Validate the user job and alternatives) — owner: agent (role A), acting
+- T02 (Validate the user job and alternatives) â€” owner: agent (role A), acting
   on explicit user authorization to waive the T01-reviewed dependency gate and
   build a fictional/illustrative version since no real interview subjects or
   competitor sandbox access were available. See [handoff-T02.md](handoff-T02.md).
-- T03 (Prove the native toolchain) — owner: agent (role B), acting on explicit
+- T03 (Prove the native toolchain) â€” owner: agent (role B), acting on explicit
   user authorization to scaffold real config/dependencies while leaving
   device-dependent acceptance criteria explicitly blocked (no Android SDK/
   adb/device in this environment). See [handoff-T03.md](handoff-T03.md).
-- T04 (Prove file-to-feature preprocessing) — owner: agent (role B), acting
+- T04 (Prove file-to-feature preprocessing) â€” owner: agent (role B), acting
   on explicit user authorization to waive the T01+T03-reviewed dependency
   gate, use a synthetic (not real-camera) fixture, and stub the native leg
   since no Kotlin/Android toolchain is available. See [handoff-T04.md](handoff-T04.md).
-- T05 (Freeze v1 contracts and test harness) — owner: agent (role C), acting
+- T05 (Freeze v1 contracts and test harness) â€” owner: agent (role C), acting
   on the same explicit precedent as T02-T04 to waive the T01-reviewed
   dependency gate. Fully real (no hardware blocker for this task). See
   [handoff-T05.md](handoff-T05.md).
-- T06 (Online membership authorization) — owner: agent (role C). T05's gate is
+- T06 (Online membership authorization) â€” owner: agent (role C). T05's gate is
   really satisfied; T03's is only partially (its device-dependent criteria are
-  blocked, but T06 needs no device). Neither has had real human review — that
+  blocked, but T06 needs no device). Neither has had real human review â€” that
   gate remains unmet, stated rather than silently waived. **Requires
   independent auth review per AGENTS.md before it counts as done.** See
   [handoff-T06.md](handoff-T06.md).
-- T07 (Source selection and history slice) — owner: agent (role A). Same gate
+- T07 (Source selection and history slice) â€” owner: agent (role A). Same gate
   position as T06: T05 really satisfied, T03 only partially (and its missing
   Android toolchain is exactly what blocks T07's required screen recording).
   Touches tenant authorization boundaries and shares T06's `Session` and its
   404-not-403 reasoning, so it **warrants the same independent review**. See
   [handoff-T07.md](handoff-T07.md).
-- T08 (Kit protocol and read-window flow) — owner: agent (role A). **Its T01
+- T08 (Kit protocol and read-window flow) â€” owner: agent (role A). **Its T01
   dependency gate is genuinely unmet, not waived:** this document already
   listed T08 as "blocked" on T01, and that is still true. The mechanism was
   built data-driven so no kit value is embedded, and verified against declared
@@ -238,6 +238,26 @@ rendering correctly with fictional fixtures says nothing about any real kit.
   is validated. Gates whether an automated interpretation may occur and
   produces the `invalid` timing state, so it **requires independent review**
   per AGENTS.md's state-closure rule. See [handoff-T08.md](handoff-T08.md).
+
+- T10 (Deterministic capture-quality rules) â€” owner/reviewer: Codex (role B),
+  completed 23 September 2026 IST on `feature/t10-quality-native`. The Python
+  fixture runner and compiled Kotlin mirror agree on decisions/reason codes;
+  thresholds remain explicitly provisional. See [handoff-T10.md](handoff-T10.md).
+- T11 (Indicative review and manual fallback) â€” owner/reviewer: Codex (role A),
+  completed 24 September 2026 IST on `feature/t11-review`. The deterministic
+  baseline, accessible review screen and camera-denied/uncertain/human-
+  disagreement paths are tested and rendered. Only an explicitly supplied,
+  valid versioned profile may produce a suggestion; the repository still has
+  no real approved kit profile. See [handoff-T11.md](handoff-T11.md).
+- T12 (Crash-safe local save) â€” owner/reviewer: Codex (role A/storage),
+  completed 24 September 2026 IST on `feature/t12-local-save`. The asset is
+  hashed before rename, sample/asset/outbox rows commit atomically, and no
+  receipt is returned before commit. Fault injection covers both sides of
+  rename and commit; startup recovery removes only owned unreferenced files,
+  preserves unknown/referenced files and reports missing referenced assets.
+  Expo exposes no public filesystem `fsync`, encryption remains T32, and no
+  physical-device process kill has been claimed. See
+  [handoff-T12.md](handoff-T12.md).
 
 **Android toolchain and visual evidence (2026-09-22, explicitly authorized by
 the user).** JDK 17, the Android SDK (platform 35, build-tools 35.0.0,
@@ -253,14 +273,14 @@ procedure. Playwright is a **root** devDependency so the mobile lockfile (T03,
 role B) stays untouched; no browser binary was downloaded.
 
 **Sibling repository `meow` integrated (2026-09-22, branch `integrate-meow`,
-user-requested).** `meow` and this repo are **siblings, not a fork** — no
-common git ancestor — and implemented different slices of the same blueprint,
+user-requested).** `meow` and this repo are **siblings, not a fork** â€” no
+common git ancestor â€” and implemented different slices of the same blueprint,
 so they are complementary. Taken from `meow`: the API service skeleton
 (`config.py`, `errors.py`, real `main.py`), the synthetic demo workflow
 (`demo.py`, `demo-store.ts`, `sync-state.ts`, ONNX probe model, controlled
 fixtures), `metro.config.js`, packaging, 12 API tests, and two reference docs.
 **Its `patch-onnxruntime.mjs` resolves the onnxruntime/Gradle-9 blocker this
-repo had recorded as open** — it is version-guarded, preserves real semantics,
+repo had recorded as open** â€” it is version-guarded, preserves real semantics,
 refuses unrecognised source, and runs as `postinstall` so it survives
 `npm install`. Its dependency set also supplies **`expo-crypto` (T06 PKCE) and
 `expo-camera` (T07 QR)**, both previously recorded as blocked on a role-B
@@ -274,7 +294,7 @@ halves reachable. 183 tests from this repo plus 13 from `meow` all pass.
 Full detail: [handoff-integration-meow.md](handoff-integration-meow.md).
 
 `apps/mobile/src/captureJob.ts` + `apps/mobile/src/capture.tsx` +
-`tests/capture-flow.test.ts` (T09) — guided capture and manual ROI. The job
+`tests/capture-flow.test.ts` (T09) â€” guided capture and manual ROI. The job
 reducer enforces J02's rule that a retake supersedes an in-flight capture and
 that cancelled/late output **cannot** overwrite it: a stale settle returns a
 typed `discarded_superseded`/`discarded_cancelled` disposition and leaves
@@ -282,26 +302,38 @@ state byte-identical. At most one job is active by construction, so there is
 no queue to bound. Failure reasons are typed and each carries a prompt that
 names an action; `permission_denied` is recoverable and manual entry stays
 open in every state. Manual ROI corners are validated (refused, never
-clamped) and mapped into the upright frame — verified against T04's **real**
+clamped) and mapped into the upright frame â€” verified against T04's **real**
 `correctOrientation` for all 8 EXIF orientations, pixel by pixel. 31 tests;
 13 source-level mutants all caught (one initially survived on a **real gap**:
 nothing tested cancelling a wrong job id, so a stale cancel could have killed
-the active retake). **Permission recovery and missing-card→manual-ROI were
+the active retake). **Permission recovery and missing-cardâ†’manual-ROI were
 exercised on the Android emulator with permission genuinely revoked via adb**
-— screenshots in `docs/evidence/`. **Cancel was NOT verified on device** (the
+â€” screenshots in `docs/evidence/`. **Cancel was NOT verified on device** (the
 capture settles faster than two adb taps); it is unit-tested only. No real
-assisted reading is possible: `computeFeaturesNative` still rejects (role B's
-Kotlin module was never compiled) and no reference-card detection exists
-anywhere (T10).
+assisted reading was possible at that point because the native module had not
+yet been compiled and no reference-card locator existed. The native feature
+bridge and T10 rules now compile; the capture screen still does not locate the
+card or consume T10 outcomes.
+
+`modules/capture-native/android/src/main/java/org/jalsakshi/capture/Quality.kt`,
+`ml/quality_baseline.py`, `ml/quality_fixtures_run.py` and
+`tests/quality-fixtures.json` (T10) â€” deterministic blur, clipping, glare, ROI
+and reference-card rules now exist in Python and compiled Kotlin. Eight
+synthetic fixtures cover accept/review/retake, absent/partial/unreadable cards,
+unset thresholds and all named quality reasons. Four native unit tests pass.
+A deliberately sharp but low-texture card is recorded as a false reject for
+T23, proving the provisional Laplacian rule measures texture rather than focus.
+No rule returns a class, bin, concentration or water judgement. Thresholds are
+synthetic and provisional until T23/T27; this is not real-kit validation.
 
 **Supabase connected (2026-09-22, user-supplied credentials, explicitly
 authorised).** **PostgreSQL 17.6.** The project reference is deliberately not
-recorded here — this repository is public, and naming the project identifies
+recorded here â€” this repository is public, and naming the project identifies
 it without adding anything a contributor needs; it lives in the gitignored
 `.env`. Config is
 read from a **gitignored `.env`** via `config.py`'s `JALSAKSHI_` env prefix;
 `.env.example` is the committed template and contains placeholders only. No
-credential is in any tracked file — verified against the staged diff before
+credential is in any tracked file â€” verified against the staged diff before
 pushing. Two corrections were needed to the supplied connection details: the
 string was missing the `:` between username and password, and the direct host
 `db.<ref>.supabase.co` **does not resolve** (Supabase direct connection is
@@ -310,11 +342,11 @@ IPv6-only), so the working route is the **pooler**
 `postgres.<project-ref>`.
 
 **Security actions outstanding:** the database password was pasted into a chat
-transcript and **must be rotated** — it is compromised regardless of what the
+transcript and **must be rotated** â€” it is compromised regardless of what the
 repo does. **Data residency:** the project is in **Tokyo (ap-northeast-1)**,
 not India; `security-and-privacy.md` treats residency as material for this
 programme, so the region likely needs revisiting (a region change means a new
-Supabase project). Everything stored so far is **synthetic fixture data** —
+Supabase project). Everything stored so far is **synthetic fixture data** â€”
 `.env` sets `environment=development` and `tenant_data_mode=synthetic`, and
 `config.py` refuses to start production unless the mode is `operational`.
 This work touches migrations and security, so it **requires independent
@@ -353,12 +385,12 @@ review** per AGENTS.md.
   provider-agnostic, so the choice can be made later without a rewrite.
   For M1 only, `services/api/app/dev_issuer.py` (ADR-M1-002) issues synthetic
   tokens in development+synthetic; it is **not** a provider decision.
-- **T06's mobile client is still not wired into the app** — but the
+- **T06's mobile client is still not wired into the app** â€” but the
   dependency half of this blocker is **partly resolved** (2026-09-22, `meow`
   integration): `expo-crypto` is now installed, which is what PKCE S256 needs
   since Hermes has no `crypto.subtle`. Still absent: `expo-auth-session`,
   `expo-web-browser`, `expo-secure-store`. The T06 module has **not** been
-  rewired onto `expo-crypto` yet — that is follow-up work. Consequently token
+  rewired onto `expo-crypto` yet â€” that is follow-up work. Consequently token
   storage is also unimplemented;
   nothing should be persisted to disk until `expo-secure-store` exists.
   Hermes has no `crypto.subtle`, so S256 needs a native module regardless.
@@ -370,7 +402,7 @@ review** per AGENTS.md.
 - **T07/T08 screen recordings still outstanding, though the screens now render.**
   As of 2026-09-22 an emulator exists and both screens have been rendered and
   screenshotted on it (`docs/evidence/`). What is captured is **stills, not a
-  recording**, and an emulator is **not a device** — no real camera, no real
+  recording**, and an emulator is **not a device** â€” no real camera, no real
   sensors, x86_64 rather than ARM. The original verification line asks for a
   screen recording; that is not yet produced, and emulator stills are not
   silently substituted for it.
@@ -393,19 +425,19 @@ review** per AGENTS.md.
   verified on both backends rather than written blind.
   **Three divergences SQLite structurally could not catch, found immediately:**
   (1) the schema's `uuid` columns **reject** T07's friendly fixture ids like
-  `src-a1` — SQLite maps `uuid`→`text` and accepts anything, so the SQLite
+  `src-a1` â€” SQLite maps `uuid`â†’`text` and accepts anything, so the SQLite
   suite passes with data the real schema refuses; (2) psycopg returns
   `uuid.UUID` objects where SQLite returns `str`, so `Source.id` was not
-  actually a `str` on PostgreSQL despite the dataclass declaring it —
+  actually a `str` on PostgreSQL despite the dataclass declaring it â€”
   `_row_to_source` now coerces; (3) PostgreSQL aborts the whole transaction on
   any error, which SQLite does not, so the test harness needed rollbacks
   between cases.
   **Still open from this:** `tests/sources_test.py` (SQLite) continues to use
   non-UUID ids, so the two suites disagree about what a valid id is. That
-  should be reconciled — the schema is authoritative per data-model.md.
+  should be reconciled â€” the schema is authoritative per data-model.md.
 - **T07's `source_history` depends on the `samples` table, which is T13's
   migration and does not exist.** The expected columns are documented in
-  `sources.SAMPLES_COLUMNS_EXPECTED` and stood up as a test fixture — an
+  `sources.SAMPLES_COLUMNS_EXPECTED` and stood up as a test fixture â€” an
   interface expectation that **needs agreement with T13's owner**, not a
   schema T07 defines.
 - **No HTTP route exists for `GET /v1/sources` or
@@ -424,26 +456,26 @@ review** per AGENTS.md.
   faster than two sequential `adb` taps, so the Cancel button was gone before
   the tap landed. Covered by three unit tests only. Needs a human tapping
   Cancel during a slow capture, or an instrumented test harness.
-- **T09 could not exercise a non-1 EXIF orientation on device** — the emulator
+- **T09 could not exercise a non-1 EXIF orientation on device** â€” the emulator
   camera always reports orientation 1. Photo-rotation normalisation is
   verified against T04's real transform in unit tests, not on hardware. The
   device "rotate" check only proved the app survives a rotation config change
   with state intact, because `app.config.ts` sets `orientation: "portrait"`
   and the app is deliberately portrait-locked.
-- **No reference-card detection exists anywhere in the codebase.** The native
-  bridge takes ROI corners as input and does not find them, so "reference card
-  not found" is currently the only possible outcome when a protocol requires
-  one. Automatic detection plus the glare/blur quality reasons named in S04
-  are **T10**, unbuilt. T09's manual ROI is the interim path, not a substitute.
+- **No geometric reference-card locator exists.** T10 now classifies supplied
+  reference-patch colours and produces glare/blur/clipping reason codes, but
+  the native bridge still takes ROI corners as input and does not find the card
+  in a photograph. T09's manual ROI remains the interim path, not a substitute.
 - **Metro could not resolve `modules/` from `apps/mobile` until T09 fixed it.**
   Metro sandboxes to its project root, so the app's import of the native
   bridge failed at runtime even though Node and `tsc` resolved it (which is
   why tests and type-checks did not catch it). Fixed via `watchFolders` in
-  `apps/mobile/metro.config.js` — a file no task card claims.
+  `apps/mobile/metro.config.js` â€” a file no task card claims.
 - `MIN_ROI_AREA_PX = 16` in `captureJob.ts` is an engineering floor chosen by
   the agent, not a domain threshold. Real quality thresholds
   (`min_roi_pixels`, blur, glare) belong to the protocol's `quality_policy`
-  and are fitted in T10.
+  and T10 fitted only provisional synthetic values. T23/T27 must replace or
+  approve them using real captures.
 - T09's ROI editor is tap-to-move rather than drag, and capture state is not
   persisted (durable drafts are T12). T09 has not had independent review and
   its `to-do.md` checkbox is deliberately left unchecked.
@@ -453,9 +485,9 @@ review** per AGENTS.md.
   `tests/protocol.test.ts` is explicitly **not** evidence that any physical
   kit's read window is honoured.
 - **Spec ambiguity in `protocol-schema.md` (found by T08, unresolved):** the
-  document defines `timing_valid = true` inside `read_at ± tolerance` and
+  document defines `timing_valid = true` inside `read_at Â± tolerance` and
   `false` after `invalid_after_seconds`, but says nothing about the band
-  between them — though the schema plainly intends them to differ or
+  between them â€” though the schema plainly intends them to differ or
   `invalid_after` would be redundant. T08 resolves it conservatively as
   `late` with `timingValid = false` (only the explicitly-stated true case is
   true, so no false "valid" is possible), but whether a late strip is re-read,
@@ -463,8 +495,8 @@ review** per AGENTS.md.
 - **T08's monotonic clock source is not bound to the platform.** The Android
   source must be `SystemClock.elapsedRealtime()` (counts during deep sleep),
   **not** `uptimeMillis()`; using the wrong one would under-count a test left
-  running while the phone slept. Binding it needs a native module — **role B's
-  boundary — and needs agreement before wiring.**
+  running while the phone slept. Binding it needs a native module â€” **role B's
+  boundary â€” and needs agreement before wiring.**
 - `CLOCK_AGREEMENT_TOLERANCE_MS = 2000` in `timer.ts` is an engineering
   constant chosen by the agent, not a domain value, and has not been validated
   against real device clock behaviour. Erring small only moves toward
@@ -499,7 +531,7 @@ If/when a real Android/Kotlin toolchain becomes available, compile and run
 `tests/fixtures/capture-golden-source.jpg` with the same known corners, add
 its result as a third `native_leg` entry in `tests/capture-golden.json`
 (append, don't overwrite the JS/Python legs), and check it against the
-measured ±1/channel JS/Python tolerance. If/when a real camera-captured
+measured Â±1/channel JS/Python tolerance. If/when a real camera-captured
 photo becomes available, add it as a second fixture rather than replacing
 the synthetic one, since the synthetic fixture's exact known corners/colors
 are what make the golden-vector comparison checkable at all.
@@ -526,7 +558,7 @@ staleness label. When a PostgreSQL server and psycopg exist, convert
 T13's owner before T13 writes `services/api/migrations/samples.py`.
 
 For T08: when T01 supplies a **real** transcribed protocol, replace the
-fixture in `tests/protocol.test.ts` with the real read window and re-run —
+fixture in `tests/protocol.test.ts` with the real read window and re-run â€”
 `timer.ts` needs no change, because no kit value is embedded in it. Get domain
 sign-off on the late-vs-expired band before then. Separately, agree the
 monotonic clock binding with role B (`SystemClock.elapsedRealtime()`, not

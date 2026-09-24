@@ -60,6 +60,7 @@
     {
       "fixture": "good_sharp_card_present",
       "description": "Well-exposed, in-focus, all four swatches present.",
+      "known_good": true,
       "expected_decision": "accept",
       "expected_reference_state": "detected",
       "actual": {
@@ -84,8 +85,38 @@
       "matches_expectation": true
     },
     {
+      "fixture": "known_good_low_texture_false_reject",
+      "description": "In-focus flat swatches rejected by the provisional blur heuristic; recorded for T23 because Laplacian variance measures texture, not focus.",
+      "known_good": true,
+      "expected_decision": "review",
+      "expected_reference_state": "detected",
+      "actual": {
+        "decision": "review",
+        "reasons": [
+          "BLUR_SUSPECTED"
+        ],
+        "rules_version": "quality-rules-v1",
+        "thresholds_provisional": true,
+        "skipped_checks": [],
+        "metrics": {
+          "roi_pixel_count": 576,
+          "blur_variance": 379.9226,
+          "clipped_fraction": 0.0,
+          "glare_fraction": 0.0,
+          "reference_card": {
+            "state": "detected",
+            "swatches_matched": 4,
+            "swatches_expected": 4,
+            "mean_distance": 0.0
+          }
+        }
+      },
+      "matches_expectation": true
+    },
+    {
       "fixture": "reference_absent",
       "description": "Card not in frame. Caller supplied no patches; nothing is guessed.",
+      "known_good": false,
       "expected_decision": "retake",
       "expected_reference_state": "not_detected",
       "actual": {
@@ -114,6 +145,7 @@
     {
       "fixture": "reference_partially_occluded",
       "description": "Two swatches visible, two covered.",
+      "known_good": false,
       "expected_decision": "retake",
       "expected_reference_state": "partially_occluded",
       "actual": {
@@ -142,6 +174,7 @@
     {
       "fixture": "reference_unreadable_washed",
       "description": "All four swatches in place but washed beyond the match tolerance: present-but-unreadable, a DIFFERENT fact from absent.",
+      "known_good": false,
       "expected_decision": "retake",
       "expected_reference_state": "unreadable",
       "actual": {
@@ -171,6 +204,7 @@
     {
       "fixture": "blur_defocused",
       "description": "Same scene, defocused.",
+      "known_good": false,
       "expected_decision": "review",
       "expected_reference_state": "detected",
       "actual": {
@@ -199,6 +233,7 @@
     {
       "fixture": "glare_specular_30pct",
       "description": "30% of the ROI is specular highlight.",
+      "known_good": false,
       "expected_decision": "review",
       "expected_reference_state": "detected",
       "actual": {
@@ -227,6 +262,7 @@
     {
       "fixture": "clipping_30pct",
       "description": "30% of the ROI is clipped to 0/255.",
+      "known_good": false,
       "expected_decision": "review",
       "expected_reference_state": "detected",
       "actual": {
@@ -253,7 +289,17 @@
       "matches_expectation": true
     }
   ],
-  "false_rejects_for_T23": [],
-  "false_reject_note": "Empty means no GOOD fixture was rejected by the fitted thresholds. With only one good synthetic fixture that says little about the real false-reject rate; T23 must collect real captures.",
+  "false_rejects_for_T23": [
+    {
+      "fixture": "known_good_low_texture_false_reject",
+      "expected": "review",
+      "actual": "review",
+      "reasons": [
+        "BLUR_SUSPECTED"
+      ],
+      "why_it_matters": "A good capture was rejected. False-reject sample for T23."
+    }
+  ],
+  "false_reject_note": "Synthetic examples expose rule limitations but cannot estimate a real false-reject rate; T23 must collect real captures.",
   "mismatches": []
 }

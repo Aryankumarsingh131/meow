@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -27,7 +28,6 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { Paths } from 'expo-file-system';
 import { StatusBar } from 'expo-status-bar';
-import { InferenceSession, Tensor } from 'onnxruntime-react-native';
 
 import {
   initializeStore,
@@ -140,6 +140,8 @@ export function DemoWorkflowScreen() {
 
   async function runNativeProbe() {
     await work('Running offline native bridge self-check…', async () => {
+      if (Platform.OS === 'web') throw new Error('The native bridge self-check requires Android or iOS');
+      const { InferenceSession, Tensor } = await import('onnxruntime-react-native');
       const asset = await Asset.fromModule(require('../assets/identity.onnx')).downloadAsync();
       if (!asset.localUri) throw new Error('Bundled self-check model is unavailable');
       const session = await InferenceSession.create(asset.localUri, { executionProviders: ['cpu'] });
