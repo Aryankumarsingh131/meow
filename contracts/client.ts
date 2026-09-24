@@ -65,6 +65,10 @@ export interface components {
              * Format: uuid
              */
             action_id: string;
+            /** Completed At */
+            completed_at?: string | null;
+            /** Evidence Note */
+            evidence_note?: string | null;
         };
         /** AssignCommand */
         AssignCommand: {

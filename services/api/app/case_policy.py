@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from functools import lru_cache
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -64,6 +65,7 @@ class Context:
     trigger_sample: dict[str, Any]
     is_active_member: Callable[[str], bool]
     now: str
+    actor_id: str | None = None
     checklist: dict[str, str] = field(default_factory=dict)
 
 
@@ -75,10 +77,13 @@ def g_owner(ctx: Context) -> str | None:
 
 
 def g_assign(ctx: Context) -> str | None:
-    due = ctx.command.payload.due_at
+    payload = ctx.command.payload
+    due = payload.due_at
     if due is not None and due.tzinfo is None:
         return "VALIDATION_FAILED"  # a due date without a zone cannot be compared honestly
-    owner = str(ctx.command.payload.owner_id)
+    if getattr(payload, "description", None) is not None and not payload.description.strip():
+        return "VALIDATION_FAILED"
+    owner = str(payload.owner_id)
     return None if ctx.is_active_member(owner) else "CASE_OWNER_REQUIRED"
 
 
@@ -155,8 +160,22 @@ def g_lab_within_limit(ctx: Context) -> str | None:
     return None if ok else "LAB_RESULT_NOT_WITHIN_LIMIT"
 
 
-# Replaced by T20/T21 with guards that read real evidence.
-g_action: Guard = not_yet_available("ACTION_EVIDENCE_MISSING")
+def g_action(ctx: Context) -> str | None:
+    from .samples import sql
+
+    payload = ctx.command.payload
+    if payload.completed_at is None or payload.completed_at.tzinfo is None or not (payload.evidence_note or "").strip():
+        return "ACTION_EVIDENCE_MISSING"
+    if payload.completed_at.astimezone(timezone.utc) > datetime.fromisoformat(ctx.now.replace("Z", "+00:00")):
+        return "ACTION_EVIDENCE_MISSING"
+    cursor = ctx.connection.cursor()
+    cursor.execute(sql("SELECT completed_at FROM actions WHERE tenant_id = ? AND case_id = ? AND id = ?", ctx.connection),
+                   (ctx.tenant_id, ctx.case["id"], str(payload.action_id)))
+    row = cursor.fetchone()
+    return None if row is not None and row[0] is None else "ACTION_EVIDENCE_MISSING"
+
+
+# Replaced by T21 with guards that read real evidence.
 g_retest: Guard = not_yet_available("RETEST_INVALID")
 g_close: Guard = not_yet_available("CLOSURE_EVIDENCE_INCOMPLETE")
 
@@ -171,15 +190,15 @@ class Transition:
 TRANSITIONS: dict[tuple[str, str], Transition] = {
     ("*", "assign"): Transition(None, (g_assign,)),                                          # row 2
     ("review_needed", "refer_to_lab"): Transition("awaiting_lab", (g_owner,)),               # row 3
-    ("review_needed", "record_action"): Transition("action_required", (g_policy_direct_action,)),  # row 4
+    ("review_needed", "record_action"): Transition("action_required", (g_policy_direct_action, g_assign)),  # row 4
     ("review_needed", "dismiss"): Transition("closed", (g_dismiss,)),                        # row 5
-    ("awaiting_lab", "record_action"): Transition("action_required", (g_verified, g_lab_adverse)),  # row 6
+    ("awaiting_lab", "record_action"): Transition("action_required", (g_verified, g_lab_adverse, g_assign)),  # row 6
     ("awaiting_lab", "link_retest"): Transition("retest_due", (g_verified, g_no_retest_sample)),  # row 7
     ("awaiting_lab", "request_closure"): Transition("closure_review", (g_verified, g_lab_within_limit, g_disposition)),  # row 8
     ("action_required", "accept_action"): Transition("retest_due", (g_action,)),            # row 9
     ("retest_due", "link_retest"): Transition("closure_review", (g_retest,)),               # row 10
     ("closure_review", "close"): Transition("closed", (g_close,)),                          # row 11
-    ("closure_review", "record_action"): Transition("action_required", ()),                   # row 12
+    ("closure_review", "record_action"): Transition("action_required", (g_assign,)),             # row 12
     ("*", "record_communication"): Transition(None, ()),                                       # row 13
     ("closed", "reopen"): Transition("review_needed", ()),                                     # row 14
 }

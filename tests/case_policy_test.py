@@ -158,7 +158,7 @@ class TransitionTableTests(Harness):
         ("action_required", "accept_action"): "ACTION_EVIDENCE_MISSING",
         ("retest_due", "link_retest"): "RETEST_INVALID",
         ("closure_review", "close"): "CLOSURE_EVIDENCE_INCOMPLETE",
-        ("closure_review", "record_action"): "CASE_POLICY_FORBIDS",      # action records arrive with T20
+        ("closure_review", "record_action"): "action_required",
         ("closed", "reopen"): "review_needed",
         **{(s, "assign"): s for s in ("awaiting_lab", "action_required", "retest_due", "closure_review")},
         **{(s, "record_communication"): "CASE_POLICY_FORBIDS"            # records arrive with T22

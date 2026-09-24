@@ -96,6 +96,8 @@ Sync pull returns authorized entity upserts/tombstones with strictly increasing 
 
 Types: assign, refer_to_lab, record_action, accept_action, link_retest, record_communication, request_closure, close, reopen, dismiss. Each has a discriminated payload schema and an allowlisted legal state/role combination — the full table is in [case state machine](case-state-machine.md), which is authoritative. `close` includes verified_report_id, retest_sample_id or authorized exemption, action IDs or exemption, communication_id, disposition and policy_version. Server recomputes prerequisites; client booleans are never proof.
 
+`record_action` stores description, active owner and timezone-aware due date. `accept_action` requires action ID, timezone-aware completion time and a nonblank operator note. The note is self-reported evidence, labeled as such; acceptance moves the case to `retest_due`, never directly to `closed`.
+
 A stale version returns409 plus current_version and a safe summary, not an automatic resubmit. Command UUID dedupe occurs before version conflict when replaying the same previously accepted command.
 
 ## Local analysis contract

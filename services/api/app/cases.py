@@ -197,9 +197,41 @@ def _no_columns(_conn: Any, _ctx: policy.Context) -> dict[str, Any]:
     return {}
 
 
+def _record_action(conn: Any, ctx: policy.Context) -> dict[str, Any]:
+    payload = ctx.command.payload
+    conn.cursor().execute(sql(
+        "INSERT INTO actions (tenant_id,id,case_id,description,owner_id,due_at,created_at) "
+        "VALUES (?,?,?,?,?,?,?) ON CONFLICT (tenant_id,id) DO NOTHING", conn), (
+        ctx.tenant_id, str(ctx.command.command_id), ctx.case["id"], payload.description.strip(),
+        str(payload.owner_id), payload.due_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        ctx.now,
+    ))
+    return {}
+
+
+def _accept_action(conn: Any, ctx: policy.Context) -> dict[str, Any]:
+    payload = ctx.command.payload
+    evidence_id = str(ctx.command.command_id)
+    conn.cursor().execute(sql(
+        "INSERT INTO action_evidence (tenant_id,id,action_id,kind,note,recorded_by,recorded_at) "
+        "VALUES (?,?,?,?,?,?,?) ON CONFLICT (tenant_id,id) DO NOTHING", conn), (
+        ctx.tenant_id, evidence_id, str(payload.action_id), "operator_note", payload.evidence_note.strip(),
+        ctx.actor_id, ctx.now,
+    ))
+    conn.cursor().execute(sql(
+        "UPDATE actions SET completed_at = ?, evidence_ids = ?, accepted_by = ?, accepted_at = ? "
+        "WHERE tenant_id = ? AND case_id = ? AND id = ? AND completed_at IS NULL", conn), (
+        payload.completed_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+        json.dumps([evidence_id]), ctx.actor_id, ctx.now, ctx.tenant_id, ctx.case["id"], str(payload.action_id),
+    ))
+    return {}
+
+
 EFFECTS: dict[str, Effect] = {
     "assign": _assign,
     "refer_to_lab": _no_columns,
+    "record_action": _record_action,
+    "accept_action": _accept_action,
     "dismiss": _dismiss,
     "reopen": _reopen,
 }
@@ -229,7 +261,7 @@ def apply_command(
     ctx = policy.Context(
         connection=connection, tenant_id=session.tenant_id, case=case, command=command,
         trigger_sample=_trigger_sample(connection, session.tenant_id, case["trigger_sample_id"]),
-        is_active_member=is_active_member, now=now,
+        is_active_member=is_active_member, now=now, actor_id=session.user_id,
     )
     failure = policy.run_guards(transition, ctx)
     if failure:

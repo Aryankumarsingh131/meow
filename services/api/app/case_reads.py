@@ -180,6 +180,24 @@ def case_detail(connection: Any, session: Session, case_id: str, *, now: str) ->
          "from_version": r[3], "to_version": r[4], "payload": json.loads(r[5])}
         for r in db.fetchall()
     ]
+    db.execute(sql("SELECT id, description, owner_id, due_at, completed_at, evidence_ids, accepted_by, accepted_at FROM actions "
+                   "WHERE tenant_id = ? AND case_id = ? ORDER BY created_at, id", connection),
+               (session.tenant_id, case_id))
+    actions = [
+        {"id": str(r[0]), "description": r[1], "owner_id": str(r[2]), "due_at": str(_plain(r[3])),
+         "completed_at": _plain(r[4]), "evidence_ids": json.loads(r[5]),
+         "accepted_by": _plain(r[6]), "accepted_at": _plain(r[7]), "evidence": []}
+        for r in db.fetchall()
+    ]
+    by_id = {action["id"]: action for action in actions}
+    db.execute(sql("SELECT e.id, e.action_id, e.kind, e.note, e.recorded_by, e.recorded_at "
+                   "FROM action_evidence e JOIN actions a ON a.tenant_id = e.tenant_id AND a.id = e.action_id "
+                   "WHERE a.tenant_id = ? AND a.case_id = ? ORDER BY e.recorded_at, e.id", connection),
+               (session.tenant_id, case_id))
+    for r in db.fetchall():
+        by_id[str(r[1])]["evidence"].append({
+            "id": str(r[0]), "kind": r[2], "note": r[3], "recorded_by": str(r[4]), "recorded_at": str(_plain(r[5])),
+        })
     return {
         **case,
         "requires_rereview": bool(case["requires_rereview"]),
@@ -197,6 +215,7 @@ def case_detail(connection: Any, session: Session, case_id: str, *, now: str) ->
         # Lab results: their own provenance (T19). "verification_state" is shown
         # as recorded; an unverified report is never presented as confirmed.
         "lab_reports": reports_for_case(connection, session.tenant_id, case_id),
+        "actions": actions,
         "timeline": timeline,
         "as_of": now,
     }
