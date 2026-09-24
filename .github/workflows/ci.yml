@@ -49,7 +49,17 @@ jobs:
           cache: pip
       - run: pip install -r services/api/requirements.txt
       - name: Node suites
-        run: for f in tests/*.test.ts; do echo "== $f"; node "$f" || exit 1; done
+        # A failing suite's tail becomes an annotation, readable without log access.
+        run: |
+          fail=0
+          for f in tests/*.test.ts; do
+            echo "== $f"
+            if ! node "$f" > out.txt 2>&1; then
+              cat out.txt; fail=1
+              echo "::error title=$f::$(tail -c 3000 out.txt | sed ':a;N;$!ba;s/%/%25/g;s/\n/%0A/g')"
+            else cat out.txt; fi
+          done
+          exit $fail
       - name: Type-check tests and contracts
         run: npx tsc --noEmit
 
