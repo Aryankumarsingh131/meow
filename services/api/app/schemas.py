@@ -245,6 +245,8 @@ class RecordActionCommand(_CaseCommandBase):
 
 class AcceptActionPayload(BaseModel):
     action_id: UUID
+    completed_at: Optional[datetime] = None
+    evidence_note: Optional[str] = Field(default=None, min_length=10, max_length=2000)
 
 
 class AcceptActionCommand(_CaseCommandBase):

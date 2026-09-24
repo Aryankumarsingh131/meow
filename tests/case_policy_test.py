@@ -158,8 +158,8 @@ class TransitionTableTests(Harness):
         ("awaiting_lab", "request_closure"): "LAB_REPORT_NOT_VERIFIED",
         ("action_required", "accept_action"): "ACTION_EVIDENCE_MISSING",
         ("retest_due", "link_retest"): "RETEST_INVALID",
-        ("closure_review", "close"): "CLOSURE_EVIDENCE_INCOMPLETE",      # T22: real evidence still missing
-        ("closure_review", "record_action"): "CASE_POLICY_FORBIDS",      # action records arrive with T20
+        ("closure_review", "close"): "CLOSURE_EVIDENCE_INCOMPLETE",      # real evidence still missing
+        ("closure_review", "record_action"): "action_required",          # T20
         ("closed", "reopen"): "review_needed",
         **{(s, "assign"): s for s in ("awaiting_lab", "action_required", "retest_due", "closure_review")},
         # T22: recording a communication never moves the case (row 13).

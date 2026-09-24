@@ -103,6 +103,7 @@ Entry check 2026-09-24: immutable ingestion met in code (T13/T14 unreviewed), co
 | T27 | B | T26 | `[~]` calibrated + range guard; locked test 160/160 but only 32 preparations; int8 rejected; **status research**. | handoff-T27.md |
 | T18 | A/C | T06 T17 | `[~]` **API only** — supervisor board is a separate app at another address (owner decision). Board endpoints + CORS allowlist (`JALSAKSHI_CORS_ALLOWED_ORIGINS`), bearer only; 11/11. **Outstanding:** board-side verification (external), review. | handoff-T18.md |
 | T19 | C | T16 T17 | `[~]` built 2026-09-24: lab report recording (mismatch detection, idempotent, correction/supersession) and verification (role-separated, self-review blocked at the DB layer too); `g_verified`/`g_lab_adverse`/`g_lab_within_limit` case-policy guards now read real evidence. 21/21. **Outstanding:** concurrency/closure review (shares T17's guards); PostgreSQL race tests not re-run here (no `TEST_DATABASE_URL`); UI is out of scope per T18's separate-app decision; T46. | handoff-T19.md |
+| T20 | A/C | T18 | `[~]` claimed 2026-09-24 by this agent for API/actions, migration, contracts and tests. Action record and operator-note acceptance built; 7/7 focused tests, full Python suite 275 passed, 11 skipped. **Outstanding:** separate board UI, PostgreSQL race, independent review. | handoff-T20.md |
 
 ## What exists
 

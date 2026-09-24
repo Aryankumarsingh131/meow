@@ -1,0 +1,9 @@
+# Handoff — T20 corrective actions
+
+- Task: T20 / REQ-012 / AC-012. Owner: this agent for API and evidence record, claimed 2026-09-24; independent reviewer outstanding. Base: `30634ce` on `main`.
+- Status: `[~]` API built. The supervisor board is a separate app by the T18 owner decision, so its action form and browser check are outstanding.
+- Files: `services/api/app/{cases,case_policy,case_reads,schemas,db}.py`, `services/api/migrations/actions.py`, generated `contracts/{openapi.json,client.ts}`, `tests/{action,case_policy,lab}_test.py`, task/contract/state docs.
+- Behavior: `record_action` keeps description, active owner, UTC due date and creator in the case event. `accept_action` requires a same-case action, completion time and nonblank operator note; it stores the note as **self-reported** evidence, the reviewer and server time. The case moves to `retest_due`, not `closed`. Command replay keeps one action and one evidence record.
+- Checks: `py -3.11 -m unittest tests.action_test -q` → 7 passed. `py -3.11 -m unittest tests.action_test tests.case_policy_test tests.case_reads_test tests.lab_test -q` → 58 passed, 5 PostgreSQL checks skipped. `py -3.11 -m pytest -q` → 275 passed, 11 skipped, 152 subtests. `node tests/contracts.test.ts` → 12 passed. `npx --no-install tsc --noEmit` → clean after installing dependencies from both lockfiles. All checks on Windows, 2026-09-24.
+- Not run: PostgreSQL concurrency for action commands, browser UI in the separate board, independent state/security review. The operator note is an attestation; any requirement for photo or external completion proof needs a reviewed contract and evidence upload path before operational use.
+- Next: verify board action form with two roles and conflict states; run action races on PostgreSQL; obtain independent review before ticking T20 complete.

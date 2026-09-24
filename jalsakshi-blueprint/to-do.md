@@ -262,7 +262,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T20 — Corrective action slice
 
-- [ ] T20 complete with evidence
+- [~] T20 API built — 2026-09-24: action owner/work/due and operator-note completion are durable; completion moves to retest_due, not closed. OUTSTANDING: separate board UI, PostgreSQL race/device flow, independent review (handoff-T20.md).
 
 - Requirements: REQ-012.
 - Owner: A/product-engineer. Estimated effort: 1–2 h.

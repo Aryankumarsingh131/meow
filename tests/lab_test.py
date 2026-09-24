@@ -238,7 +238,7 @@ class InterpretationGuardTests(Harness):
         action = {"description": "Synthetic action", "owner_id": SUP.user_id, "due_at": "2026-10-01T00:00:00Z"}
         self.assertEqual(self.cmd("record_action", action).code, "LAB_RESULT_NOT_ADVERSE")
         self.verified("exceeds_limit")
-        self.assertNotEqual(self.cmd("record_action", action).code, "LAB_RESULT_NOT_ADVERSE", "guard now passes")
+        self.assertEqual(self.cmd("record_action", action).status, "action_required", "guard now passes")
 
     def test_no_remediation_path_needs_every_current_report_within_limit(self) -> None:
         self.to_awaiting_lab()
