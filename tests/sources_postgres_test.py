@@ -231,6 +231,28 @@ class PostgresSourcesTests(unittest.TestCase):
         assert isinstance(outcome, Denied)
         self.assertEqual((outcome.code, outcome.status), ("NOT_FOUND", 404))
 
+    # --- client-controlled ids that are not uuids (M1 review, 2026-09-24) ---
+    # A path id or a cursor comes from the caller. SQLite stores uuid as text
+    # and accepts anything; PostgreSQL raises on `id = 'abc'`, which an HTTP
+    # route would surface as a 500 and which aborts the transaction.
+
+    def test_malformed_history_id_is_not_found_on_postgres(self) -> None:
+        for bad in ("abc", "src-a1", "'; DROP TABLE sources; --", ""):
+            with self.subTest(bad=bad):
+                outcome = source_history(
+                    self.conn, self.session_a, bad, served_at="2026-09-22T00:00:00Z"
+                )
+                assert isinstance(outcome, Denied), outcome
+                self.assertEqual((outcome.code, outcome.status), ("NOT_FOUND", 404))
+
+    def test_tampered_list_cursor_is_safe_on_postgres(self) -> None:
+        from services.api.app.sources import _encode_cursor
+        forged = _encode_cursor("Handpump 1", "not-a-uuid")
+        page = list_sources(self.conn, self.session_a, cursor=forged)
+        # Treated like an unreadable cursor: first page, no crash.
+        self.assertEqual([s.id for s in page.items],
+                         [uid(n) for n in ["src-a1", "src-a2", "src-a3"]])
+
 
 if __name__ == "__main__":
     unittest.main()

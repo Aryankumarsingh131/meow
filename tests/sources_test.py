@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import sqlite3
 import unittest
+import uuid
 
 from services.api.app.auth import Denied, Membership, Session, VerifiedToken
 from services.api.app.sources import (
@@ -32,8 +33,19 @@ from services.api.app.sources import (
 )
 from services.api.migrations.source import apply_sqlite, statements
 
-TENANT_A = "tenant-a-block-01"
-TENANT_B = "tenant-b-block-02"
+def uid(name: str) -> str:
+    """Stable uuid for a readable fixture name.
+
+    The PostgreSQL schema declares ids as `uuid`; SQLite stores them as text
+    and would accept anything. Fixtures use real uuids so this suite cannot
+    pass on ids the target database rejects (see sources_postgres_test.py,
+    which derives ids the same way).
+    """
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, "jalsakshi-t07-" + name))
+
+
+TENANT_A = uid("tenant-a")
+TENANT_B = uid("tenant-b")
 
 # Stand-in for T13's `samples` migration. Columns match
 # sources.SAMPLES_COLUMNS_EXPECTED.
@@ -93,12 +105,12 @@ class SourcesTestBase(unittest.TestCase):
         self.db.commit()
 
     def _seed(self) -> None:
-        self.add_source(TENANT_A, "src-a1", "JS-A-0001", "Handpump 1", "Sundarpur")
-        self.add_source(TENANT_A, "src-a2", "JS-A-0002", "Handpump 2", "Sundarpur")
-        self.add_source(TENANT_A, "src-a3", "JS-A-0003", "Well North", "Rampur")
-        self.add_source(TENANT_A, "src-a4", "JS-A-0004", "Retired pump", "Rampur", active=False)
+        self.add_source(TENANT_A, uid("src-a1"), "JS-A-0001", "Handpump 1", "Sundarpur")
+        self.add_source(TENANT_A, uid("src-a2"), "JS-A-0002", "Handpump 2", "Sundarpur")
+        self.add_source(TENANT_A, uid("src-a3"), "JS-A-0003", "Well North", "Rampur")
+        self.add_source(TENANT_A, uid("src-a4"), "JS-A-0004", "Retired pump", "Rampur", active=False)
         # Tenant B deliberately reuses a label and shares nothing with A.
-        self.add_source(TENANT_B, "src-b1", "JS-B-0001", "Handpump 1", "Otherville")
+        self.add_source(TENANT_B, uid("src-b1"), "JS-B-0001", "Handpump 1", "Otherville")
 
 
 class TestTenantScoping(SourcesTestBase):
@@ -112,13 +124,13 @@ class TestTenantScoping(SourcesTestBase):
 
     def test_tenant_b_sees_only_its_own_single_source(self) -> None:
         page = list_sources(self.db, self.session_b)
-        self.assertEqual([s.id for s in page.items], ["src-b1"])
+        self.assertEqual([s.id for s in page.items], [uid("src-b1")])
 
     def test_identical_labels_across_tenants_do_not_bleed(self) -> None:
         a = list_sources(self.db, self.session_a, q="Handpump 1")
         b = list_sources(self.db, self.session_b, q="Handpump 1")
-        self.assertEqual([s.id for s in a.items], ["src-a1"])
-        self.assertEqual([s.id for s in b.items], ["src-b1"])
+        self.assertEqual([s.id for s in a.items], [uid("src-a1")])
+        self.assertEqual([s.id for s in b.items], [uid("src-b1")])
 
     def test_qr_of_other_tenant_is_unknown_not_matched(self) -> None:
         """Tenant A scanning tenant B's QR must learn nothing about it."""
@@ -145,18 +157,18 @@ class TestTenantScoping(SourcesTestBase):
         self.assertEqual(set(vars(other)), {"token"})
 
     def test_history_of_other_tenant_source_is_not_found(self) -> None:
-        outcome = source_history(self.db, self.session_a, "src-b1", served_at="2026-09-22T00:00:00Z")
+        outcome = source_history(self.db, self.session_a, uid("src-b1"), served_at="2026-09-22T00:00:00Z")
         assert isinstance(outcome, Denied)
         self.assertEqual((outcome.code, outcome.status), ("NOT_FOUND", 404))
 
     def test_history_cross_tenant_matches_nonexistent_exactly(self) -> None:
-        other = source_history(self.db, self.session_a, "src-b1", served_at="2026-09-22T00:00:00Z")
-        nothing = source_history(self.db, self.session_a, "src-zzz", served_at="2026-09-22T00:00:00Z")
+        other = source_history(self.db, self.session_a, uid("src-b1"), served_at="2026-09-22T00:00:00Z")
+        nothing = source_history(self.db, self.session_a, uid("src-zzz"), served_at="2026-09-22T00:00:00Z")
         self.assertEqual(other, nothing)
 
     def test_inactive_source_hidden_from_field_catalogue(self) -> None:
         ids = [s.id for s in list_sources(self.db, self.session_a).items]
-        self.assertNotIn("src-a4", ids)
+        self.assertNotIn(uid("src-a4"), ids)
 
     def test_deactivated_qr_resolves_unknown_not_matched(self) -> None:
         self.assertIsInstance(resolve_qr(self.db, self.session_a, "JS-A-0004"), QrUnknown)
@@ -213,7 +225,7 @@ class TestUnknownQrIsSafe(SourcesTestBase):
     def test_valid_qr_matches_within_tenant(self) -> None:
         result = resolve_qr(self.db, self.session_a, "JS-A-0001")
         assert isinstance(result, QrMatched)
-        self.assertEqual(result.source.id, "src-a1")
+        self.assertEqual(result.source.id, uid("src-a1"))
 
     def test_surrounding_whitespace_is_tolerated(self) -> None:
         self.assertIsInstance(resolve_qr(self.db, self.session_a, "  JS-A-0001\n"), QrMatched)
@@ -229,9 +241,9 @@ class TestUnknownQrIsSafe(SourcesTestBase):
 class TestSearch(SourcesTestBase):
     def test_search_matches_label_and_locality(self) -> None:
         by_label = list_sources(self.db, self.session_a, q="Well")
-        self.assertEqual([s.id for s in by_label.items], ["src-a3"])
+        self.assertEqual([s.id for s in by_label.items], [uid("src-a3")])
         by_locality = list_sources(self.db, self.session_a, q="Rampur")
-        self.assertEqual([s.id for s in by_locality.items], ["src-a3"])
+        self.assertEqual([s.id for s in by_locality.items], [uid("src-a3")])
 
     def test_like_wildcards_are_escaped_not_honoured(self) -> None:
         """A worker typing `%` searches for a literal percent sign. Unescaped,
@@ -240,9 +252,9 @@ class TestSearch(SourcesTestBase):
         self.assertEqual(list_sources(self.db, self.session_a, q="_").items, ())
 
     def test_underscore_does_not_act_as_single_character_wildcard(self) -> None:
-        self.add_source(TENANT_A, "src-a5", "JS-A-0005", "Tank_1", "Sundarpur")
+        self.add_source(TENANT_A, uid("src-a5"), "JS-A-0005", "Tank_1", "Sundarpur")
         hits = [s.id for s in list_sources(self.db, self.session_a, q="Tank_1").items]
-        self.assertEqual(hits, ["src-a5"])
+        self.assertEqual(hits, [uid("src-a5")])
         self.assertEqual(list_sources(self.db, self.session_a, q="TankX1").items, ())
 
     def test_sql_injection_in_search_is_inert(self) -> None:
@@ -262,9 +274,9 @@ class TestSearch(SourcesTestBase):
         60-character label and would return nothing.
         """
         label = "A" * MAX_SEARCH_LENGTH
-        self.add_source(TENANT_A, "src-long-label", "JS-A-0100", label, "Sundarpur")
+        self.add_source(TENANT_A, uid("src-long-label"), "JS-A-0100", label, "Sundarpur")
         page = list_sources(self.db, self.session_a, q="A" * (MAX_SEARCH_LENGTH + 10))
-        self.assertEqual([s.id for s in page.items], ["src-long-label"])
+        self.assertEqual([s.id for s in page.items], [uid("src-long-label")])
 
     def test_oversized_search_cannot_exhaust_the_database(self) -> None:
         page = list_sources(self.db, self.session_a, q="x" * 10_000)
@@ -292,7 +304,7 @@ class TestPaging(SourcesTestBase):
             cursor = page.next_cursor
             if cursor is None:
                 break
-        self.assertEqual(sorted(seen), ["src-a1", "src-a2", "src-a3"])
+        self.assertEqual(sorted(seen), sorted(uid(n) for n in ["src-a1", "src-a2", "src-a3"]))
         self.assertEqual(len(seen), len(set(seen)), "a row was returned twice")
 
     def test_last_page_has_no_next_cursor(self) -> None:
@@ -338,53 +350,53 @@ class TestHistory(SourcesTestBase):
         self.db.commit()
 
     def test_history_is_newest_first(self) -> None:
-        self.add_sample(TENANT_A, "smp-1", "src-a1", "2026-09-01T10:00:00Z")
-        self.add_sample(TENANT_A, "smp-2", "src-a1", "2026-09-15T10:00:00Z")
-        self.add_sample(TENANT_A, "smp-3", "src-a1", "2026-09-10T10:00:00Z")
-        page = source_history(self.db, self.session_a, "src-a1", served_at="2026-09-22T00:00:00Z")
+        self.add_sample(TENANT_A, uid("smp-1"), uid("src-a1"), "2026-09-01T10:00:00Z")
+        self.add_sample(TENANT_A, uid("smp-2"), uid("src-a1"), "2026-09-15T10:00:00Z")
+        self.add_sample(TENANT_A, uid("smp-3"), uid("src-a1"), "2026-09-10T10:00:00Z")
+        page = source_history(self.db, self.session_a, uid("src-a1"), served_at="2026-09-22T00:00:00Z")
         assert not isinstance(page, Denied)
-        self.assertEqual([e.sample_id for e in page.items], ["smp-2", "smp-3", "smp-1"])
+        self.assertEqual([e.sample_id for e in page.items], [uid("smp-2"), uid("smp-3"), uid("smp-1")])
 
     def test_history_reports_server_time_for_staleness(self) -> None:
-        page = source_history(self.db, self.session_a, "src-a1", served_at="2026-09-22T00:00:00Z")
+        page = source_history(self.db, self.session_a, uid("src-a1"), served_at="2026-09-22T00:00:00Z")
         assert not isinstance(page, Denied)
         self.assertEqual(page.served_at, "2026-09-22T00:00:00Z")
 
     def test_only_accepted_samples_appear(self) -> None:
         """A pending or rejected sample is not a result and must not be shown
         as the source's last known test."""
-        self.add_sample(TENANT_A, "smp-ok", "src-a1", "2026-09-01T10:00:00Z", status="accepted")
-        self.add_sample(TENANT_A, "smp-pending", "src-a1", "2026-09-20T10:00:00Z", status="pending")
-        self.add_sample(TENANT_A, "smp-rejected", "src-a1", "2026-09-21T10:00:00Z", status="rejected")
-        page = source_history(self.db, self.session_a, "src-a1", served_at="2026-09-22T00:00:00Z")
+        self.add_sample(TENANT_A, uid("smp-ok"), uid("src-a1"), "2026-09-01T10:00:00Z", status="accepted")
+        self.add_sample(TENANT_A, uid("smp-pending"), uid("src-a1"), "2026-09-20T10:00:00Z", status="pending")
+        self.add_sample(TENANT_A, uid("smp-rejected"), uid("src-a1"), "2026-09-21T10:00:00Z", status="rejected")
+        page = source_history(self.db, self.session_a, uid("src-a1"), served_at="2026-09-22T00:00:00Z")
         assert not isinstance(page, Denied)
-        self.assertEqual([e.sample_id for e in page.items], ["smp-ok"])
+        self.assertEqual([e.sample_id for e in page.items], [uid("smp-ok")])
 
     def test_history_does_not_leak_other_tenant_samples(self) -> None:
         """Same source id string in both tenants - the tenant filter, not the
         source id, is what keeps these apart."""
-        self.add_source(TENANT_B, "shared-id", "JS-B-0002", "Shared", "Otherville")
-        self.add_source(TENANT_A, "shared-id", "JS-A-0009", "Shared", "Sundarpur")
-        self.add_sample(TENANT_B, "smp-b", "shared-id", "2026-09-20T10:00:00Z")
-        self.add_sample(TENANT_A, "smp-a", "shared-id", "2026-09-19T10:00:00Z")
-        page = source_history(self.db, self.session_a, "shared-id", served_at="2026-09-22T00:00:00Z")
+        self.add_source(TENANT_B, uid("shared-id"), "JS-B-0002", "Shared", "Otherville")
+        self.add_source(TENANT_A, uid("shared-id"), "JS-A-0009", "Shared", "Sundarpur")
+        self.add_sample(TENANT_B, uid("smp-b"), uid("shared-id"), "2026-09-20T10:00:00Z")
+        self.add_sample(TENANT_A, uid("smp-a"), uid("shared-id"), "2026-09-19T10:00:00Z")
+        page = source_history(self.db, self.session_a, uid("shared-id"), served_at="2026-09-22T00:00:00Z")
         assert not isinstance(page, Denied)
-        self.assertEqual([e.sample_id for e in page.items], ["smp-a"])
+        self.assertEqual([e.sample_id for e in page.items], [uid("smp-a")])
 
     def test_empty_history_is_a_page_not_an_error(self) -> None:
-        page = source_history(self.db, self.session_a, "src-a2", served_at="2026-09-22T00:00:00Z")
+        page = source_history(self.db, self.session_a, uid("src-a2"), served_at="2026-09-22T00:00:00Z")
         assert not isinstance(page, Denied)
         self.assertEqual(page.items, ())
         self.assertIsNone(page.next_cursor)
 
     def test_history_paging_covers_every_row_once(self) -> None:
         for index in range(5):
-            self.add_sample(TENANT_A, f"smp-{index}", "src-a1", f"2026-09-0{index + 1}T10:00:00Z")
+            self.add_sample(TENANT_A, uid(f"smp-{index}"), uid("src-a1"), f"2026-09-0{index + 1}T10:00:00Z")
         seen: list[str] = []
         cursor = None
         for _ in range(10):
             page = source_history(
-                self.db, self.session_a, "src-a1", served_at="2026-09-22T00:00:00Z",
+                self.db, self.session_a, uid("src-a1"), served_at="2026-09-22T00:00:00Z",
                 limit=2, cursor=cursor,
             )
             assert not isinstance(page, Denied)
@@ -398,8 +410,8 @@ class TestHistory(SourcesTestBase):
     def test_provenance_fields_stay_separate(self) -> None:
         """AGENTS.md: machine suggestion, human observation and lab result are
         three fields. `indicative_flag` must not be collapsed into a verdict."""
-        self.add_sample(TENANT_A, "smp-1", "src-a1", "2026-09-01T10:00:00Z", flag="review")
-        page = source_history(self.db, self.session_a, "src-a1", served_at="2026-09-22T00:00:00Z")
+        self.add_sample(TENANT_A, uid("smp-1"), uid("src-a1"), "2026-09-01T10:00:00Z", flag="review")
+        page = source_history(self.db, self.session_a, uid("src-a1"), served_at="2026-09-22T00:00:00Z")
         assert not isinstance(page, Denied)
         entry = page.items[0]
         self.assertEqual(entry.indicative_flag, "review")
@@ -432,20 +444,20 @@ class TestMigration(SourcesTestBase):
         self.assertEqual(self.db.execute("SELECT count(*) FROM sources").fetchone()[0], 5)
 
     def test_qr_code_unique_per_tenant_but_reusable_across_tenants(self) -> None:
-        self.add_source(TENANT_B, "src-b9", "JS-A-0001", "Same QR other tenant", "Otherville")
+        self.add_source(TENANT_B, uid("src-b9"), "JS-A-0001", "Same QR other tenant", "Otherville")
         with self.assertRaises(sqlite3.IntegrityError):
-            self.add_source(TENANT_A, "src-a9", "JS-A-0001", "Duplicate in tenant", "Sundarpur")
+            self.add_source(TENANT_A, uid("src-a9"), "JS-A-0001", "Duplicate in tenant", "Sundarpur")
 
     def test_bounds_are_enforced_by_the_database(self) -> None:
         with self.assertRaises(sqlite3.IntegrityError):
-            self.add_source(TENANT_A, "src-long", "J" * 200, "Too long QR", "Sundarpur")
+            self.add_source(TENANT_A, uid("src-long"), "J" * 200, "Too long QR", "Sundarpur")
         with self.assertRaises(sqlite3.IntegrityError):
-            self.add_source(TENANT_A, "src-lbl", "JS-A-1000", "L" * 500, "Sundarpur")
+            self.add_source(TENANT_A, uid("src-lbl"), "JS-A-1000", "L" * 500, "Sundarpur")
 
     def test_half_a_coordinate_is_rejected(self) -> None:
         with self.assertRaises(sqlite3.IntegrityError):
             self.add_source(
-                TENANT_A, "src-half", "JS-A-1001", "Half coord", "Sundarpur", latitude=25.0
+                TENANT_A, uid("src-half"), "JS-A-1001", "Half coord", "Sundarpur", latitude=25.0
             )
 
     def test_source_without_coordinates_is_still_usable(self) -> None:

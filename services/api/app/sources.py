@@ -38,6 +38,7 @@ an expectation to agree with T13's owner, not a schema this task defines.
 from __future__ import annotations
 
 import re
+import uuid
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence
 
@@ -64,6 +65,20 @@ SAMPLES_COLUMNS_EXPECTED = (
 # A JalSakshi QR payload is an opaque bounded token. It is deliberately NOT a
 # URL: see `parse_qr_payload`.
 _QR_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
+
+
+def _is_uuid(value: str) -> bool:
+    """True if `value` can be bound to a PostgreSQL `uuid` column.
+
+    Ids reaching this module from a path or a cursor are caller-controlled.
+    PostgreSQL raises on `id = 'abc'` (and aborts the transaction); SQLite
+    accepts anything. Checking here makes both dialects answer the same way.
+    """
+    try:
+        uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -339,7 +354,7 @@ def _decode_cursor(cursor: str) -> tuple[str, str] | None:
         return None
     if not all(isinstance(part, str) for part in value):
         return None
-    if len(value[0]) > MAX_LABEL_LENGTH or len(value[1]) > MAX_QR_CODE_LENGTH:
+    if len(value[0]) > MAX_LABEL_LENGTH or not _is_uuid(value[1]):
         return None
     return value[0], value[1]
 
@@ -362,6 +377,9 @@ def source_history(
     Reads `samples`, which is T13's table - see the module docstring.
     """
     page_size = _clamp_limit(limit)
+    # A malformed id cannot name any source: same answer as a missing one.
+    if not _is_uuid(source_id):
+        return Denied("NOT_FOUND", "Resource not found.")
     db = connection.cursor()
 
     # Re-check the parent object in this tenant before reading any child rows.
@@ -393,7 +411,7 @@ def source_history(
     has_more = len(rows) > page_size
     items = tuple(
         HistoryEntry(
-            sample_id=row[0],
+            sample_id=str(row[0]),  # psycopg returns uuid.UUID; see _row_to_source
             received_at_server=row[1],
             status=row[2],
             method=row[3],
