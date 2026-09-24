@@ -1,6 +1,13 @@
 # Implementation task cards
 
-Every checkbox is intentionally unchecked. This is planned work, not completed implementation. Owners: **A** product/mobile/web and domain coordination; **B** native imaging/ML/performance; **C** backend/security/operations. Names can be assigned later. Astra/Fable are assistants to these owners, not substitutes for review or domain evidence.
+Every checkbox started unchecked as planned work. Status legend (added 2026-09-24; state source of truth remains [current-state](../docs/agent-workflow/current-state.md)):
+
+- `[x]` done — acceptance and verification re-run with recorded evidence.
+- `[~]` built and tests pass, but a named Definition-of-Done item is still outstanding (usually AGENTS.md's independent review, or one missing verification). Not done.
+- `[!]` **blocked / errored** on an external dependency or a failing check, named inline. Not done.
+- `[ ]` not started.
+
+Owners: **A** product/mobile/web and domain coordination; **B** native imaging/ML/performance; **C** backend/security/operations. Names can be assigned later. Astra/Fable are assistants to these owners, not substitutes for review or domain evidence.
 
 Claim one focused task in [current-state](docs/agent-workflow/current-state.md). Dependencies, not numerical order, determine readiness. T43–T48 split reporting/security/policy work out of larger slices. Every task inherits the [definition of done](AGENTS.md) and relevant [acceptance criteria](docs/delivery/acceptance-criteria.md). Files below are proposed; avoid scaffolding unused files.
 
@@ -8,7 +15,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T01 — Protocol and event gate
 
-- [ ] T01 complete with evidence
+- [!] T01 complete with evidence — BLOCKED: no real kit/lot/read window or confirmed event; docs are user-authorised fictional templates.
 
 - Requirements: REQ-002 REQ-009.
 - Owner: A/domain lead. Estimated effort: 1–2 h + external waits.
@@ -21,7 +28,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T02 — Validate the user job and alternatives
 
-- [ ] T02 complete with evidence
+- [!] T02 complete with evidence — BLOCKED: no real worker/supervisor interview or mWater/ODK sandbox trial; docs are fictional templates.
 
 - Requirements: REQ-026.
 - Owner: A/product. Estimated effort: 1–2 h + interviews.
@@ -34,7 +41,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T03 — Prove the native toolchain
 
-- [ ] T03 complete with evidence
+- [!] T03 complete with evidence — BLOCKED: no physical phone; APK builds and runs on emulator only, offline ONNX tensor on a real phone never run.
 
 - Requirements: REQ-028.
 - Owner: B/native. Estimated effort: 1–2 h spike.
@@ -47,7 +54,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T04 — Prove file-to-feature preprocessing
 
-- [ ] T04 complete with evidence
+- [!] T04 complete with evidence — BLOCKED: no real camera file or physical ARM device; synthetic fixture, JS/Python/Kotlin(emulator) legs agree.
 
 - Requirements: REQ-003.
 - Owner: B/native. Estimated effort: 2 h spike.
@@ -60,7 +67,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T05 — Freeze v1 contracts and test harness
 
-- [ ] T05 complete with evidence
+- [x] T05 complete with evidence — 2026-09-24 @ d2d9207: 26 schema + 12 contract checks pass; openapi.json/client.ts regenerate byte-identical (Python-version dependency fixed).
 
 - Requirements: REQ-023 REQ-027.
 - Owner: C/contracts. Estimated effort: 1–2 h.
@@ -73,7 +80,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T06 — Online membership authorization
 
-- [ ] T06 complete with evidence
+- [!] T06 complete with evidence — BLOCKED: no OIDC provider chosen (human decision) and no real test accounts; verification logic built and tested, independent auth review outstanding.
 
 - Requirements: REQ-017.
 - Owner: C/security. Estimated effort: 2 h slice.
@@ -86,7 +93,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T07 — Source selection and history slice
 
-- [ ] T07 complete with evidence
+- [~] T07 complete with evidence — OUTSTANDING: screen recording and independent tenant-boundary review.
 
 - Requirements: REQ-001.
 - Owner: A/mobile. Estimated effort: 1–2 h.
@@ -99,7 +106,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T08 — Kit protocol and read-window flow
 
-- [ ] T08 complete with evidence
+- [!] T08 complete with evidence — BLOCKED on T01: no real kit read window; mechanism tested against declared/synthetic SYN-COLOR-001 timing only.
 
 - Requirements: REQ-002.
 - Owner: A/mobile. Estimated effort: 1–2 h.
@@ -112,7 +119,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T09 — Guided camera and manual ROI
 
-- [ ] T09 complete with evidence
+- [!] T09 complete with evidence — BLOCKED: cancel-during-capture and non-1 EXIF orientation need a physical phone.
 
 - Requirements: REQ-003.
 - Owner: A/mobile. Estimated effort: 1–2 h.
@@ -125,7 +132,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T10 — Deterministic capture-quality rules
 
-- [ ] T10 complete with evidence
+- [x] T10 complete with evidence — 2026-09-24: quality_fixtures_run 8/8, 0 mismatches; Kotlin QualityTest 4/4 (gradle :capture-native:testDebugUnitTest), 1 false reject recorded for T23; thresholds provisional.
 
 - Requirements: REQ-004.
 - Owner: B/vision. Estimated effort: 1–2 h.
@@ -138,7 +145,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T11 — Indicative review and manual fallback
 
-- [ ] T11 complete with evidence
+- [x] T11 complete with evidence — 2026-09-24: review.test.ts 12/12 (camera-denied, uncertain, human-disagreement).
 
 - Requirements: REQ-006 REQ-009.
 - Owner: A/mobile. Estimated effort: 1–2 h.
@@ -151,7 +158,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T12 — Crash-safe local save
 
-- [ ] T12 complete with evidence
+- [~] T12 complete with evidence — OUTSTANDING: process kill on a running app (fault injection only so far).
 
 - Requirements: REQ-007.
 - Owner: A/storage. Estimated effort: 2 h slice.
@@ -164,7 +171,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T13 — Idempotent sample ingestion
 
-- [ ] T13 complete with evidence
+- [~] T13 complete with evidence — OUTSTANDING: independent sync-ordering review. 10/10 incl. PostgreSQL 17.6 concurrent replay re-run 2026-09-24.
 
 - Requirements: REQ-008.
 - Owner: C/backend. Estimated effort: 1–2 h.
@@ -632,7 +639,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## Checkpoints
 
-- [ ] G0: T01–T04 feasibility reviewed; unsafe claims blocked.
+- [!] G0: T01–T04 feasibility reviewed; unsafe claims blocked. — BLOCKED: only met via the synthetic-only boundary (ADR-M1-001).
 - [ ] G1: T05–T15 and T45 applicable slice checks; restart/replay proof, not a UI-only demo.
 - [ ] G2: T16–T22, T43 and T46 workflow checks; evidence-complete closure.
 - [ ] G3: T23–T28 and T44 scientific/accessibility checks.
