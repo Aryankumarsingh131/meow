@@ -98,7 +98,7 @@ if _origins:
         CORSMiddleware,
         allow_origins=_origins,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT"],
+        allow_methods=["GET", "HEAD", "POST", "PUT"],
         allow_headers=["Authorization", "Content-Type", "X-Request-Id"],
         max_age=600,
     )
@@ -139,13 +139,13 @@ if HOSTED:
     app.state.auth = HostedAuth(settings.oidc_issuer, settings.oidc_audience, db_membership_lookup(app.state.connect))
 
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def root() -> dict[str, str]:
     """API root. Confirms the service is up; directs clients to the right path."""
     return {"service": "JalSakshi API", "version": "0.1.0", "docs": "/docs", "health": "/health/live"}
 
 
-@app.get("/health/live")
+@app.api_route("/health/live", methods=["GET", "HEAD"])
 def live() -> dict[str, str]:
     """Public liveness. Exposes no dependency or configuration detail."""
     return {"status": "ok"}
