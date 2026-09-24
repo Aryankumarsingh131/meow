@@ -1,8 +1,9 @@
 /** `Sql` (storage.ts) over expo-sqlite's synchronous API, on the device. */
 
+import { randomUUID } from 'expo-crypto';
 import { openDatabaseSync } from 'expo-sqlite';
 
-import { migrate, type Sql } from './storage';
+import { getMeta, migrate, setMeta, type Sql } from './storage';
 
 let instance: Sql | null = null;
 
@@ -18,4 +19,15 @@ export function deviceSql(): Sql {
   migrate(sql);
   instance = sql;
   return sql;
+}
+
+/** Stable per-install id, sent with pushes and grant requests. */
+export function deviceId(): string {
+  const sql = deviceSql();
+  let id = getMeta(sql, 'device_id');
+  if (!id) {
+    id = randomUUID();
+    setMeta(sql, 'device_id', id);
+  }
+  return id;
 }

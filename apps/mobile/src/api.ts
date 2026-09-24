@@ -197,3 +197,10 @@ export function httpTransport(base: string, token: string, fetchImpl?: typeof fe
     bootstrap: (cursor) => request(base, `/v1/bootstrap?limit=100${q(cursor)}`, { token, fetchImpl }),
   };
 }
+
+/** T45: request the server's offline lease. Scope and expiry are the server's. */
+export function requestOfflineGrant(
+  base: string, token: string, deviceId: string, clientBuild: string, fetchImpl?: typeof fetch,
+): Promise<ApiOutcome<import('./offlineAccess').ServerGrant>> {
+  return request(base, '/v1/session/offline-grant', { method: 'POST', token, fetchImpl, body: { device_id: deviceId, client_build: clientBuild } });
+}

@@ -19,6 +19,7 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 
 from .auth import Denied, Session, authenticate, bearer_token
 from .errors import ApiError
+from .offline_grants import OfflineGrant, OfflineGrantRequest, issue_grant
 from .schemas import PushRequest
 from .sources import (
     DEFAULT_LIMIT,
@@ -183,3 +184,10 @@ def get_bootstrap(
         "snapshot_cursor": page.snapshot_cursor,
         "server_time": _now(),
     }
+
+
+@router.post("/session/offline-grant", response_model=OfflineGrant)
+def post_offline_grant(body: OfflineGrantRequest, session: Session = Depends(require_session)) -> OfflineGrant:
+    """T45. Any active member (authorization-matrix.md); scope comes from the
+    membership, never from the request."""
+    return issue_grant(session, body)

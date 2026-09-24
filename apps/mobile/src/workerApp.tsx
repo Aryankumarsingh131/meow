@@ -26,7 +26,8 @@ import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { analyseBaseline, type ReviewAnalysis, type ReviewObservation } from './analysis/baseline';
 import { DEV_API_BASE, fetchCatalogue, httpTransport } from './api';
 import { CaptureScreen } from './capture';
-import { deviceSql } from './deviceDb';
+import { deviceId, deviceSql } from './deviceDb';
+import { checkOfflineAccess, LOCK_TEXT, revokeOfflineAccess, type OfflineAccess } from './offlineAccess';
 import { BINS, INSTRUCTIONS, PROTOCOL, REQUIRE_REFERENCE_CARD, SYNTHETIC_LOT } from './m1Protocol';
 import { ProtocolScreen } from './protocol';
 import { QueueScreen } from './queue';
@@ -36,7 +37,7 @@ import type { Session } from './session';
 import { freshnessLabel, freshnessOf, type CachedSource } from './sourceCatalog';
 import { SourcesScreen } from './sources';
 import {
-  applyCatalogueFetch, getMeta, loadCatalogue, openLocalStorage, setMeta,
+  applyCatalogueFetch, loadCatalogue, openLocalStorage,
   type CatalogueView, type LocalReceipt, type LocalSaveInput,
 } from './storage';
 import { pendingCount, queueItems, STEP_TEXT, syncOnce, type QueueItem, type SyncResult, type SyncSession } from './sync';
@@ -62,16 +63,6 @@ type Step =
   | { name: 'saved'; receipt: LocalReceipt }
   | { name: 'queue' };
 
-function deviceId(): string {
-  const sql = deviceSql();
-  let id = getMeta(sql, 'device_id');
-  if (!id) {
-    id = randomUUID();
-    setMeta(sql, 'device_id', id);
-  }
-  return id;
-}
-
 export interface WorkerAppProps {
   session: Session;
   /** Called when the server rejects the token; the host returns to sign-in. */
@@ -91,11 +82,21 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
   }));
   const [syncing, setSyncing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
+  const [locked, setLocked] = useState<Extract<OfflineAccess, { kind: 'locked' }>['reason'] | null>(null);
   const storage = useRef<ReturnType<typeof openLocalStorage> | null>(null);
   const syncSession = useRef<SyncSession>({ autoAttempts: 0 });
   const running = useRef(false);
 
   storage.current ??= openLocalStorage(deviceSql());
+
+  /** T45: an offline session re-checks its lease; online sessions have a token instead. */
+  const leaseHolds = useCallback((): boolean => {
+    if (session.offlineUntilMs === null) return true;
+    const access = checkOfflineAccess(deviceSql(), owner, Date.now());
+    if (access.kind === 'granted') return true;
+    setLocked(access.reason);
+    return false;
+  }, [session.offlineUntilMs, owner]);
 
   const reloadQueue = useCallback(() => {
     setQueue({ items: queueItems(deviceSql(), owner), pending: pendingCount(deviceSql(), owner) });
@@ -121,7 +122,14 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
       setSyncing(false);
       reloadQueue();
     }
-    if (result?.push === 'auth_paused' || result?.pull === 'auth_paused') onAuthExpired();
+    if (result?.push === 'forbidden' || result?.pull === 'forbidden') {
+      // Membership revoked or scope removed: the server's refusal wins over any
+      // lease. Offline access ends; every saved record stays on the phone.
+      revokeOfflineAccess(deviceSql(), owner);
+      onAuthExpired();
+    } else if (result?.push === 'auth_paused' || result?.pull === 'auth_paused') {
+      onAuthExpired();
+    }
   }, [owner, session.auth.token, reloadQueue, onAuthExpired]);
 
   const refresh = async () => {
@@ -133,11 +141,12 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
   };
 
   useEffect(() => {
+    if (!leaseHolds()) return;
     void refresh();
     void sync(false);
     // Each return to the foreground is a new session: reopen retries.
     const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') {
+      if (next === 'active' && leaseHolds()) {
         syncSession.current = { autoAttempts: 0 };
         void sync(false);
       }
@@ -148,6 +157,7 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
   }, [owner]);
 
   const save = async (input: LocalSaveInput) => {
+    if (!leaseHolds()) return;
     setStep({ name: 'saving', input, error: null });
     try {
       const receipt = await (await storage.current!).save(input);
@@ -185,6 +195,25 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
       </Text>
     </Pressable>
   );
+
+  if (locked) {
+    // Locked: no new tests, nothing deleted. The queue is shown so the worker
+    // can see their records are still here.
+    return (
+      <View style={[s.screen, s.pad]}>
+        <Card>
+          <CardTitle>Offline access stopped</CardTitle>
+          <Text style={s.body} testID="offline-locked">{LOCK_TEXT[locked]}</Text>
+          <Text style={s.body} testID="locked-pending">
+            {queue.pending} saved record{queue.pending === 1 ? '' : 's'} kept on this phone. They will be sent after sign-in.
+          </Text>
+        </Card>
+        <Pressable style={s.btn} onPress={onAuthExpired} accessibilityRole="button" testID="locked-sign-in">
+          <Text style={s.btnText}>Go to sign in</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   switch (step.name) {
     case 'source': {

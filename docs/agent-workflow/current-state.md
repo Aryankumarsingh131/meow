@@ -59,7 +59,7 @@ done silently. A box is ticked in `to-do.md` only after real DoD evidence.
 | T13 | C | T05 T06 | `[~]` built; 10/10 re-run 2026-09-24 incl. PostgreSQL 17.6 two-connection replay race. **Outstanding:** independent sync-ordering review (AGENTS.md). | handoff-T13.md |
 | T14 | C | T13 | `[~]` built 2026-09-24: tenant-locked changefeed, `/v1/sync/pull`, `/v1/bootstrap`, 410 reset; 12/12 incl. PostgreSQL late-commit; 11/11 + global-sequence mutants caught. Fixed a T07 cursor-length defect. **Outstanding:** independent sync-ordering review. | handoff-T14.md |
 | T15 | A | T12 T14 | `[~]` built 2026-09-24: sync engine + queue + full worker flow. Emulator: offline save → kill -9 → offline relaunch → reconnect → same record accepted (server 1 row). 15/15 real-server tests; 13/14 mutants (survivor equivalent). **Outstanding:** physical phone, independent review. | handoff-T15.md |
-| T45 | C+A | T06 T12 T15 | not started | — |
+| T45 | C+A | T06 T12 T15 | `[~]` built 2026-09-24: server 72 h lease (A08, provisional), device lock on expiry/rollback, revocation drops lease and keeps records. Emulator: offline continue + 5 h rollback lock + re-login sync. 4+10 tests; 10/10 mutants. **Outstanding:** auth review, phone, real IdP. | handoff-T45.md |
 
 ## What exists
 

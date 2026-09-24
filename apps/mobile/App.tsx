@@ -1,8 +1,11 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
 
+import { deviceSql } from './src/deviceDb';
 import { LoginScreen } from './src/login';
+import { OFFLINE_LIMIT_NOTE, revokeOfflineAccess } from './src/offlineAccess';
+import { pendingCount } from './src/sync';
 import { PublicApp } from './src/publicApp';
 import { WorkerApp } from './src/workerApp';
 import { surfaceFor, type AppSession } from './src/session';
@@ -49,6 +52,23 @@ export default function App(): React.JSX.Element {
 
   const isStaff = session.kind === 'staff';
 
+  // Sign-out ends this account's offline access on this phone (T45). It never
+  // deletes saved records; with unsent records it warns first.
+  const signOut = () => {
+    if (session.kind !== 'staff') return setSession(null);
+    const finish = () => {
+      revokeOfflineAccess(deviceSql(), session.auth.subject);
+      setSession(null);
+    };
+    const pending = pendingCount(deviceSql(), session.auth.subject);
+    if (pending === 0) return finish();
+    Alert.alert(
+      'Records not sent yet',
+      `${pending} saved record${pending === 1 ? '' : 's'} stay on this phone and will be sent after you sign in again. Offline access ends when you sign out.`,
+      [{ text: 'Stay signed in', style: 'cancel' }, { text: 'Sign out', onPress: finish }],
+    );
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.bar}>
@@ -64,7 +84,7 @@ export default function App(): React.JSX.Element {
         </View>
         <Pressable
           style={styles.signOut}
-          onPress={() => setSession(null)}
+          onPress={signOut}
           accessibilityRole="button"
           testID="sign-out"
         >
@@ -76,6 +96,12 @@ export default function App(): React.JSX.Element {
       {isStaff && session.issuer === 'synthetic_dev_issuer' && (
         <Text style={styles.unverified}>
           Synthetic session — issued by the test issuer, not a real identity provider.
+        </Text>
+      )}
+
+      {isStaff && session.offlineUntilMs !== null && (
+        <Text style={styles.unverified} testID="offline-banner">
+          Working offline until {new Date(session.offlineUntilMs).toLocaleString()}. Nothing is sent until you sign in. {OFFLINE_LIMIT_NOTE}
         </Text>
       )}
 

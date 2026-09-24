@@ -21,16 +21,21 @@ import {
 } from 'react-native';
 
 import { colors, radius, spacing, type } from './theme';
-import { DEV_API_BASE, signIn } from './api';
+import { DEV_API_BASE, requestOfflineGrant, signIn } from './api';
+import { deviceId, deviceSql } from './deviceDb';
+import { OFFLINE_LIMIT_NOTE, offlineAccounts, recordGrant, revokeOfflineAccess } from './offlineAccess';
 import {
   DEMO_USERNAMES,
   SIGN_IN_ERROR,
   checkSignInInput,
   continueAsPublic,
+  offlineSession,
   signInFailureFor,
   staffSession,
   type AppSession,
 } from './session';
+
+const CLIENT_BUILD = 'jalsakshi-mobile/m1-synthetic';
 
 export interface LoginScreenProps {
   onSession(session: AppSession): void;
@@ -41,6 +46,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [offline, setOffline] = useState<ReturnType<typeof offlineAccounts>>([]);
 
   const submit = async () => {
     if (busy) return;
@@ -54,9 +60,16 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
     setBusy(false);
     if (result.kind !== 'ok') {
       setError(SIGN_IN_ERROR[signInFailureFor(result.kind)]);
+      // Offline: offer accounts this phone still holds a valid lease for.
+      setOffline(result.kind === 'offline' ? offlineAccounts(deviceSql(), Date.now()) : []);
       return;
     }
     setError(null);
+    // T45: provision offline access while online. The server decides scope and
+    // lease; a refusal (revoked membership) removes any lease already held.
+    const grant = await requestOfflineGrant(DEV_API_BASE, result.value.token, deviceId(), CLIENT_BUILD);
+    if (grant.kind === 'ok') recordGrant(deviceSql(), username, grant.value, result.value.subject, Date.now());
+    else if (grant.kind === 'failed' && grant.status === 403) revokeOfflineAccess(deviceSql(), result.value.subject);
     onSession(staffSession(username, result.value));
   };
 
@@ -129,6 +142,21 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
           >
             <Text style={s.btnPrimaryText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
           </Pressable>
+
+          {offline.map((account) => (
+            <Pressable
+              key={account.subject}
+              style={[s.btn, s.btnOutline]}
+              onPress={() => onSession(offlineSession(account.username, account.subject, account.expiresAtMs))}
+              accessibilityRole="button"
+              testID={`continue-offline-${account.username}`}
+            >
+              <Text style={s.btnOutlineText}>
+                Continue offline as {account.username} (until {new Date(account.expiresAtMs).toLocaleString()})
+              </Text>
+            </Pressable>
+          ))}
+          {offline.length > 0 && <Text style={s.cardSub}>{OFFLINE_LIMIT_NOTE}</Text>}
 
           <View style={s.demoNote}>
             <Text style={s.demoTitle}>Synthetic sign-in</Text>
@@ -203,6 +231,8 @@ const s = StyleSheet.create({
   btn: { paddingVertical: 14, borderRadius: radius.md, alignItems: 'center' },
   btnPrimary: { backgroundColor: colors.primary, marginTop: spacing.sm },
   btnPrimaryText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
+  btnOutline: { borderWidth: 1, borderColor: colors.primary, marginTop: spacing.sm, paddingHorizontal: spacing.md },
+  btnOutlineText: { color: colors.primary, fontWeight: '700', fontSize: 14, textAlign: 'center' },
   btnDisabled: { opacity: 0.6 },
   btnGhost: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.primary },
   btnGhostText: { color: colors.primary, fontWeight: '700', fontSize: 15 },

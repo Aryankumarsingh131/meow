@@ -13,12 +13,9 @@
  */
 
 import assert from 'node:assert/strict';
-import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +35,7 @@ import {
   type SyncDeps, type SyncSession,
 } from '../apps/mobile/src/sync.ts';
 import type { TimingVerdict } from '../apps/mobile/src/timer.ts';
+import { startServer } from './apiServer.ts';
 import { nodeSql } from './sqlNode.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -52,37 +50,6 @@ const ajv = new Ajv2020({ strict: false, allErrors: true });
 addFormats(ajv);
 ajv.addSchema({ $id: 'openapi.json', ...JSON.parse(readFileSync(join(ROOT, 'contracts/openapi.json'), 'utf-8')) });
 const canonicalSample = ajv.getSchema('openapi.json#/components/schemas/CanonicalSampleV1')!;
-
-// --- real server ------------------------------------------------------------
-
-async function freePort(): Promise<number> {
-  return new Promise((done) => {
-    const s = createServer().listen(0, '127.0.0.1', () => {
-      const port = (s.address() as { port: number }).port;
-      s.close(() => done(port));
-    });
-  });
-}
-
-async function startServer(): Promise<{ base: string; dir: string; child: ChildProcess }> {
-  const dir = mkdtempSync(join(tmpdir(), 'jalsakshi-t15-'));
-  const port = await freePort();
-  const env: NodeJS.ProcessEnv = { ...process.env, PYTHONPATH: ROOT };
-  for (const key of Object.keys(env)) if (key.startsWith('JALSAKSHI_')) delete env[key];
-  Object.assign(env, { JALSAKSHI_ENVIRONMENT: 'development', JALSAKSHI_TENANT_DATA_MODE: 'synthetic' });
-  // cwd = temp dir: the dev app keeps .data/ (SQLite, issuer key) relative to
-  // cwd, and there is no .env there, so the repo's real credentials are unused.
-  const child = spawn('python', ['-m', 'uvicorn', 'services.api.app.main:app', '--port', String(port)], { cwd: dir, env, stdio: 'ignore' });
-  const base = `http://127.0.0.1:${port}`;
-  for (let i = 0; i < 100; i++) {
-    try {
-      if ((await fetch(`${base}/health/live`)).ok) return { base, dir, child };
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  child.kill();
-  throw new Error('API server did not start');
-}
 
 // --- phone side ---------------------------------------------------------------
 

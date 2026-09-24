@@ -587,7 +587,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T45 — Offline grant and revocation handling
 
-- [ ] T45 complete with evidence
+- [~] T45 complete with evidence — OUTSTANDING: independent auth review, physical phone, real IdP (T06). Emulator: grant → offline kill/relaunch → continue offline → 5 h clock rollback locked, 0 records lost → re-login synced; 4+10 tests, 10/10 mutants (handoff-T45.md).
 
 - Requirements: REQ-017.
 - Owner: C/security + A. Estimated effort: 2 h slice.

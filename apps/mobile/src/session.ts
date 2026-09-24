@@ -45,6 +45,11 @@ export interface Session {
   auth: SignedIn;
   /** Who vouched for this session. Surfaces must show a synthetic issuer. */
   issuer: 'synthetic_dev_issuer';
+  /**
+   * T45. Null for an online sign-in. For an offline session (no token, entry
+   * gated by the phone's screen lock) the end of the server-issued lease.
+   */
+  offlineUntilMs: number | null;
 }
 
 export interface PublicVisitor {
@@ -75,7 +80,15 @@ export function signInFailureFor(kind: 'auth_required' | 'offline' | 'failed'): 
 }
 
 export function staffSession(username: string, auth: SignedIn): Session {
-  return { kind: 'staff', username: username.trim().toLowerCase(), auth, issuer: 'synthetic_dev_issuer' };
+  return { kind: 'staff', username: username.trim().toLowerCase(), auth, issuer: 'synthetic_dev_issuer', offlineUntilMs: null };
+}
+
+/** T45: continue under a stored offline grant. There is no token; nothing can be sent until sign-in. */
+export function offlineSession(username: string, subject: string, expiresAtMs: number): Session {
+  return {
+    kind: 'staff', username, issuer: 'synthetic_dev_issuer', offlineUntilMs: expiresAtMs,
+    auth: { token: '', subject, expiresAtMs },
+  };
 }
 
 export const SIGN_IN_ERROR: Record<SignInFailure, string> = {
