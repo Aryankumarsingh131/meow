@@ -1,0 +1,24 @@
+# Never include secrets or local state in the image.
+.env
+.env.*
+!.env.example
+
+# Dev / test artefacts
+.data/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Editor and OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Tests are not needed at runtime.
+tests/
+app/tests/
+*_test.py
+test_*.py

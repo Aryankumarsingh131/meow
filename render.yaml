@@ -1,0 +1,83 @@
+# render.yaml — Infrastructure-as-Code for Render.com
+#
+# Docs: https://render.com/docs/blueprint-spec
+#
+# HOW TO USE
+# 1. Push this repo to GitHub (or GitLab).
+# 2. Go to https://dashboard.render.com → New → Blueprint.
+# 3. Connect your repo. Render will detect this file automatically.
+# 4. Fill in every secret in the "jalsakshi-secrets" environment group
+#    (see comments below) before the first deploy.
+#
+# COST
+# The `free` plan is enough to start (750 h/month, spins down after
+# 15 min idle). Upgrade to `starter` ($7/month) for always-on.
+
+services:
+  - type: web
+    name: jalsakshi-api
+    runtime: docker
+
+    # Build context is the services/api directory so the Dockerfile can
+    # COPY . . and only get the API source, not the whole monorepo.
+    rootDir: services/api
+    dockerfilePath: Dockerfile   # relative to rootDir
+
+    # Render sets PORT automatically; the CMD in the Dockerfile reads it.
+    # Do NOT hardcode a port here.
+
+    plan: free          # change to `starter` for always-on
+
+    region: singapore   # closest to your Supabase Tokyo region (ap-northeast-1)
+                        # Options: oregon, frankfurt, ohio, singapore, virginia
+
+    # Auto-deploy on every push to main.
+    branch: main
+
+    # ── Environment variables ────────────────────────────────────────────────
+    # Values that are NOT secrets can be set inline.
+    # Values that ARE secrets must be set in Render's dashboard under
+    # Environment → Secret Files or the environment group below, NOT here.
+    envVars:
+      - key: JALSAKSHI_ENVIRONMENT
+        value: production          # triggers config.py production guards
+
+      - key: JALSAKSHI_TENANT_DATA_MODE
+        value: operational         # production must be operational
+
+      # ── Secrets — set these in the Render dashboard, NOT here ────────────
+      # Go to: Dashboard → jalsakshi-api → Environment → Add Environment Variable
+      #
+      # JALSAKSHI_DATABASE_URL
+      #   postgresql://postgres.<ref>:<password>@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres?sslmode=require
+      #   (Supabase → Settings → Database → Connection string, Session mode)
+      #
+      # JALSAKSHI_SUPABASE_URL
+      #   https://<ref>.supabase.co
+      #
+      # JALSAKSHI_SUPABASE_PUBLISHABLE_KEY
+      #   sb_publishable_...  (Supabase → Settings → API → anon public key)
+      #
+      # JALSAKSHI_OIDC_ISSUER
+      #   The issuer URL of your real identity provider when you switch from
+      #   the synthetic dev issuer. Leave empty to keep the API in dev mode.
+      #
+      # JALSAKSHI_OIDC_AUDIENCE
+      #   The audience claim your IdP puts in the JWT (e.g. "jalsakshi-api").
+
+      # Reference a secret from the environment group (optional, keeps secrets
+      # centralised if you run multiple services).
+      # - key: JALSAKSHI_DATABASE_URL
+      #   fromGroup: jalsakshi-secrets
+
+    # ── Health check ─────────────────────────────────────────────────────────
+    # Render marks the deploy successful only after this path returns 2xx.
+    healthCheckPath: /health/live
+
+    # ── Scaling ──────────────────────────────────────────────────────────────
+    # Free plan: 1 instance only. Uncomment for paid plans.
+    # scaling:
+    #   minInstances: 1
+    #   maxInstances: 3
+    #   targetMemoryPercent: 80
+    #   targetCPUPercent: 70
