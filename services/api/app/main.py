@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="JalSakshi API", version="0.1.0", lifespan=lifespan)
+app.state.tenant_data_mode = settings.tenant_data_mode
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
 # Mounted everywhere; without `app.state.auth` every route answers 503.

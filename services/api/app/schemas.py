@@ -139,6 +139,7 @@ class Observation(BaseModel):
     model_version: Optional[str] = Field(default=None, max_length=160)
     calibration_version: Optional[str] = Field(default=None, max_length=160)
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    override_reason: Optional[str] = Field(default=None, max_length=2000)
 
 
 class CanonicalSampleV1(BaseModel):

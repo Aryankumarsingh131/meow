@@ -23,3 +23,7 @@ httpx==0.28.1          # required by fastapi.testclient
 # only verify_token() and needs no test changes. See docs/auth-provider.md.
 python-jose==3.5.0
 cryptography==49.0.0   # RSA backend for python-jose; also used by the tests
+
+# PostgreSQL DB-API driver used by sync/source persistence. The binary extra
+# keeps the pinned Windows/Linux development path independent of system libpq.
+psycopg[binary]==3.3.6

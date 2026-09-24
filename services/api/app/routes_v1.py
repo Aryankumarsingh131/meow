@@ -19,7 +19,9 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 
 from .auth import Denied, Session, authenticate, bearer_token
 from .errors import ApiError
+from .schemas import PushRequest
 from .sources import DEFAULT_LIMIT, MAX_LIMIT, MAX_SEARCH_LENGTH, InvalidCursor, list_sources, source_history
+from .sync_push import PushResponse, push_events
 
 router = APIRouter(prefix="/v1", tags=["v1"])
 
@@ -52,6 +54,25 @@ def _now() -> str:
 
 def _invalid_cursor(outcome: InvalidCursor) -> ApiError:
     return ApiError(code=outcome.code, detail=outcome.detail, field_errors={"cursor": outcome.detail})
+
+
+@router.post("/sync/push", response_model=PushResponse)
+def post_sync_push(
+    body: PushRequest,
+    request: Request,
+    session: Session = Depends(require_session),
+    conn: Any = Depends(db),
+) -> PushResponse:
+    outcome = push_events(
+        conn,
+        session,
+        body,
+        server_data_mode=request.app.state.tenant_data_mode,
+        server_time=_now(),
+    )
+    if isinstance(outcome, Denied):
+        raise ApiError(code=outcome.code, detail=outcome.detail)
+    return outcome
 
 
 @router.get("/sources")

@@ -54,7 +54,7 @@ done silently. A box is ticked in `to-do.md` only after real DoD evidence.
 | T10 | B | T04 | Python leg only â€” `Quality.kt` missing | â€” |
 | T11 | A | T09 T10 | not started | â€” |
 | T12 | A | T11 | not started | â€” |
-| T13 | C | T05 T06 | not started | â€” |
+| T13 | C | T05 T06 | **completed 2026-09-24.** Per-event transactions, payload-guarded idempotency, immutable corrections and real PostgreSQL concurrency verified. | handoff-T13.md |
 | T14 | C | T13 | not started | â€” |
 | T15 | A | T12 T14 | not started | â€” |
 | T45 | C+A | T06 T12 T15 | not started | â€” |

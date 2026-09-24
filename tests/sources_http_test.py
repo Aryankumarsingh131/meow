@@ -10,7 +10,6 @@ Run:  python -m unittest tests.sources_http_test -v
 
 from __future__ import annotations
 
-import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,15 +24,6 @@ from services.api.app.main import app
 WORKER = _uid("user.worker")
 OTHER_WORKER = _uid("user.other-worker")
 
-_SAMPLES_FIXTURE = """
-CREATE TABLE IF NOT EXISTS samples (
-    tenant_id text NOT NULL, id text NOT NULL, source_id text NOT NULL,
-    received_at_server text NOT NULL, status text NOT NULL, method text NOT NULL,
-    indicative_flag text NOT NULL, PRIMARY KEY (tenant_id, id)
-)
-"""
-
-
 @unittest.skipUnless(hasattr(app.state, "dev_issuer"), "needs development+synthetic")
 class SourcesHttpTests(unittest.TestCase):
     @classmethod
@@ -44,16 +34,44 @@ class SourcesHttpTests(unittest.TestCase):
         app.state.connect = connector("", cls.db_path)
         cls.client = TestClient(app)
         cls.client.__enter__()  # runs lifespan: migrate + seed
-        conn = sqlite3.connect(cls.db_path)
-        conn.execute(_SAMPLES_FIXTURE)  # T13's table, stand-in until T13
-        for i, (sid, status) in enumerate([("s1", "accepted"), ("s2", "accepted"), ("s3", "pending")]):
-            conn.execute(
-                "INSERT INTO samples VALUES (?,?,?,?,?,?,?)",
-                (SYNTHETIC_TENANT_ID, _uid(f"sample.{sid}"), dev_seed.source_id("src.1"),
-                 f"2026-09-2{i}T10:00:00Z", status, "manual", "no_flag"),
+        headers = {"Authorization": f"Bearer {app.state.dev_issuer.mint(WORKER)}"}
+        for index, sid in enumerate(("s1", "s2")):
+            response = cls.client.post(
+                "/v1/sync/push",
+                headers=headers,
+                json={
+                    "device_id": _uid("device.history"),
+                    "events": [{
+                        "event_id": _uid(f"event.{sid}"),
+                        "kind": "sample.create",
+                        "schema_version": 1,
+                        "payload": {
+                            "schema_version": 1,
+                            "sample_id": _uid(f"sample.{sid}"),
+                            "source_id": dev_seed.source_id("src.1"),
+                            "protocol": {"id": _uid("protocol.synthetic"), "version": 1},
+                            "kit_lot_id": _uid("lot.synthetic"),
+                            "captured_at_device": f"2026-09-2{index}T10:00:00Z",
+                            "timing": {"state": "in_window", "elapsed_ms": 30000, "valid": True},
+                            "method": "manual",
+                            "observation": {
+                                "machine_bin": None,
+                                "manual_bin": "bin_0",
+                                "selected_bin": "bin_0",
+                                "indicative_flag": "no_flag",
+                                "quality_reasons": [],
+                                "confidence": None,
+                                "override_reason": "Synthetic history fixture",
+                            },
+                            "evidence_ids": [],
+                            "client_build": "http-test",
+                            "data_mode": "synthetic",
+                        },
+                    }],
+                },
             )
-        conn.commit()
-        conn.close()
+            if response.status_code != 200:
+                raise AssertionError(response.text)
 
     @classmethod
     def tearDownClass(cls) -> None:

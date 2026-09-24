@@ -17,7 +17,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Callable
 
-from ..migrations import source
+from ..migrations import samples, source
 
 SCHEMA = "jalsakshi"
 
@@ -36,6 +36,9 @@ def connector(database_url: str, sqlite_path: Path) -> Connector:
             conn = psycopg.connect(database_url, connect_timeout=5)
             conn.execute(f"SET search_path TO {SCHEMA}")
             conn.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
+            # Keep session settings outside domain transactions: otherwise a
+            # rollback also resets search_path and the retry query hits public.
+            conn.commit()
             return conn
 
         return connect_pg
@@ -52,11 +55,11 @@ def connector(database_url: str, sqlite_path: Path) -> Connector:
 def migrate(conn: Any) -> None:
     """Apply every migration idempotently (all DDL is `IF NOT EXISTS`)."""
     if isinstance(conn, sqlite3.Connection):
-        for statement in source.statements("sqlite"):
+        for statement in source.statements("sqlite") + samples.statements("sqlite"):
             conn.execute(statement)
     else:
         conn.execute(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")
         conn.execute(f"SET search_path TO {SCHEMA}")
-        for statement in source.statements("postgresql"):
+        for statement in source.statements("postgresql") + samples.statements("postgresql"):
             conn.execute(statement)
     conn.commit()
