@@ -27,9 +27,23 @@ app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 settings = load_settings()  # Validate deployment configuration at startup.
-if settings.environment == "development" and settings.tenant_data_mode == "synthetic":
+
+#: True only for a local synthetic dev stack. Both the synthetic demo router and
+#: the M1 dev token issuer (ADR-M1-002) are mounted behind this single gate, so
+#: neither can exist in staging or production. config.py independently refuses
+#: to start production with synthetic data.
+SYNTHETIC_DEV = settings.environment == "development" and settings.tenant_data_mode == "synthetic"
+
+if SYNTHETIC_DEV:
     app.state.demo_data_dir = ".data/demo"
     app.include_router(demo_router)
+
+    # Imported inside the gate on purpose: outside development+synthetic the
+    # issuer module is never even loaded, so no key is generated.
+    from .dev_issuer import DevIssuer, build_router, load_or_create_key
+
+    app.state.dev_issuer = DevIssuer(load_or_create_key())
+    app.include_router(build_router(app.state.dev_issuer))
 
 
 @app.get("/health/live")

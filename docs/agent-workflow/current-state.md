@@ -47,7 +47,7 @@ done silently. A box is ticked in `to-do.md` only after real DoD evidence.
 | Task | Role | Depends on | Status | Evidence / blocker |
 |---|---|---|---|---|
 | T05 | C | T01 | **reviewed 2026-09-24 — CONTRACT CHANGED.** Frozen `Timing` could not carry indeterminate timing without inventing `elapsed_ms=0`, and `valid: bool` collapsed late/expired/indeterminate. Now discriminated on `state`; re-frozen deterministically (openapi.json `3ac6b2b8…`, client.ts `c92c158a…`). 26 schema + 12 contract checks; 7/7 mutants caught. **Wants independent review of the new shape** — not ticked. | handoff-T05.md |
-| T06 | C | T03 T05 | built earlier — **DoD review pending** | handoff-T06.md |
+| T06 | C | T03 T05 | **reviewed 2026-09-24 — acceptance met; M1 input added.** Verification code unchanged. Gap found: nothing could mint a token it accepts and nothing in the API called it. Added a synthetic dev issuer (ADR-M1-002): real RS256/JWKS, `.invalid` issuer, mounted only in development+synthetic; 26 tests prove its tokens pass T06's real `authenticate()`; 6/6 mutants caught. Still open: real provider, JWKS fetching, dead mobile `refreshToken` (→ T15/T45), independent auth review. **Not ticked.** | handoff-T06.md, ADR-M1-002 |
 | T07 | A | T03 T05 | built earlier — **DoD review pending** | handoff-T07.md |
 | T08 | A | T01 T07 | mechanism built — wire to SYN-COLOR-001 | handoff-T08.md |
 | T09 | A | T04 T08 | built earlier — **DoD review pending** | handoff-T09.md |
@@ -351,6 +351,8 @@ review** per AGENTS.md.
   recommendation awaiting human sign-off, not a procurement. No fictional
   provider tenant, client ID or credential was invented. Verification logic is
   provider-agnostic, so the choice can be made later without a rewrite.
+  For M1 only, `services/api/app/dev_issuer.py` (ADR-M1-002) issues synthetic
+  tokens in development+synthetic; it is **not** a provider decision.
 - **T06's mobile client is still not wired into the app** — but the
   dependency half of this blocker is **partly resolved** (2026-09-22, `meow`
   integration): `expo-crypto` is now installed, which is what PKCE S256 needs
