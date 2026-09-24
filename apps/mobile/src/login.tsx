@@ -8,7 +8,7 @@
  * All routing decisions live in `session.ts`; this file is presentation.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 
 import { colors, radius, spacing, type } from './theme';
-import { API_BASE, HOSTED_AUTH, requestOfflineGrant, signIn } from './api';
+import { API_BASE, fetchAuthConfig, requestOfflineGrant, signIn } from './api';
 import { deviceId, deviceSql } from './deviceDb';
 import { OFFLINE_LIMIT_NOTE, offlineAccounts, recordGrant, revokeOfflineAccess } from './offlineAccess';
 import {
@@ -47,6 +47,14 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [offline, setOffline] = useState<ReturnType<typeof offlineAccounts>>([]);
+  // null until the backend has said how to sign in. Asking early also wakes a
+  // sleeping Render instance while the person is still typing.
+  const [hosted, setHosted] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    void fetchAuthConfig(API_BASE).then((r) => { if (live && r.kind === 'ok') setHosted(r.value !== null); });
+    return () => { live = false; };
+  }, []);
 
   const submit = async () => {
     if (busy) return;
@@ -93,7 +101,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
             For trained field workers and supervisors.
           </Text>
 
-          <Text style={s.label}>{HOSTED_AUTH ? 'Email' : 'Username'}</Text>
+          <Text style={s.label}>{hosted === false ? 'Username' : 'Email'}</Text>
           <TextInput
             style={s.input}
             value={username}
@@ -101,8 +109,8 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
               setUsername(t);
               setError(null);
             }}
-            placeholder={HOSTED_AUTH ? 'you@example.org' : 'worker'}
-            keyboardType={HOSTED_AUTH ? 'email-address' : 'default'}
+            placeholder={hosted === false ? 'worker' : 'you@example.org'}
+            keyboardType={hosted === false ? 'default' : 'email-address'}
             placeholderTextColor={colors.textFaint}
             autoCapitalize="none"
             autoCorrect={false}
@@ -143,6 +151,11 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
           >
             <Text style={s.btnPrimaryText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
           </Pressable>
+          {busy && (
+            <Text style={s.cardSub} testID="login-waking">
+              Connecting to the server. After a quiet spell it can take up to a minute to wake.
+            </Text>
+          )}
 
           {offline.map((account) => (
             <Pressable
@@ -159,7 +172,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
           ))}
           {offline.length > 0 && <Text style={s.cardSub}>{OFFLINE_LIMIT_NOTE}</Text>}
 
-          {!HOSTED_AUTH && <View style={s.demoNote}>
+          {hosted === false && <View style={s.demoNote}>
             <Text style={s.demoTitle}>Synthetic sign-in</Text>
             <Text style={s.demoText}>
               Checked by the JalSakshi server's synthetic test issuer, not a real

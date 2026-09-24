@@ -6,7 +6,7 @@
 
 import assert from 'node:assert/strict';
 
-import { signIn } from '../apps/mobile/src/api.ts';
+import { fetchAuthConfig, signIn, WAKE_TIMEOUT_MS } from '../apps/mobile/src/api.ts';
 
 const HOSTED = { url: 'https://example-ref.supabase.co', key: 'sb_publishable_test' };
 const SUB = '6f1c2d3e-4a5b-4c6d-8e9f-0a1b2c3d4e5f';
@@ -55,6 +55,26 @@ await test('without hosted settings the dev issuer is used, unchanged', async ()
   const seen: { url?: string } = {};
   await signIn('http://10.0.2.2:8000', 'worker', 'jalsakshi', { hosted: null, fetchImpl: fakeFetch(401, {}, seen) });
   assert.equal(seen.url, 'http://10.0.2.2:8000/dev/v1/token');
+});
+
+await test('with no pinned settings, sign-in asks the backend how to sign in, then uses Supabase', async () => {
+  const urls: string[] = [];
+  const fetchImpl = (async (url: string) => {
+    urls.push(url);
+    const body = url.endsWith('/auth/config')
+      ? { provider: 'supabase', url: HOSTED.url + '/', publishable_key: HOSTED.key }
+      : { access_token: TOKEN, expires_in: 3600 };
+    return new Response(JSON.stringify(body), { status: 200 });
+  }) as unknown as typeof fetch;
+  const r = await signIn('https://jalsakshi-api.onrender.com', 'a@b.c', 'pw', { fetchImpl });
+  assert.equal(r.kind, 'ok');
+  assert.deepEqual(urls, ['https://jalsakshi-api.onrender.com/auth/config', `${HOSTED.url}/auth/v1/token?grant_type=password`]);
+});
+
+await test('an unreachable backend is offline; the wake budget allows a Render cold start', async () => {
+  const down = (async () => { throw new TypeError('network'); }) as unknown as typeof fetch;
+  assert.deepEqual(await fetchAuthConfig('https://x', down), { kind: 'offline' });
+  assert.ok(WAKE_TIMEOUT_MS >= 60_000, 'Render free instances take about 50 s to wake');
 });
 
 console.log(`\n${passed} hosted sign-in tests passed`);

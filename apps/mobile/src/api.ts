@@ -17,19 +17,49 @@
 
 import type { CachedSource } from './sourceCatalog';
 
-/** Set at build time (EXPO_PUBLIC_API_BASE); defaults to the Android
- *  emulator's alias for the host machine, for the local dev stack. */
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || 'http://10.0.2.2:8000';
+/** The hosted backend. A Metro dev build talks to the local stack instead;
+ *  EXPO_PUBLIC_API_BASE overrides both at build time. */
+export const HOSTED_API_BASE = 'https://jalsakshi-api.onrender.com';
+const IS_DEV = typeof __DEV__ !== 'undefined' && __DEV__;
+export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || (IS_DEV ? 'http://10.0.2.2:8000' : HOSTED_API_BASE);
 
-/** Supabase Auth, when the build is configured for it. The publishable key is
- *  client-visible by design; the service_role key must never be in the app. */
-export const HOSTED_AUTH =
+/** Render's free plan sleeps after 15 min idle and takes ~50 s to wake. The
+ *  first call of a sign-in waits long enough for that instead of reporting
+ *  "cannot reach the server" after the normal 10 s budget. */
+export const WAKE_TIMEOUT_MS = 75_000;
+
+export type HostedAuth = { url: string; key: string };
+export type Issuer = 'synthetic_dev_issuer' | 'supabase';
+
+/** Sign-in settings. A build may pin them (EXPO_PUBLIC_SUPABASE_*); otherwise
+ *  they come from the backend's public GET /auth/config, so no key is baked
+ *  into the app. The publishable key is client-visible by design; the
+ *  service_role key never reaches the app (the server refuses to serve it). */
+const PINNED_AUTH: HostedAuth | null =
   process.env.EXPO_PUBLIC_SUPABASE_URL && process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
     ? { url: process.env.EXPO_PUBLIC_SUPABASE_URL.replace(/\/$/, ''), key: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY }
     : null;
 
-export type Issuer = 'synthetic_dev_issuer' | 'supabase';
-export const ISSUER: Issuer = HOSTED_AUTH ? 'supabase' : 'synthetic_dev_issuer';
+let resolvedAuth: HostedAuth | null = PINNED_AUTH;
+/** Which issuer this session came from; updated once the backend has said. */
+export let ISSUER: Issuer = PINNED_AUTH ? 'supabase' : 'synthetic_dev_issuer';
+
+export async function fetchAuthConfig(
+  base: string, fetchImpl?: typeof fetch,
+): Promise<ApiOutcome<HostedAuth | null>> {
+  if (PINNED_AUTH) return { kind: 'ok', value: PINNED_AUTH };
+  const r = await request<{ provider: string | null; url?: string; publishable_key?: string }>(
+    base, '/auth/config', { fetchImpl, timeoutMs: WAKE_TIMEOUT_MS });
+  if (r.kind !== 'ok') return r;
+  if (r.value.provider === 'supabase' && r.value.url && r.value.publishable_key) {
+    resolvedAuth = { url: r.value.url.replace(/\/$/, ''), key: r.value.publishable_key };
+    ISSUER = 'supabase';
+    return { kind: 'ok', value: resolvedAuth };
+  }
+  resolvedAuth = null;
+  ISSUER = 'synthetic_dev_issuer';
+  return { kind: 'ok', value: null };
+}
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -110,9 +140,15 @@ export function jwtSubject(token: string): string | null {
 
 export async function signIn(
   base: string, username: string, password: string,
-  opts: { fetchImpl?: typeof fetch; now?: () => number; hosted?: { url: string; key: string } | null } = {},
+  opts: { fetchImpl?: typeof fetch; now?: () => number; hosted?: HostedAuth | null } = {},
 ): Promise<ApiOutcome<SignedIn>> {
-  const hosted = opts.hosted === undefined ? HOSTED_AUTH : opts.hosted;
+  let hosted = opts.hosted;
+  if (hosted === undefined) {
+    // Also wakes a sleeping backend, with the long timeout, before anything else.
+    const config = await fetchAuthConfig(base, opts.fetchImpl);
+    if (config.kind !== 'ok') return config;
+    hosted = config.value;
+  }
   const r = hosted
     // Supabase's password grant. A wrong email or password is 400 there, not 401.
     ? await request<{ access_token: string; expires_in: number }>(hosted.url, '/auth/v1/token?grant_type=password', {

@@ -145,6 +145,38 @@ def root() -> dict[str, str]:
     return {"service": "JalSakshi API", "version": "0.1.0", "docs": "/docs", "health": "/health/live"}
 
 
+def _is_publishable(key: str) -> bool:
+    """Only a publishable key may ever be served. A secret key pasted into the
+    wrong variable (sb_secret_..., or a legacy JWT whose role is not anon) is
+    refused, so this public endpoint can never leak it."""
+    if key.startswith("sb_publishable_"):
+        return True
+    if key.count(".") == 2:  # legacy anon key: a JWT
+        import base64
+        import json
+
+        try:
+            body = key.split(".")[1]
+            claims = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+            return claims.get("role") == "anon"
+        except ValueError:
+            return False
+    return False
+
+
+@app.get("/auth/config")
+def auth_config() -> JSONResponse:
+    """How the app should sign in here. Public by design: the Supabase URL and
+    publishable key are client-visible values (never the service_role key),
+    served so the app build needs no key baked in."""
+    if HOSTED and settings.supabase_url and _is_publishable(settings.supabase_publishable_key):
+        return JSONResponse({"provider": "supabase", "url": settings.supabase_url.rstrip("/"),
+                             "publishable_key": settings.supabase_publishable_key})
+    if SYNTHETIC_DEV:
+        return JSONResponse({"provider": "synthetic_dev_issuer"})
+    return JSONResponse(status_code=503, content={"provider": None})
+
+
 @app.api_route("/health/live", methods=["GET", "HEAD"])
 def live() -> dict[str, str]:
     """Public liveness. Exposes no dependency or configuration detail."""

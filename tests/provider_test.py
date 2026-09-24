@@ -179,3 +179,22 @@ class HttpWiringTests(HostedAuthTests):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AuthConfigTests(unittest.TestCase):
+    """GET /auth/config is public, so it must only ever serve a publishable key."""
+
+    def test_only_publishable_keys_are_served(self) -> None:
+        import base64
+        import json as _json
+
+        from services.api.app.main import _is_publishable
+
+        def legacy(role: str) -> str:
+            body = base64.urlsafe_b64encode(_json.dumps({"role": role}).encode()).decode().rstrip("=")
+            return f"eyJhbGciOiJIUzI1NiJ9.{body}.sig"
+
+        self.assertTrue(_is_publishable("sb_publishable_abc"))
+        self.assertTrue(_is_publishable(legacy("anon")))
+        for secret in ("sb_secret_abc", legacy("service_role"), "", "random-string", "a.b.c"):
+            self.assertFalse(_is_publishable(secret), secret)

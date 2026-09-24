@@ -68,6 +68,7 @@ test('bearer token is sent only when present', async () => {
 test('sign-in returns token, subject and an expiry estimate', async () => {
   const token = jwt({ sub: 'user-1' });
   const r = await signIn(B, ' worker ', 'jalsakshi', {
+    hosted: null, // the dev issuer path
     fetchImpl: async (_u, init) => {
       assert.deepEqual(JSON.parse(String(init!.body)), { username: 'worker', password: 'jalsakshi' });
       return json(200, { access_token: token, expires_in: 900 });
@@ -78,12 +79,12 @@ test('sign-in returns token, subject and an expiry estimate', async () => {
 });
 
 test('wrong credentials are auth_required', async () => {
-  const r = await signIn(B, 'worker', 'x', { fetchImpl: async () => json(401, { code: 'AUTH_REQUIRED' }) });
+  const r = await signIn(B, 'worker', 'x', { hosted: null, fetchImpl: async () => json(401, { code: 'AUTH_REQUIRED' }) });
   assert.equal(r.kind, 'auth_required');
 });
 
 test('a token without a subject is refused, not trusted', async () => {
-  const r = await signIn(B, 'w', 'p', { fetchImpl: async () => json(200, { access_token: jwt({}), expires_in: 900 }) });
+  const r = await signIn(B, 'w', 'p', { hosted: null, fetchImpl: async () => json(200, { access_token: jwt({}), expires_in: 900 }) });
   assert.equal(r.kind, 'failed');
   assert.equal(jwtSubject('garbage'), null);
 });
