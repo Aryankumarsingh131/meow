@@ -8,7 +8,7 @@ copy at `jalsakshi-blueprint/docs/agent-workflow/current-state.md` is the
 sibling `meow` repository's historical record and carries a banner saying so.
 `jalsakshi-blueprint/AGENTS.md` now links here.
 
-## Milestone M1 — crash-safe offline vertical slice (IN PROGRESS)
+## Milestone M1 — crash-safe offline vertical slice (ALL TASKS BUILT; G1 NOT PASSED — see G1 review)
 
 ### Entry check (2026-09-24, run before any M1 task work)
 
@@ -28,6 +28,29 @@ and none is presented as validated real-world evidence.
 **G0 items that remain OPEN and are never claimed as met:** domain review of
 timing/units; APK offline tensor; any real signed kit protocol; independent
 human review of T01–T04; a physical device.
+
+### G1 gate review (2026-09-24, after T05–T15 + T45 passes) — **NOT PASSED**
+
+The M1 goal was demonstrated **on an emulator with synthetic data**. A test
+was recorded in airplane mode, the app was `kill -9`'d and relaunched offline,
+then reconnected, and the queue showed the same record accepted, with exactly
+one server row (handoff-T15.md). T45 repeated the flow under an offline lease,
+including a 5 h clock rollback that locked access with no record lost
+(handoff-T45.md). That is real evidence, but it does not pass G1, because:
+
+- **External blockers (`[!]`):** T01/T08 have no real kit or read window. T03/T04/T09 have no physical phone. T06 has no identity provider chosen by a human.
+- **Independent review still owed** (AGENTS.md: auth, sync ordering, state): T06, T07, T13, T14, T15, T45 and the Render release change. Every one of these was self-reviewed by the agent that built it.
+- **Not exercised on any device:** a process kill *during* a write (fault-injected only); lost-ack replay on the device itself (tested against the real server in Node, not on the phone); membership revocation on the device (no HTTP revoke exists in M1).
+
+Cross-cutting checks:
+
+| Check | Evidence | Verdict |
+|---|---|---|
+| Kill during a write → record whole or absent | T12 fault injection at rename/commit boundaries; T15 crash between receipt and outbox delete on real SQLite; emulator `kill -9` after commit keeps the record | Met in tests; **mid-write kill on a device not done** |
+| Lost response → no duplicate | T15 real-server test: server commits, response dropped, replay = `duplicate`, 1 server row; T13/T14 PostgreSQL concurrent replay → 1 row, 1 feed entry | Met (integration); not on a device |
+| Airplane-mode operation and reconciliation | Emulator: `airplane_mode_on=1`, no default network, API unreachable; save, restart, reconnect, accepted | **Met on emulator** |
+| Offline access rules enforced offline | Emulator: lease-gated offline entry; 5 h rollback → locked, grant deleted, 0 records lost | **Met on emulator** |
+| Duplicate / out-of-order ingestion | T13: same hash → duplicate, changed payload → conflict, reordered duplicates → 1 sample, correction before original → retryable; T15: retryable stays queued | Met |
 
 ### Protocol under test
 

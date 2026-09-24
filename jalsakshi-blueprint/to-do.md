@@ -640,7 +640,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 ## Checkpoints
 
 - [!] G0: T01–T04 feasibility reviewed; unsafe claims blocked. — BLOCKED: only met via the synthetic-only boundary (ADR-M1-001).
-- [ ] G1: T05–T15 and T45 applicable slice checks; restart/replay proof, not a UI-only demo.
+- [!] G1: T05–T15 and T45 applicable slice checks; restart/replay proof, not a UI-only demo. — NOT PASSED: M1 goal shown on an EMULATOR with synthetic data (offline save → kill -9 → reconnect → same record, 1 server row). Blocked by T01/T08 real kit, T03/T04/T09 physical phone, T06 IdP; independent reviews outstanding (current-state.md G1 review).
 - [ ] G2: T16–T22, T43 and T46 workflow checks; evidence-complete closure.
 - [ ] G3: T23–T28 and T44 scientific/accessibility checks.
 - [ ] G4: T29–T34, T45, T47 and T48 hardening checks; overlaps completed before release.
