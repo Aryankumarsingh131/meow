@@ -43,7 +43,7 @@ reads `render.yaml` and asks for three values:
 
 | Variable | Value |
 |---|---|
-| `JALSAKSHI_OIDC_ISSUER` | `https://<project-ref>.supabase.co/auth/v1` (no trailing slash) |
+| `JALSAKSHI_SUPABASE_URL` | `https://<project-ref>.supabase.co` (the issuer `<url>/auth/v1` is derived from it) |
 | `JALSAKSHI_DATABASE_URL` | Supabase → *Connect* → *Session pooler* URI, with the real password, ending `?sslmode=require` |
 | `JALSAKSHI_CORS_ALLOWED_ORIGINS` | Leave empty unless a web board will call the API |
 

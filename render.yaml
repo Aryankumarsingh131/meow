@@ -32,9 +32,10 @@ services:
       - key: JALSAKSHI_OIDC_AUDIENCE
         value: authenticated
 
-      # Set in the dashboard when Render asks (sync: false = never in git):
-      # https://<project-ref>.supabase.co/auth/v1
-      - key: JALSAKSHI_OIDC_ISSUER
+      # Set in the dashboard when Render asks (sync: false = never in git).
+      # https://<project-ref>.supabase.co - the issuer (<url>/auth/v1) is
+      # derived from it. JALSAKSHI_OIDC_ISSUER, if set, takes precedence.
+      - key: JALSAKSHI_SUPABASE_URL
         sync: false
       # Supabase -> Connect -> Session pooler, with ?sslmode=require
       - key: JALSAKSHI_DATABASE_URL

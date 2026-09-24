@@ -14,7 +14,9 @@ Environment = Literal["development", "staging", "production"]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="JALSAKSHI_", env_file=".env")
+    # hide_input_in_errors: a config error must never echo values (database
+    # password, keys) into deployment logs.
+    model_config = SettingsConfigDict(env_prefix="JALSAKSHI_", env_file=".env", hide_input_in_errors=True)
 
     environment: Environment = "development"
 
@@ -46,6 +48,13 @@ class Settings(BaseSettings):
     def refuse_unsafe_production_defaults(self) -> "Settings":
         if self.environment == "development":
             return self
+
+        # Supabase Auth's issuer is always <project URL>/auth/v1 and its access
+        # tokens carry aud "authenticated", so the project URL is enough.
+        if self.supabase_url and not self.oidc_issuer:
+            self.oidc_issuer = self.supabase_url.rstrip("/") + "/auth/v1"
+        if self.supabase_url and not self.oidc_audience:
+            self.oidc_audience = "authenticated"
 
         missing = [
             name
