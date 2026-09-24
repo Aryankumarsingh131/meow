@@ -1,5 +1,14 @@
 # Current state
 
+> **⚠ HISTORICAL — NOT THE SOURCE OF TRUTH.**
+> This file is the state record of the sibling `meow` repository, carried in
+> by the 2026-09-22 merge. On 2026-09-24 the project owner decided that the
+> authoritative state record is
+> **[`docs/agent-workflow/current-state.md` at the repository root](../../../docs/agent-workflow/current-state.md)**
+> (see `docs/decisions/ADR-M1-001-synthetic-protocol-boundary.md`).
+> Do not record claims, evidence or task status here. It is kept unedited
+> below only as meow's own history.
+
 Updated: 22 September 2026 IST.
 
 ## Verified workspace observations and current work

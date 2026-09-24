@@ -6,7 +6,7 @@ This repository-ready package specifies a proposed product. **Do not implement t
 
 Every contributor reads:
 1. [README](README.md).
-2. [Current state](docs/agent-workflow/current-state.md).
+2. [Current state](../docs/agent-workflow/current-state.md).
 3. [Requirements](docs/requirements.md).
 4. [Implementation plan](implementation-plan.md) and selected [task card](to-do.md).
 5. Relevant architecture/API/data/evaluation/security sections for the boundary being changed.
@@ -33,7 +33,7 @@ Prefer existing patterns, stdlib/platform features and smallest tested change. T
 
 Generated API types come from reviewed OpenAPI. Never edit generated client alone. Each migration has one owner, compatibility plan and test against old data. Pin compatible dependencies; security/native additions require license/provenance review. Secrets never committed or pasted into prompts.
 
-Actual probe/API commands and results are in [current state](docs/agent-workflow/current-state.md). T03/T05 must establish the full build/test scripts; proposed commands are intent until artifacts exist.
+Actual probe/API commands and results are in [current state](../docs/agent-workflow/current-state.md). T03/T05 must establish the full build/test scripts; proposed commands are intent until artifacts exist.
 
 ## Definition of done for every task
 

@@ -1,6 +1,63 @@
 # Current state — meow1 (JalSakshi implementation, using jalsakshi-blueprint as reference)
 
-Updated: 2026-09-22.
+Updated: 2026-09-24.
+
+**This is the authoritative state record** (project-owner decision,
+2026-09-24, `docs/decisions/ADR-M1-001-synthetic-protocol-boundary.md`). The
+copy at `jalsakshi-blueprint/docs/agent-workflow/current-state.md` is the
+sibling `meow` repository's historical record and carries a banner saying so.
+`jalsakshi-blueprint/AGENTS.md` now links here.
+
+## Milestone M1 — crash-safe offline vertical slice (IN PROGRESS)
+
+### Entry check (2026-09-24, run before any M1 task work)
+
+M1 entry = "native/protocol feasibility and frozen v1 schema". Checked
+against evidence, not against checkboxes:
+
+| Condition | Verdict | Evidence |
+|---|---|---|
+| Frozen v1 schema | **Met** | `openapi.json` + `client.ts` regenerated from source: byte-identical. Schema suite (15) and contract suite (8) pass. |
+| Native feasibility | **Largely met** | Native build succeeds; Kotlin feature leg == Python leg exactly on Android 15 emulator. **Open:** G0 "APK offline tensor" never run; no physical device. |
+| Protocol feasibility | **Met only via the synthetic-boundary clause** | G0 requires a signed protocol decision + domain review of timing/units — **neither exists**. G0 explicitly accepts "an explicit synthetic-only boundary" instead; the project owner adopted SYN-COLOR-001 as that boundary (ADR-M1-001). |
+
+**Therefore M1 is a "clearly synthetic" slice.** M1's own goal permits this
+("a real *or clearly synthetic* test"). Every M1 output is labelled synthetic
+and none is presented as validated real-world evidence.
+
+**G0 items that remain OPEN and are never claimed as met:** domain review of
+timing/units; APK offline tensor; any real signed kit protocol; independent
+human review of T01–T04; a physical device.
+
+### Protocol under test
+
+`protocols/SYN-COLOR-001.v1.json` — canonical, conforms to `protocol-schema.md`
+(`node tests/protocol-fixture.test.ts`, 17/17). Its **read window is
+SYNTHETIC** (prepare 10 s, read 30 s ± 15 s, invalid after 120 s), chosen by
+the agent to exercise T08's timer states; a printed colour card has no
+reaction, so these values mean nothing about any kit. Its quality thresholds
+are T10's fitted **provisional** values. `model.enabled = false`.
+
+### Task claims and status
+
+Owner is recorded by blueprint ROLE. The project owner authorised this agent
+to carry every M1 task, so work outside role A is named per task rather than
+done silently. A box is ticked in `to-do.md` only after real DoD evidence.
+
+| Task | Role | Depends on | Status | Evidence / blocker |
+|---|---|---|---|---|
+| T05 | C | T01 | built earlier — **DoD review pending** | handoff-T05.md |
+| T06 | C | T03 T05 | built earlier — **DoD review pending** | handoff-T06.md |
+| T07 | A | T03 T05 | built earlier — **DoD review pending** | handoff-T07.md |
+| T08 | A | T01 T07 | mechanism built — wire to SYN-COLOR-001 | handoff-T08.md |
+| T09 | A | T04 T08 | built earlier — **DoD review pending** | handoff-T09.md |
+| T10 | B | T04 | Python leg only — `Quality.kt` missing | — |
+| T11 | A | T09 T10 | not started | — |
+| T12 | A | T11 | not started | — |
+| T13 | C | T05 T06 | not started | — |
+| T14 | C | T13 | not started | — |
+| T15 | A | T12 T14 | not started | — |
+| T45 | C+A | T06 T12 T15 | not started | — |
 
 ## What exists
 
