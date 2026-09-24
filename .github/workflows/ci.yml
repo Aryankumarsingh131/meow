@@ -41,6 +41,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/mobile/package-lock.json
       - run: npm ci
       # sync-client and offline-auth start the real Python API as a subprocess.
       - uses: actions/setup-python@v5
@@ -60,6 +63,9 @@ jobs:
             else cat out.txt; fi
           done
           exit $fail
+      # Tests import apps/mobile/src, whose types come from the app's own packages.
+      - run: npm ci --ignore-scripts
+        working-directory: apps/mobile
       - name: Type-check tests and contracts
         run: npx tsc --noEmit
 
