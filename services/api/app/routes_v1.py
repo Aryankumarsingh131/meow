@@ -25,6 +25,7 @@ from .offline_grants import OfflineGrant, OfflineGrantRequest, issue_grant
 from . import case_reads
 from . import lab_reports as labs
 from . import cases as case_engine
+from . import reports
 from .schemas import CaseCommandRequest, PushRequest
 from .sources import (
     DEFAULT_LIMIT,
@@ -390,3 +391,56 @@ def post_lab_report_decision(
     if isinstance(outcome, case_engine.Refused):
         raise _case_refused(outcome)
     return outcome
+
+
+# --- T43: metrics and safe export ------------------------------------------
+
+
+@router.get("/reports/metrics", response_model=reports.MetricsSummary)
+def get_report_metrics(
+    session: Session = Depends(require_session), conn: Any = Depends(db),
+    status: str | None = Query(default=None, max_length=32),
+    source_id: str | None = Query(default=None, max_length=64),
+    created_from: str | None = Query(default=None, max_length=64),
+    created_to: str | None = Query(default=None, max_length=64),
+) -> reports.MetricsSummary:
+    filters = reports.ReportFilters(status=status, source_id=source_id, created_from=created_from, created_to=created_to)
+    outcome = reports.metrics(conn, session, filters, now=_now())
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
+    return outcome
+
+
+@router.post("/reports/export", response_model=reports.ExportStarted)
+def post_report_export(
+    body: reports.ReportFilters, session: Session = Depends(require_session), conn: Any = Depends(db),
+) -> reports.ExportStarted:
+    outcome = reports.start_export(conn, session, body)
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
+    return outcome
+
+
+@router.get("/reports/export/{job_id}", response_model=reports.ExportStatus)
+def get_report_export_status(job_id: str, session: Session = Depends(require_session)) -> reports.ExportStatus:
+    outcome = reports.export_status(session, job_id)
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
+    return outcome
+
+
+@router.post("/reports/export/{job_id}/cancel")
+def post_report_export_cancel(job_id: str, session: Session = Depends(require_session)) -> dict[str, bool]:
+    return {"cancelled": reports.cancel_export(session, job_id)}
+
+
+@router.get("/reports/export/{job_id}/content")
+def get_report_export_content(job_id: str, session: Session = Depends(require_session)) -> Response:
+    outcome = reports.export_result(session, job_id)
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
+    return Response(
+        content=outcome, media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=cases.csv", "X-Content-Type-Options": "nosniff",
+                 "Cache-Control": "private, no-store"},
+    )

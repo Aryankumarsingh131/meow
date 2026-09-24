@@ -64,6 +64,7 @@ class Context:
     trigger_sample: dict[str, Any]
     is_active_member: Callable[[str], bool]
     now: str
+    actor_id: str = ""
     checklist: dict[str, str] = field(default_factory=dict)
 
 
@@ -106,6 +107,36 @@ def g_disposition(ctx: Context) -> str | None:
 def g_no_retest_sample(ctx: Context) -> str | None:
     # Row 7 REQUESTS a retest; linking a sample is row 10's job.
     return None if ctx.command.payload.retest_sample_id is None else "RETEST_INVALID"
+
+
+def retest_sample_ok(ctx: Context, retest_sample_id: str | None) -> bool:
+    """T21: a retest must be a REAL sample, on the SAME source as the case,
+    captured AFTER the trigger sample - never the trigger sample itself, and
+    never invented. A missing/foreign/earlier sample is not proof."""
+    if retest_sample_id is None:
+        return False
+    from .samples import sql
+
+    cursor = ctx.connection.cursor()
+    cursor.execute(
+        sql("SELECT source_id, captured_at_device FROM samples WHERE tenant_id = ? AND id = ?", ctx.connection),
+        (ctx.tenant_id, retest_sample_id),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return False
+    source_id, captured_at = str(row[0]), str(row[1])
+    return (
+        retest_sample_id != ctx.case["trigger_sample_id"]
+        and source_id == ctx.case["source_id"]
+        and captured_at > ctx.trigger_sample["captured_at_device"]
+    )
+
+
+def g_retest(ctx: Context) -> str | None:
+    """Row 10: retest_due -> link_retest -> closure_review."""
+    retest_id = ctx.command.payload.retest_sample_id
+    return None if retest_sample_ok(ctx, str(retest_id) if retest_id is not None else None) else "RETEST_INVALID"
 
 
 def not_yet_available(code: str) -> Guard:
@@ -155,10 +186,62 @@ def g_lab_within_limit(ctx: Context) -> str | None:
     return None if ok else "LAB_RESULT_NOT_WITHIN_LIMIT"
 
 
-# Replaced by T20/T21 with guards that read real evidence.
+# Replaced by T20 with a guard that reads real evidence.
 g_action: Guard = not_yet_available("ACTION_EVIDENCE_MISSING")
-g_retest: Guard = not_yet_available("RETEST_INVALID")
-g_close: Guard = not_yet_available("CLOSURE_EVIDENCE_INCOMPLETE")
+
+
+def _communication_recorded(ctx: Context, communication_id: str) -> bool:
+    """T22: the id must be a REAL communications row recorded on THIS case,
+    never a client-typed value that was never recorded."""
+    from .samples import sql
+
+    cursor = ctx.connection.cursor()
+    cursor.execute(
+        sql("SELECT 1 FROM communications WHERE tenant_id = ? AND id = ? AND case_id = ?", ctx.connection),
+        (ctx.tenant_id, communication_id, ctx.case["id"]),
+    )
+    return cursor.fetchone() is not None
+
+
+def g_close(ctx: Context) -> str | None:
+    """Row 11: closure_review -> close. DEMO policy v1 (POLICY_VERSION),
+    NOT domain-approved (T46): every exemption path below is an explicit,
+    recorded string, never a silent pass, but the rule "which exemptions are
+    authorized" has no reviewer sign-off yet."""
+    payload = ctx.command.payload
+    ctx.checklist = {}
+
+    if payload.policy_version != POLICY_VERSION:
+        ctx.checklist["policy_version"] = "does not match the policy in force"
+
+    # T46 draft rule E1: an exemption is explicit only if it says why. The same
+    # floor as a disposition, so "x" or whitespace can never stand in for proof.
+    no_exemption = f"missing, and no exemption reason of at least {MIN_DISPOSITION} characters"
+
+    if payload.verified_report_id is not None:
+        reports = current_verified_reports(ctx)
+        if not any(r["id"] == str(payload.verified_report_id) for r in reports):
+            ctx.checklist["verified_report_id"] = "not a current verified report on this case"
+    elif not _disposition_ok(payload.verified_report_exemption_reason):
+        ctx.checklist["verified_report_id"] = no_exemption
+
+    if payload.retest_sample_id is not None:
+        if str(payload.retest_sample_id) != ctx.case.get("retest_sample_id"):
+            ctx.checklist["retest_sample_id"] = "not the retest sample linked to this case"
+    elif not _disposition_ok(payload.retest_exemption_reason):
+        ctx.checklist["retest_sample_id"] = no_exemption
+
+    if payload.action_ids:
+        # T20 (corrective actions) does not exist yet: an action id cannot be
+        # checked against anything real, so it can never count as proof.
+        ctx.checklist["action_ids"] = "cannot be verified until corrective actions (T20) exist"
+    elif not _disposition_ok(payload.action_exemption_reason):
+        ctx.checklist["action_ids"] = no_exemption
+
+    if not _communication_recorded(ctx, str(payload.communication_id)):
+        ctx.checklist["communication_id"] = "not a communication recorded on this case"
+
+    return "CLOSURE_EVIDENCE_INCOMPLETE" if ctx.checklist else None
 
 
 @dataclass(frozen=True)

@@ -146,7 +146,8 @@ class TransitionTableTests(Harness):
 
     #: Expected outcome of a well-formed command from each state, per
     #: case-state-machine.md. A code means refused with that code; a state
-    #: means it succeeded. Guards needing T19-T22 evidence fail closed.
+    #: means it succeeded. Guards needing T20 evidence still fail closed;
+    #: T19 (lab)/T21 (retest)/T22 (communication) now read real evidence.
     EXPECTED = {
         ("review_needed", "assign"): "review_needed",
         ("review_needed", "refer_to_lab"): "awaiting_lab",
@@ -157,11 +158,12 @@ class TransitionTableTests(Harness):
         ("awaiting_lab", "request_closure"): "LAB_REPORT_NOT_VERIFIED",
         ("action_required", "accept_action"): "ACTION_EVIDENCE_MISSING",
         ("retest_due", "link_retest"): "RETEST_INVALID",
-        ("closure_review", "close"): "CLOSURE_EVIDENCE_INCOMPLETE",
+        ("closure_review", "close"): "CLOSURE_EVIDENCE_INCOMPLETE",      # T22: real evidence still missing
         ("closure_review", "record_action"): "CASE_POLICY_FORBIDS",      # action records arrive with T20
         ("closed", "reopen"): "review_needed",
         **{(s, "assign"): s for s in ("awaiting_lab", "action_required", "retest_due", "closure_review")},
-        **{(s, "record_communication"): "CASE_POLICY_FORBIDS"            # records arrive with T22
+        # T22: recording a communication never moves the case (row 13).
+        **{(s, "record_communication"): s
            for s in ("review_needed", "awaiting_lab", "action_required", "retest_due", "closure_review")},
     }
 

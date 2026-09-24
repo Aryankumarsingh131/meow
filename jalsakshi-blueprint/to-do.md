@@ -249,7 +249,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T19 — Lab entry and verification slice
 
-- [ ] T19 complete with evidence
+- [~] T19 complete with evidence — OUTSTANDING: independent state-closure/concurrency review; UI lives in the separate web app per T18's owner decision; PostgreSQL race tests not re-run in this environment. 21/21 incl. exhaustive mismatch/role/supersession cases (handoff-T19.md).
 
 - Requirements: REQ-011.
 - Owner: C/backend. Estimated effort: 2 h slice.
@@ -275,7 +275,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T21 — Retest and guarded closure
 
-- [ ] T21 complete with evidence
+- [~] T21 complete with evidence — OUTSTANDING: independent concurrency/closure review; T20 (actions) still doesn't exist so close()'s action evidence needs an exemption reason. 7/7 (handoff-T21.md).
 
 - Requirements: REQ-013.
 - Owner: C/backend. Estimated effort: 2 h slice.
@@ -288,7 +288,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T22 — Resident communication record
 
-- [ ] T22 complete with evidence
+- [~] T22 complete with evidence — OUTSTANDING: independent concurrency/closure review; resident-facing wording is T44's call. 10/10, incl. full real-evidence close path (handoff-T22.md).
 
 - Requirements: REQ-014.
 - Owner: A/product-engineer. Estimated effort: 1–2 h.
@@ -561,7 +561,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T43 — Metrics and safe export slice
 
-- [ ] T43 complete with evidence
+- [~] T43 complete with evidence — OUTSTANDING: reports page lives in the separate web app (T18 decision); T31 recheck; independent review. 14/14, 2/2 mutants (handoff-T43.md).
 
 - Requirements: REQ-015 REQ-023.
 - Owner: C/reporting + A. Estimated effort: 2 h slice.
@@ -600,7 +600,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T46 — Closure-policy domain approval
 
-- [ ] T46 complete with evidence
+- [!] T46 complete with evidence — BLOCKED on a human domain reviewer. Draft policy + E1–E3 enforcement + 7 regression tests exist; sign-off block empty (handoff-T46.md, docs/closure-policy-approval.md).
 
 - Requirements: REQ-009 REQ-011 REQ-013.
 - Owner: A/domain + C. Estimated effort: 1–2 h.

@@ -48,7 +48,7 @@ NOT_FOUND = Refused("NOT_FOUND", "Case was not found.")
 
 _CASE_COLUMNS = (
     "id, source_id, trigger_sample_id, trigger_flag, status, owner_id, due_at, version, "
-    "policy_version, requires_rereview, disposition"
+    "policy_version, requires_rereview, disposition, retest_sample_id, communication_id"
 )
 
 
@@ -193,7 +193,41 @@ def _reopen(_conn: Any, _ctx: policy.Context) -> dict[str, Any]:
     return {"disposition": None, "policy_version": None}
 
 
+def _request_closure(_conn: Any, ctx: policy.Context) -> dict[str, Any]:
+    disposition = ctx.command.payload.disposition
+    return {"disposition": disposition.strip() if disposition else None}
+
+
+def _close(_conn: Any, ctx: policy.Context) -> dict[str, Any]:
+    payload = ctx.command.payload
+    return {
+        "disposition": payload.disposition.strip(),
+        "policy_version": policy.POLICY_VERSION,
+        "communication_id": str(payload.communication_id),
+    }
+
+
 def _no_columns(_conn: Any, _ctx: policy.Context) -> dict[str, Any]:
+    return {}
+
+
+def _link_retest(_conn: Any, ctx: policy.Context) -> dict[str, Any]:
+    retest_id = ctx.command.payload.retest_sample_id
+    return {"retest_sample_id": str(retest_id) if retest_id is not None else None}
+
+
+def _record_communication(_conn: Any, ctx: policy.Context) -> dict[str, Any]:
+    # T22: the record's id is the command's own idempotency key, so a client
+    # can pass it straight back as close()'s communication_id.
+    payload = ctx.command.payload
+    ctx.connection.cursor().execute(
+        sql(
+            "INSERT INTO communications (tenant_id,id,case_id,channel,template_version,audience_description,"
+            "actor_id,occurred_at) VALUES (?,?,?,?,?,?,?,?)", ctx.connection,
+        ),
+        (ctx.tenant_id, str(ctx.command.command_id), ctx.case["id"], payload.channel.strip(),
+         payload.template_version, payload.audience_description.strip(), ctx.actor_id, ctx.now),
+    )
     return {}
 
 
@@ -202,6 +236,10 @@ EFFECTS: dict[str, Effect] = {
     "refer_to_lab": _no_columns,
     "dismiss": _dismiss,
     "reopen": _reopen,
+    "link_retest": _link_retest,
+    "record_communication": _record_communication,
+    "request_closure": _request_closure,
+    "close": _close,
 }
 
 _EVENT_TYPE = {"dismiss": "case.dismissed", "reopen": "case.reopened"}
@@ -229,7 +267,7 @@ def apply_command(
     ctx = policy.Context(
         connection=connection, tenant_id=session.tenant_id, case=case, command=command,
         trigger_sample=_trigger_sample(connection, session.tenant_id, case["trigger_sample_id"]),
-        is_active_member=is_active_member, now=now,
+        is_active_member=is_active_member, now=now, actor_id=session.user_id,
     )
     failure = policy.run_guards(transition, ctx)
     if failure:

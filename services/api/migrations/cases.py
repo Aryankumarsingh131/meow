@@ -39,12 +39,15 @@ CREATE TABLE IF NOT EXISTS cases (
     policy_version     integer,
     requires_rereview  boolean     NOT NULL DEFAULT false,
     disposition        text,
+    retest_sample_id   {uuid},
+    communication_id   {uuid},
     created_at         {timestamp} NOT NULL,
     updated_at         {timestamp} NOT NULL,
     PRIMARY KEY (tenant_id, id),
     UNIQUE (tenant_id, trigger_sample_id),
     FOREIGN KEY (tenant_id, trigger_sample_id) REFERENCES samples (tenant_id, id),
-    FOREIGN KEY (tenant_id, source_id) REFERENCES sources (tenant_id, id)
+    FOREIGN KEY (tenant_id, source_id) REFERENCES sources (tenant_id, id),
+    FOREIGN KEY (tenant_id, retest_sample_id) REFERENCES samples (tenant_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS case_events (
