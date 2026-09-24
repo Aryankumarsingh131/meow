@@ -249,7 +249,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T19 — Lab entry and verification slice
 
-- [ ] T19 complete with evidence
+- [~] T19 API built — 2026-09-24 @ 30634ce: 19 local checks pass; 2 PostgreSQL race checks skipped. OUTSTANDING: external board UI verification, database race run, independent review (handoff-T19.md).
 
 - Requirements: REQ-011.
 - Owner: C/backend. Estimated effort: 2 h slice.

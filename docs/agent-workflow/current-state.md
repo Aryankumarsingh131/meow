@@ -93,6 +93,7 @@ Entry check 2026-09-24: immutable ingestion met in code (T13/T14 unreviewed), co
 | T16 | C | T13 | `[~]` built 2026-09-24: private evidence boundary; 19/19 incl. PostgreSQL; 15/15 mutants. **Outstanding:** security review; malware scanner (PDFs quarantined). | handoff-T16.md |
 | T17 | C | T14 | `[~]` built 2026-09-24: transition table, one case per trigger (same transaction as the sample), dedupe→version→role→guards; later-task guards fail closed. 19/19 incl. PostgreSQL race ×5; 18/18 mutants. 3 additive contract changes. **Outstanding:** concurrency/closure review; T46. | handoff-T17.md |
 | T18 | A/C | T06 T17 | `[~]` **API only** — supervisor board is a separate app at another address (owner decision). Board endpoints + CORS allowlist (`JALSAKSHI_CORS_ALLOWED_ORIGINS`), bearer only; 11/11. **Outstanding:** board-side verification (external), review. | handoff-T18.md |
+| T19 | C | T16 T17 | `[~]` API present at 30634ce; local report/verification tests 19 passed, PostgreSQL races 2 skipped. **Outstanding:** external board UI verification, PostgreSQL race run, independent review. | handoff-T19.md |
 
 ## What exists
 
