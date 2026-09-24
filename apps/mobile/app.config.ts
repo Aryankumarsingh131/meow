@@ -1,11 +1,9 @@
 import type { ExpoConfig } from "expo/config";
 
-// D03 (docs/research/source-register.md): onnxruntime-react-native is a
-// native module, so this project requires an Expo development build.
-// It will NOT run inside Expo Go.
+// Native modules require a built APK; this app does not run inside Expo Go.
 const config: ExpoConfig = {
-  name: "mobile",
-  slug: "mobile",
+  name: "JalSakshi",
+  slug: "jalsakshi-v1",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
@@ -14,7 +12,8 @@ const config: ExpoConfig = {
     supportsTablet: true,
   },
   android: {
-    package: "org.jalsakshi.mobile",
+    package: "org.jalsakshi.prototype",
+    versionCode: 1,
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/android-icon-foreground.png",
@@ -38,9 +37,8 @@ const config: ExpoConfig = {
       {
         android: {
           minSdkVersion: 26,
-          // Development only: lets the emulator reach a local http API.
-          // Must not survive into a production build.
-          usesCleartextTraffic: true,
+          // The Version 1 APK uses local data and does not need HTTP access.
+          usesCleartextTraffic: false,
         },
       },
     ],

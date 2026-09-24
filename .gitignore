@@ -24,6 +24,7 @@ Thumbs.db
 # Local artifacts
 *.db
 *.sqlite3
+output/*.apk
 
 # Android/Gradle build output
 **/android/build/
