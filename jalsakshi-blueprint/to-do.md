@@ -223,7 +223,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T17 — Case transition engine
 
-- [ ] T17 complete with evidence
+- [~] T17 complete with evidence — OUTSTANDING: independent state-closure/concurrency review; T46 policy approval. 19/19 incl. exhaustive 6×10 table + PostgreSQL two-reviewer race ×5; 18/18 mutants (handoff-T17.md).
 
 - Requirements: REQ-010.
 - Owner: C/backend. Estimated effort: 1–2 h.

@@ -15,6 +15,7 @@ from uuid import UUID, uuid5
 from services.api.app.auth import Denied, Membership, Session, VerifiedToken
 from services.api.app.schemas import PushRequest
 from services.api.app.sync_push import push_events
+from services.api.migrations.cases import statements as case_statements
 from services.api.migrations.changefeed import apply_sqlite as apply_changefeed_sqlite
 from services.api.migrations.changefeed import statements as changefeed_statements
 from services.api.migrations.samples import apply_sqlite as apply_samples_sqlite
@@ -106,6 +107,8 @@ class SqliteSyncPushTests(unittest.TestCase):
         apply_sources_sqlite(self.db)
         apply_samples_sqlite(self.db)
         apply_changefeed_sqlite(self.db)
+        for statement in case_statements("sqlite"):
+            self.db.execute(statement)
         seed_sources(self.db)
 
     def tearDown(self) -> None:
@@ -229,7 +232,7 @@ class PostgresSyncPushTests(unittest.TestCase):
         cls.db.execute(f"DROP SCHEMA IF EXISTS {cls.schema} CASCADE")
         cls.db.execute(f"CREATE SCHEMA {cls.schema}")
         cls.db.execute(f"SET search_path TO {cls.schema}")
-        for statement in source_statements("postgresql") + sample_statements("postgresql") + changefeed_statements("postgresql"):
+        for statement in source_statements("postgresql") + sample_statements("postgresql") + changefeed_statements("postgresql") + case_statements("postgresql"):
             cls.db.execute(statement)
         cls.db.commit()
         seed_sources(cls.db)
@@ -243,6 +246,8 @@ class PostgresSyncPushTests(unittest.TestCase):
 
     def setUp(self) -> None:
         self.db.execute(f"SET search_path TO {self.schema}")
+        self.db.execute("DELETE FROM case_events")
+        self.db.execute("DELETE FROM cases")
         self.db.execute("DELETE FROM idempotency_receipts")
         self.db.execute("DELETE FROM observations")
         self.db.execute("DELETE FROM samples")

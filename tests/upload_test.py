@@ -358,7 +358,8 @@ class PostgresEvidenceTests(unittest.TestCase):
         self.db.execute(f"CREATE SCHEMA {self.schema}")
         self.db.execute(f"SET search_path TO {self.schema}")
         for statement in (t13.source_statements("postgresql") + t13.sample_statements("postgresql")
-                          + changefeed_statements("postgresql") + evidence_statements("postgresql")):
+                          + changefeed_statements("postgresql") + evidence_statements("postgresql")
+                          + t13.case_statements("postgresql")):
             self.db.execute(statement)
         self.db.commit()
         t13.seed_sources(self.db)

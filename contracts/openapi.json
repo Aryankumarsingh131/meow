@@ -239,6 +239,18 @@
             "type": "string",
             "format": "uuid",
             "title": "Owner Id"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
           }
         },
         "type": "object",
@@ -511,6 +523,35 @@
             "maxLength": 2000,
             "minLength": 1,
             "title": "Reason"
+          },
+          "dismiss_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "invalid_capture",
+                  "duplicate",
+                  "not_a_water_source",
+                  "resolved_before_referral"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dismiss Reason"
+          },
+          "disposition": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disposition"
           }
         },
         "type": "object",
@@ -563,15 +604,19 @@
       "LinkRetestPayload": {
         "properties": {
           "retest_sample_id": {
-            "type": "string",
-            "format": "uuid",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Retest Sample Id"
           }
         },
         "type": "object",
-        "required": [
-          "retest_sample_id"
-        ],
         "title": "LinkRetestPayload"
       },
       "Method": {

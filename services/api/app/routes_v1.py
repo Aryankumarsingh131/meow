@@ -22,7 +22,8 @@ from .auth import Denied, Session, authenticate, bearer_token
 from .errors import ApiError
 from . import evidence as ev
 from .offline_grants import OfflineGrant, OfflineGrantRequest, issue_grant
-from .schemas import PushRequest
+from . import cases as case_engine
+from .schemas import CaseCommandRequest, PushRequest
 from .sources import (
     DEFAULT_LIMIT,
     MAX_CURSOR_LENGTH,
@@ -302,3 +303,28 @@ def get_evidence_content(
             "Cache-Control": "private, no-store",
         },
     )
+
+
+# --- T17: case commands -------------------------------------------------------
+
+
+def _active_member_check(request: Request, tenant_id: str):
+    _, lookup = request.app.state.auth
+
+    def is_active_member(user_id: str) -> bool:
+        return any(m.active and m.tenant_id == tenant_id for m in lookup(user_id))
+
+    return is_active_member
+
+
+@router.post("/cases/{case_id}/commands", response_model=case_engine.CommandReceipt)
+def post_case_command(
+    case_id: str, body: CaseCommandRequest, request: Request,
+    session: Session = Depends(require_session), conn: Any = Depends(db),
+) -> case_engine.CommandReceipt:
+    outcome = case_engine.apply_command(
+        conn, session, case_id, body, is_active_member=_active_member_check(request, session.tenant_id), now=_now(),
+    )
+    if isinstance(outcome, case_engine.Refused):
+        raise ApiError(code=outcome.code, detail=outcome.detail, field_errors=outcome.field_errors, extra=outcome.extra)
+    return outcome

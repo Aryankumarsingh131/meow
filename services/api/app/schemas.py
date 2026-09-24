@@ -211,6 +211,10 @@ class _CaseCommandBase(BaseModel):
 
 class AssignPayload(BaseModel):
     owner_id: UUID
+    # T17, additive: case-state-machine.md row 2 / G-OWNER require due_at, which
+    # the frozen v1 payload lacked. Optional so old clients stay valid; the
+    # engine refuses to refer a case whose due_at is unset (CASE_OWNER_REQUIRED).
+    due_at: Optional[datetime] = None
 
 
 class AssignCommand(_CaseCommandBase):
@@ -249,7 +253,10 @@ class AcceptActionCommand(_CaseCommandBase):
 
 
 class LinkRetestPayload(BaseModel):
-    retest_sample_id: UUID
+    # T17: optional since case-state-machine.md row 7 (awaiting_lab -> retest_due)
+    # REQUESTS a retest that does not exist yet, while row 10 links the sample.
+    # Loosening a request field keeps old clients valid. Flagged for T46.
+    retest_sample_id: Optional[UUID] = None
 
 
 class LinkRetestCommand(_CaseCommandBase):
@@ -322,8 +329,16 @@ class ReopenCommand(_CaseCommandBase):
     payload: ReopenPayload
 
 
+DismissReason = Literal["invalid_capture", "duplicate", "not_a_water_source", "resolved_before_referral"]
+
+
 class DismissPayload(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
+    # T17, additive: case-state-machine.md row 5 requires a dismiss_reason from
+    # this set and a disposition of at least 20 characters. Optional in the
+    # schema so v1 clients stay valid; the engine enforces both.
+    dismiss_reason: Optional[DismissReason] = None
+    disposition: Optional[str] = Field(default=None, max_length=2000)
 
 
 class DismissCommand(_CaseCommandBase):

@@ -71,6 +71,8 @@ class SqliteOrderTests(unittest.TestCase):
         t13.apply_sources_sqlite(self.db)
         t13.apply_samples_sqlite(self.db)
         apply_changefeed_sqlite(self.db)
+        for statement in t13.case_statements("sqlite"):
+            self.db.execute(statement)
         t13.seed_sources(self.db)
         self.start = pull_cursor(t13.TENANT_A, 0)
 
@@ -222,6 +224,7 @@ class PostgresOrderTests(unittest.TestCase):
             t13.source_statements("postgresql")
             + t13.sample_statements("postgresql")
             + changefeed_statements("postgresql")
+            + t13.case_statements("postgresql")
         ):
             cls.db.execute(statement)
         cls.db.commit()
@@ -235,7 +238,7 @@ class PostgresOrderTests(unittest.TestCase):
         cls.db.close()
 
     def setUp(self) -> None:
-        for table in ("changefeed", "sync_heads", "idempotency_receipts", "observations", "samples"):
+        for table in ("case_events", "cases", "changefeed", "sync_heads", "idempotency_receipts", "observations", "samples"):
             self.db.execute(f"DELETE FROM {table}")
         self.db.commit()
 

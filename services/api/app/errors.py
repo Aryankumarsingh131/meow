@@ -25,6 +25,14 @@ ERROR_CODES: dict[str, tuple[int, str, bool]] = {
     "CASE_VERSION_CONFLICT": (409, "Case version conflict", False),
     "CASE_TRANSITION_ILLEGAL": (409, "Illegal case transition", False),
     "CLOSURE_EVIDENCE_INCOMPLETE": (409, "Closure evidence incomplete", False),
+    # T17 guards (case-state-machine.md "Guards").
+    "CASE_OWNER_REQUIRED": (409, "Case owner and due date required", False),
+    "CASE_POLICY_FORBIDS": (409, "Protocol policy forbids this transition", False),
+    "LAB_REPORT_NOT_VERIFIED": (409, "No verified lab report", False),
+    "VERIFICATION_SELF_REVIEW": (409, "Report cannot be verified by its uploader", False),
+    "DISPOSITION_REQUIRED": (409, "Disposition required", False),
+    "ACTION_EVIDENCE_MISSING": (409, "Action evidence missing", False),
+    "RETEST_INVALID": (409, "Retest sample invalid", False),
     # api-contracts.md: expired sync cursor -> 410 with safe rebootstrap instructions.
     "RESET_REQUIRED": (410, "Sync reset required", False),
     "PAYLOAD_TOO_LARGE": (413, "Payload too large", False),

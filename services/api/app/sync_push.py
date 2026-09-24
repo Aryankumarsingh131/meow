@@ -10,9 +10,10 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from .auth import Denied, Session, require_role
+from .cases import open_case_for_sample
 from .changefeed import record_change
 from .samples import SampleEventModel, SampleRejected, insert_sample, sample_exists, sql
-from .schemas import PushRequest
+from .schemas import PushRequest, SampleCorrectEvent
 
 
 class EventError(BaseModel):
@@ -136,6 +137,14 @@ def _process_event(
             payload_hash=payload_hash,
             server_data_mode=server_data_mode,
             server_time=server_time,
+        )
+        # T17 row 1: a flagged sample opens its review case in the SAME
+        # transaction, so a sample never exists without its case (or vice versa).
+        open_case_for_sample(
+            connection, session.tenant_id, sample_id=str(event.payload.sample_id),
+            source_id=str(event.payload.source_id), flag=event.payload.observation.indicative_flag.value,
+            supersedes_id=str(event.payload.supersedes_id) if isinstance(event, SampleCorrectEvent) else None,
+            now=server_time,
         )
         result = EventResult(
             event_id=event.event_id,

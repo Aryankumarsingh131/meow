@@ -166,3 +166,12 @@ T12 will be the **first** code to produce this wire shape from T08's
 T05's acceptance criteria are met with evidence. **Not ticked** — T05 is a
 contract freeze and this review *changed* the contract, so it wants
 independent review of the new `Timing` shape before sign-off.
+
+## Contract change 2026-09-24 (T17, additive)
+
+The frozen command payloads contradicted `case-state-machine.md`. Resolved
+additively (v1 permits additive optional fields); details in handoff-T17.md:
+`AssignPayload.due_at` (new, optional), `DismissPayload.dismiss_reason` +
+`disposition` (new, optional), `LinkRetestPayload.retest_sample_id`
+(required -> optional; flagged for T46). Regenerated deterministically:
+openapi.json `f48b5f3c…`, client.ts `833841cb…`; 26 schema + 12 contract checks pass.

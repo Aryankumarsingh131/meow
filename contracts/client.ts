@@ -89,6 +89,8 @@ export interface components {
              * Format: uuid
              */
             owner_id: string;
+            /** Due At */
+            due_at?: string | null;
         };
         /** CanonicalSampleV1 */
         CanonicalSampleV1: {
@@ -202,6 +204,10 @@ export interface components {
         DismissPayload: {
             /** Reason */
             reason: string;
+            /** Dismiss Reason */
+            dismiss_reason?: ("invalid_capture" | "duplicate" | "not_a_water_source" | "resolved_before_referral") | null;
+            /** Disposition */
+            disposition?: string | null;
         };
         /**
          * IndicativeFlag
@@ -228,11 +234,8 @@ export interface components {
         };
         /** LinkRetestPayload */
         LinkRetestPayload: {
-            /**
-             * Retest Sample Id
-             * Format: uuid
-             */
-            retest_sample_id: string;
+            /** Retest Sample Id */
+            retest_sample_id?: string | null;
         };
         /**
          * Method

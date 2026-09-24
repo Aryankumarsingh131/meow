@@ -91,6 +91,7 @@ Entry check 2026-09-24: immutable ingestion met in code (T13/T14 unreviewed), co
 | Task | Role | Depends on | Status | Evidence / blocker |
 |---|---|---|---|---|
 | T16 | C | T13 | `[~]` built 2026-09-24: private evidence boundary; 19/19 incl. PostgreSQL; 15/15 mutants. **Outstanding:** security review; malware scanner (PDFs quarantined). | handoff-T16.md |
+| T17 | C | T14 | `[~]` built 2026-09-24: transition table, one case per trigger (same transaction as the sample), dedupe→version→role→guards; later-task guards fail closed. 19/19 incl. PostgreSQL race ×5; 18/18 mutants. 3 additive contract changes. **Outstanding:** concurrency/closure review; T46. | handoff-T17.md |
 
 ## What exists
 
