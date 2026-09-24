@@ -27,3 +27,8 @@ cryptography==49.0.0   # RSA backend for python-jose; also used by the tests
 # PostgreSQL DB-API driver used by sync/source persistence. The binary extra
 # keeps the pinned Windows/Linux development path independent of system libpq.
 psycopg[binary]==3.3.6
+
+# T16: decode-level validation of uploaded images (magic bytes alone are not
+# enough). Already installed on the build host - no new download. Licence:
+# MIT-CMU (HPND). Keep current: image decoders are an attack surface.
+pillow==12.1.0

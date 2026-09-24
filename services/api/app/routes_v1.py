@@ -15,10 +15,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Iterator
 
-from fastapi import APIRouter, Depends, Header, Query, Request
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 
 from .auth import Denied, Session, authenticate, bearer_token
 from .errors import ApiError
+from . import evidence as ev
 from .offline_grants import OfflineGrant, OfflineGrantRequest, issue_grant
 from .schemas import PushRequest
 from .sources import (
@@ -191,3 +193,112 @@ def post_offline_grant(body: OfflineGrantRequest, session: Session = Depends(req
     """T45. Any active member (authorization-matrix.md); scope comes from the
     membership, never from the request."""
     return issue_grant(session, body)
+
+
+# --- T16: private evidence ---------------------------------------------------
+
+
+def _evidence(request: Request) -> tuple[bytes, Any]:
+    key = getattr(request.app.state, "evidence_key", None)
+    if key is None:
+        raise ApiError(code="TEMPORARILY_UNAVAILABLE", detail="Evidence storage is not configured.")
+    return key, request.app.state.evidence_dir
+
+
+def _utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _refused(outcome: ev.Refused) -> ApiError:
+    return ApiError(code=outcome.code, detail=outcome.detail)
+
+
+@router.post("/evidence/intents", response_model=ev.IntentResponse)
+def post_evidence_intent(
+    body: ev.IntentRequest, request: Request, session: Session = Depends(require_session), conn: Any = Depends(db)
+) -> ev.IntentResponse:
+    key, _ = _evidence(request)
+    outcome = ev.create_intent(
+        conn, session, body, key=key, enabled=getattr(request.app.state, "evidence_upload_enabled", False), now=_utc()
+    )
+    if isinstance(outcome, ev.Refused):
+        raise _refused(outcome)
+    return outcome
+
+
+@router.put("/evidence/{asset_id}/content", response_model=ev.EvidenceState)
+async def put_evidence_content(
+    asset_id: str, request: Request, token: str = Query(max_length=1024)
+) -> ev.EvidenceState:
+    """Authorised by the scoped token alone, like a presigned URL.
+
+    Async only to stream the body with a bound. The database work runs in one
+    threadpool call that opens, uses and closes its own connection: a
+    connection opened by the (threadpool) `db` dependency cannot be used from
+    the event-loop thread (SQLite refuses; found by tests/upload_test.py).
+    """
+    key, store = _evidence(request)
+    limit = max(ev.MAX_BYTES.values())
+    received = bytearray()
+    async for chunk in request.stream():
+        received.extend(chunk)
+        if len(received) > limit:  # stop reading; never buffer an unbounded body
+            raise ApiError(code="PAYLOAD_TOO_LARGE", detail="Evidence is larger than allowed.")
+    connect = getattr(request.app.state, "connect", None)
+    if connect is None:
+        raise ApiError(code="TEMPORARILY_UNAVAILABLE", detail="No database is configured.")
+
+    def store_once() -> ev.EvidenceState | ev.Refused:
+        conn = connect()
+        try:
+            return ev.store_content(conn, store, asset_id, token, bytes(received), key=key, now=_utc())
+        finally:
+            conn.close()
+
+    outcome = await run_in_threadpool(store_once)
+    if isinstance(outcome, ev.Refused):
+        raise _refused(outcome)
+    return outcome
+
+
+@router.post("/evidence/{asset_id}/complete", response_model=ev.EvidenceState)
+def post_evidence_complete(
+    asset_id: str, body: dict[str, str], request: Request,
+    session: Session = Depends(require_session), conn: Any = Depends(db),
+) -> ev.EvidenceState:
+    _, store = _evidence(request)
+    outcome = ev.complete(conn, session, store, asset_id, str(body.get("sha256", "")), now=_utc())
+    if isinstance(outcome, ev.Refused):
+        raise _refused(outcome)
+    return outcome
+
+
+@router.get("/evidence/{asset_id}/access", response_model=ev.AccessResponse)
+def get_evidence_access(
+    asset_id: str, request: Request, session: Session = Depends(require_session), conn: Any = Depends(db)
+) -> ev.AccessResponse:
+    key, _ = _evidence(request)
+    outcome = ev.grant_access(conn, session, asset_id, key=key, now=_utc())
+    if isinstance(outcome, ev.Refused):
+        raise _refused(outcome)
+    return outcome
+
+
+@router.get("/evidence/{asset_id}/content")
+def get_evidence_content(
+    asset_id: str, request: Request, token: str = Query(max_length=1024), conn: Any = Depends(db)
+) -> Response:
+    key, store = _evidence(request)
+    outcome = ev.read_content(conn, store, asset_id, token, key=key, now=_utc())
+    if isinstance(outcome, ev.Refused):
+        raise _refused(outcome)
+    data, media_type = outcome
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": "attachment",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )

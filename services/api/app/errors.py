@@ -28,6 +28,9 @@ ERROR_CODES: dict[str, tuple[int, str, bool]] = {
     # api-contracts.md: expired sync cursor -> 410 with safe rebootstrap instructions.
     "RESET_REQUIRED": (410, "Sync reset required", False),
     "PAYLOAD_TOO_LARGE": (413, "Payload too large", False),
+    # T16. Upload is off unless the deployment enables it (AC-018).
+    "EVIDENCE_UPLOAD_DISABLED": (403, "Evidence upload disabled", False),
+    "EVIDENCE_NOT_AVAILABLE": (409, "Evidence not available", False),
     "RATE_LIMITED": (429, "Rate limited", True),
     "TEMPORARILY_UNAVAILABLE": (503, "Temporarily unavailable", True),
 }

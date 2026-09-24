@@ -72,6 +72,16 @@ if SYNTHETIC_DEV:
     app.state.auth = (app.state.dev_issuer.oidc_config(), app.state.dev_issuer.memberships.lookup)
     app.state.connect = connector(settings.database_url, Path(".data") / "dev.sqlite3")
 
+    # T16. Evidence upload is enabled ONLY on the synthetic dev stack; every
+    # other deployment keeps AC-018's default of no upload (routes answer 503
+    # without these). ponytail: per-process random signing key - a shared,
+    # configured key is needed before running more than one worker.
+    import secrets
+
+    app.state.evidence_upload_enabled = True
+    app.state.evidence_key = secrets.token_bytes(32)
+    app.state.evidence_dir = Path(".data") / "evidence"
+
 
 @app.get("/health/live")
 def live() -> dict[str, str]:

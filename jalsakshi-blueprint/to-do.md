@@ -210,7 +210,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T16 — Private evidence upload boundary
 
-- [ ] T16 complete with evidence
+- [~] T16 complete with evidence — OUTSTANDING: independent security review; no malware scanner so lab PDFs stay quarantined. 19/19 incl. PostgreSQL; 15/15 mutants (handoff-T16.md).
 
 - Requirements: REQ-018.
 - Owner: C/security. Estimated effort: 2 h slice.

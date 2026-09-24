@@ -84,6 +84,14 @@ done silently. A box is ticked in `to-do.md` only after real DoD evidence.
 | T15 | A | T12 T14 | `[~]` built 2026-09-24: sync engine + queue + full worker flow. Emulator: offline save → kill -9 → offline relaunch → reconnect → same record accepted (server 1 row). 15/15 real-server tests; 13/14 mutants (survivor equivalent). **Outstanding:** physical phone, independent review. | handoff-T15.md |
 | T45 | C+A | T06 T12 T15 | `[~]` built 2026-09-24: server 72 h lease (A08, provisional), device lock on expiry/rollback, revocation drops lease and keeps records. Emulator: offline continue + 5 h rollback lock + re-login sync. 4+10 tests; 10/10 mutants. **Outstanding:** auth review, phone, real IdP. | handoff-T45.md |
 
+### Milestone M2 — evidence-to-action loop (IN PROGRESS, option A: synthetic only; G2 expected `[!]` — needs domain closure-policy sign-off and independent reviews)
+
+Entry check 2026-09-24: immutable ingestion met in code (T13/T14 unreviewed), command contracts met (T05), membership contract NOT met (T06 `[!]`). Project owner chose to proceed synthetic-only.
+
+| Task | Role | Depends on | Status | Evidence / blocker |
+|---|---|---|---|---|
+| T16 | C | T13 | `[~]` built 2026-09-24: private evidence boundary; 19/19 incl. PostgreSQL; 15/15 mutants. **Outstanding:** security review; malware scanner (PDFs quarantined). | handoff-T16.md |
+
 ## What exists
 
 `jalsakshi-blueprint/` — planning/reference package only, untouched, not edited by this task.
