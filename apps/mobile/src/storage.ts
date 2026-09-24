@@ -10,16 +10,23 @@ export type LocalSamplePayload = {
 };
 
 export type LocalSaveInput = {
+  /** Signed-in account subject. Records sync only under the account that made them. */
+  owner: string;
   eventId: string;
-  assetId: string;
-  sourceUri: string;
-  mediaType: 'image/jpeg' | 'image/png';
+  /**
+   * The photo, or all three null for a manual reading without capture
+   * (protocol `allow_manual_without_capture`; T11's camera-denied path).
+   */
+  assetId: string | null;
+  sourceUri: string | null;
+  mediaType: 'image/jpeg' | 'image/png' | null;
   sample: LocalSamplePayload;
 };
 
 export type LocalSaveBundle = {
   sample: {
     id: string;
+    owner: string;
     eventId: string;
     payloadJson: string;
     payloadHash: string;
@@ -31,20 +38,21 @@ export type LocalSaveBundle = {
     sampleId: string;
     uri: string;
     sha256: string;
-    mediaType: LocalSaveInput['mediaType'];
+    mediaType: 'image/jpeg' | 'image/png';
     bytes: number;
-  };
+  } | null;
   outbox: PendingOutboxEvent;
 };
 
 export type LocalReceipt = {
   status: 'saved';
   sampleId: string;
+  owner: string;
   eventId: string;
-  assetId: string;
-  assetUri: string;
-  assetSha256: string;
-  assetBytes: number;
+  assetId: string | null;
+  assetUri: string | null;
+  assetSha256: string | null;
+  assetBytes: number | null;
   payloadHash: string;
   savedAt: string;
 };
@@ -66,6 +74,72 @@ export type LocalSaveDependencies = {
   now(): string;
 };
 
+/**
+ * T12 tables, shared by both database handles (this async one and the
+ * synchronous `deviceSql`) so the two can never drift. `owner` scopes a record
+ * to the account that saved it: on a shared phone, another account must not
+ * push it under its own identity (found in T15).
+ */
+export const LOCAL_SAVE_DDL = `
+  CREATE TABLE IF NOT EXISTS local_samples (
+    id TEXT PRIMARY KEY NOT NULL,
+    owner TEXT NOT NULL,
+    event_id TEXT UNIQUE NOT NULL,
+    payload_json TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    captured_at TEXT NOT NULL,
+    saved_at TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS local_assets (
+    id TEXT PRIMARY KEY NOT NULL,
+    sample_id TEXT UNIQUE NOT NULL REFERENCES local_samples(id),
+    uri TEXT UNIQUE NOT NULL,
+    sha256 TEXT NOT NULL,
+    media_type TEXT NOT NULL,
+    bytes INTEGER NOT NULL CHECK (bytes > 0)
+  );
+  CREATE TABLE IF NOT EXISTS outbox (
+    event_id TEXT PRIMARY KEY NOT NULL,
+    sample_id TEXT UNIQUE NOT NULL REFERENCES local_samples(id),
+    payload_json TEXT NOT NULL,
+    payload_hash TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state = 'pending'),
+    attempt INTEGER NOT NULL CHECK (attempt >= 0),
+    next_attempt_at TEXT
+  );
+`;
+
+/** T12's atomic save, as statements. One source for the device and the tests. */
+export function bundleStatements(bundle: LocalSaveBundle): Array<[string, Array<string | number | null>]> {
+  const statements: Array<[string, Array<string | number | null>]> = [
+    [
+      'INSERT INTO local_samples (id, owner, event_id, payload_json, payload_hash, captured_at, saved_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [bundle.sample.id, bundle.sample.owner, bundle.sample.eventId, bundle.sample.payloadJson,
+        bundle.sample.payloadHash, bundle.sample.capturedAt, bundle.sample.savedAt],
+    ],
+    [
+      'INSERT INTO outbox (event_id, sample_id, payload_json, payload_hash, state, attempt, next_attempt_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [bundle.outbox.eventId, bundle.outbox.sampleId, bundle.outbox.payloadJson, bundle.outbox.payloadHash,
+        bundle.outbox.state, bundle.outbox.attempt, bundle.outbox.nextAttemptAt],
+    ],
+  ];
+  if (bundle.asset) {
+    statements.splice(1, 0, [
+      'INSERT INTO local_assets (id, sample_id, uri, sha256, media_type, bytes) VALUES (?, ?, ?, ?, ?, ?)',
+      [bundle.asset.id, bundle.asset.sampleId, bundle.asset.uri, bundle.asset.sha256, bundle.asset.mediaType, bundle.asset.bytes],
+    ]);
+  }
+  return statements;
+}
+
+/** The durable local receipt. Independent of the outbox, so acknowledging a push cannot erase it. */
+export const RECEIPT_SQL = `SELECT 'saved' AS status, s.id AS sampleId, s.owner AS owner, s.event_id AS eventId,
+        a.id AS assetId, a.uri AS assetUri, a.sha256 AS assetSha256,
+        a.bytes AS assetBytes, s.payload_hash AS payloadHash, s.saved_at AS savedAt
+   FROM local_samples s
+   LEFT JOIN local_assets a ON a.sample_id = s.id
+  WHERE s.id = ?`;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const OWNED_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:tmp|asset)$/i;
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -73,10 +147,15 @@ const SHA256 = /^[a-f0-9]{64}$/;
 function validate(input: LocalSaveInput) {
   if (!UUID.test(input.sample.sample_id)) throw new Error('Sample ID must be a UUID');
   if (!UUID.test(input.eventId)) throw new Error('Event ID must be a UUID');
-  if (!UUID.test(input.assetId)) throw new Error('Asset ID must be a UUID');
-  if (!input.sourceUri.trim()) throw new Error('Source asset URI is required');
-  if (input.mediaType !== 'image/jpeg' && input.mediaType !== 'image/png') {
-    throw new Error('Asset media type is unsupported');
+  if (!input.owner.trim()) throw new Error('Owner is required');
+  const photoFields = [input.assetId, input.sourceUri, input.mediaType].filter((v) => v !== null).length;
+  if (photoFields !== 0 && photoFields !== 3) throw new Error('A photo needs its asset ID, source URI and media type');
+  if (photoFields === 3) {
+    if (!UUID.test(input.assetId!)) throw new Error('Asset ID must be a UUID');
+    if (!input.sourceUri!.trim()) throw new Error('Source asset URI is required');
+    if (input.mediaType !== 'image/jpeg' && input.mediaType !== 'image/png') {
+      throw new Error('Asset media type is unsupported');
+    }
   }
   if (!Number.isInteger(input.sample.schema_version) || input.sample.schema_version < 1) {
     throw new Error('Sample schema version is invalid');
@@ -88,11 +167,12 @@ function toReceipt(bundle: LocalSaveBundle): LocalReceipt {
   return {
     status: 'saved',
     sampleId: bundle.sample.id,
+    owner: bundle.sample.owner,
     eventId: bundle.outbox.eventId,
-    assetId: bundle.asset.id,
-    assetUri: bundle.asset.uri,
-    assetSha256: bundle.asset.sha256,
-    assetBytes: bundle.asset.bytes,
+    assetId: bundle.asset?.id ?? null,
+    assetUri: bundle.asset?.uri ?? null,
+    assetSha256: bundle.asset?.sha256 ?? null,
+    assetBytes: bundle.asset?.bytes ?? null,
     payloadHash: bundle.sample.payloadHash,
     savedAt: bundle.sample.savedAt,
   };
@@ -112,39 +192,43 @@ export async function saveConfirmedSample(
   );
   const prior = await dependencies.database.receipt(input.sample.sample_id);
   if (prior) {
-    if (prior.eventId !== input.eventId || prior.assetId !== input.assetId) {
+    if (prior.eventId !== input.eventId || prior.assetId !== input.assetId || prior.owner !== input.owner) {
       throw new Error('Sample ID is already associated with another save');
     }
     if (prior.payloadHash !== outbox.payloadHash) {
       throw new Error('Sample ID is already associated with a different payload');
     }
-    if (!(await dependencies.files.exists(prior.assetUri))) {
+    if (prior.assetUri && !(await dependencies.files.exists(prior.assetUri))) {
       throw new Error('Saved sample asset is missing');
     }
     return prior;
   }
 
-  const staged = await dependencies.files.stage(input.sourceUri, `${input.assetId}.tmp`);
-  if (!SHA256.test(staged.sha256) || staged.bytes < 1) throw new Error('Staged asset is invalid');
-
-  const finalUri = await dependencies.files.move(staged.uri, `${input.assetId}.asset`);
-  const bundle: LocalSaveBundle = {
-    sample: {
-      id: input.sample.sample_id,
-      eventId: input.eventId,
-      payloadJson: outbox.payloadJson,
-      payloadHash: outbox.payloadHash,
-      capturedAt: input.sample.captured_at_device,
-      savedAt: dependencies.now(),
-    },
-    asset: {
+  let asset: LocalSaveBundle['asset'] = null;
+  if (input.assetId && input.sourceUri && input.mediaType) {
+    const staged = await dependencies.files.stage(input.sourceUri, `${input.assetId}.tmp`);
+    if (!SHA256.test(staged.sha256) || staged.bytes < 1) throw new Error('Staged asset is invalid');
+    const finalUri = await dependencies.files.move(staged.uri, `${input.assetId}.asset`);
+    asset = {
       id: input.assetId,
       sampleId: input.sample.sample_id,
       uri: finalUri,
       sha256: staged.sha256,
       mediaType: input.mediaType,
       bytes: staged.bytes,
+    };
+  }
+  const bundle: LocalSaveBundle = {
+    sample: {
+      id: input.sample.sample_id,
+      owner: input.owner,
+      eventId: input.eventId,
+      payloadJson: outbox.payloadJson,
+      payloadHash: outbox.payloadHash,
+      capturedAt: input.sample.captured_at_device,
+      savedAt: dependencies.now(),
     },
+    asset,
     outbox,
   };
 
@@ -170,43 +254,17 @@ export async function recoverLocalStorage(dependencies: LocalSaveDependencies) {
   return { removed: removed.sort(), missing: missing.sort() };
 }
 
-export async function openLocalStorage() {
-  const [{ CryptoDigestAlgorithm, digest, digestStringAsync }, { Directory, File, Paths }, { openDatabaseAsync }] =
-    await Promise.all([import('expo-crypto'), import('expo-file-system'), import('expo-sqlite')]);
+/**
+ * `sql` is the app's one database connection (`deviceSql()`, already migrated).
+ * Saving through a second connection to the same file would contend with sync
+ * for the write lock at exactly the moment a save must not fail.
+ */
+export async function openLocalStorage(sql: Sql) {
+  const [{ CryptoDigestAlgorithm, digest, digestStringAsync }, { Directory, File, Paths }] =
+    await Promise.all([import('expo-crypto'), import('expo-file-system')]);
 
   const directory = new Directory(Paths.document, 'jalsakshi-assets');
   directory.create({ idempotent: true, intermediates: true });
-  const database = await openDatabaseAsync('jalsakshi.db');
-  await database.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA synchronous = FULL;
-    PRAGMA foreign_keys = ON;
-    CREATE TABLE IF NOT EXISTS local_samples (
-      id TEXT PRIMARY KEY NOT NULL,
-      event_id TEXT UNIQUE NOT NULL,
-      payload_json TEXT NOT NULL,
-      payload_hash TEXT NOT NULL,
-      captured_at TEXT NOT NULL,
-      saved_at TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS local_assets (
-      id TEXT PRIMARY KEY NOT NULL,
-      sample_id TEXT UNIQUE NOT NULL REFERENCES local_samples(id),
-      uri TEXT UNIQUE NOT NULL,
-      sha256 TEXT NOT NULL,
-      media_type TEXT NOT NULL,
-      bytes INTEGER NOT NULL CHECK (bytes > 0)
-    );
-    CREATE TABLE IF NOT EXISTS outbox (
-      event_id TEXT PRIMARY KEY NOT NULL,
-      sample_id TEXT UNIQUE NOT NULL REFERENCES local_samples(id),
-      payload_json TEXT NOT NULL,
-      payload_hash TEXT NOT NULL,
-      state TEXT NOT NULL CHECK (state = 'pending'),
-      attempt INTEGER NOT NULL CHECK (attempt >= 0),
-      next_attempt_at TEXT
-    );
-  `);
 
   const dependencies: LocalSaveDependencies = {
     files: {
@@ -238,51 +296,15 @@ export async function openLocalStorage() {
     },
     database: {
       async commit(bundle) {
-        await database.withExclusiveTransactionAsync(async (transaction) => {
-          await transaction.runAsync(
-            'INSERT INTO local_samples (id, event_id, payload_json, payload_hash, captured_at, saved_at) VALUES (?, ?, ?, ?, ?, ?)',
-            bundle.sample.id,
-            bundle.sample.eventId,
-            bundle.sample.payloadJson,
-            bundle.sample.payloadHash,
-            bundle.sample.capturedAt,
-            bundle.sample.savedAt,
-          );
-          await transaction.runAsync(
-            'INSERT INTO local_assets (id, sample_id, uri, sha256, media_type, bytes) VALUES (?, ?, ?, ?, ?, ?)',
-            bundle.asset.id,
-            bundle.asset.sampleId,
-            bundle.asset.uri,
-            bundle.asset.sha256,
-            bundle.asset.mediaType,
-            bundle.asset.bytes,
-          );
-          await transaction.runAsync(
-            'INSERT INTO outbox (event_id, sample_id, payload_json, payload_hash, state, attempt, next_attempt_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-            bundle.outbox.eventId,
-            bundle.outbox.sampleId,
-            bundle.outbox.payloadJson,
-            bundle.outbox.payloadHash,
-            bundle.outbox.state,
-            bundle.outbox.attempt,
-            bundle.outbox.nextAttemptAt,
-          );
+        sql.tx(() => {
+          for (const [statement, params] of bundleStatements(bundle)) sql.run(statement, params);
         });
       },
       async receipt(sampleId) {
-        return database.getFirstAsync<LocalReceipt>(
-          `SELECT 'saved' AS status, s.id AS sampleId, s.event_id AS eventId,
-                  a.id AS assetId, a.uri AS assetUri, a.sha256 AS assetSha256,
-                  a.bytes AS assetBytes, s.payload_hash AS payloadHash, s.saved_at AS savedAt
-             FROM local_samples s
-             JOIN local_assets a ON a.sample_id = s.id
-            WHERE s.id = ?`,
-          sampleId,
-        );
+        return sql.all<LocalReceipt>(RECEIPT_SQL, [sampleId])[0] ?? null;
       },
       async assetUris() {
-        const rows = await database.getAllAsync<{ uri: string }>('SELECT uri FROM local_assets');
-        return rows.map((row) => row.uri);
+        return sql.all<{ uri: string }>('SELECT uri FROM local_assets').map((row) => row.uri);
       },
     },
     hashText: async (value) => String(await digestStringAsync(CryptoDigestAlgorithm.SHA256, value)),
@@ -340,13 +362,35 @@ export function migrate(sql: Sql): void {
     latitude REAL,
     longitude REAL
   )`);
+  sql.exec('PRAGMA foreign_keys = ON');
+  sql.exec(LOCAL_SAVE_DDL);
+  // T15. What the server said about each pushed event. Kept after the outbox
+  // row is removed, so "accepted" and "needs attention" stay visible.
+  sql.exec(`CREATE TABLE IF NOT EXISTS sync_receipts (
+    event_id TEXT PRIMARY KEY NOT NULL,
+    sample_id TEXT NOT NULL REFERENCES local_samples(id),
+    status TEXT NOT NULL CHECK (status IN ('accepted', 'duplicate', 'rejected', 'conflict')),
+    code TEXT,
+    detail TEXT,
+    server_time TEXT NOT NULL
+  )`);
+  // T15. Records the server confirmed through the ordered pull (T14).
+  sql.exec(`CREATE TABLE IF NOT EXISTS server_samples (
+    owner TEXT NOT NULL,
+    id TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    status TEXT NOT NULL,
+    received_at_server TEXT NOT NULL,
+    PRIMARY KEY (owner, id)
+  )`);
 }
 
-function getMeta(sql: Sql, key: string): string | null {
+export function getMeta(sql: Sql, key: string): string | null {
   return sql.all<{ value: string }>('SELECT value FROM meta WHERE key = ?', [key])[0]?.value ?? null;
 }
 
-function setMeta(sql: Sql, key: string, value: string): void {
+export function setMeta(sql: Sql, key: string, value: string): void {
   sql.run('INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, value]);
 }
 
@@ -364,17 +408,20 @@ export interface Catalogue {
  * account only; see `loadCatalogue`.
  */
 export function replaceCatalogue(sql: Sql, owner: string, items: readonly CachedSource[], servedAt: string): void {
-  sql.tx(() => {
-    sql.run('DELETE FROM source_cache');
-    for (const s of items) {
-      sql.run(
-        'INSERT INTO source_cache (id, qr_code, label, locality, latitude, longitude) VALUES (?,?,?,?,?,?)',
-        [s.id, s.qrCode, s.label, s.locality, s.latitude, s.longitude],
-      );
-    }
-    setMeta(sql, 'catalogue_owner', owner);
-    setMeta(sql, 'catalogue_served_at', servedAt);
-  });
+  sql.tx(() => writeCatalogue(sql, owner, items, servedAt));
+}
+
+/** `replaceCatalogue` without its own transaction, for callers already in one. */
+export function writeCatalogue(sql: Sql, owner: string, items: readonly CachedSource[], servedAt: string): void {
+  sql.run('DELETE FROM source_cache');
+  for (const s of items) {
+    sql.run(
+      'INSERT INTO source_cache (id, qr_code, label, locality, latitude, longitude) VALUES (?,?,?,?,?,?)',
+      [s.id, s.qrCode, s.label, s.locality, s.latitude, s.longitude],
+    );
+  }
+  setMeta(sql, 'catalogue_owner', owner);
+  setMeta(sql, 'catalogue_served_at', servedAt);
 }
 
 /** The cached catalogue, or an empty one if it belongs to another account. */

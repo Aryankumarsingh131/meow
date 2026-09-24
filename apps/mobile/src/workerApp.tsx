@@ -1,40 +1,76 @@
 /**
- * JalSakshi — WORKER app: the M1 field flow.
+ * JalSakshi — WORKER app: the M1 field flow, end to end.
  *
- * Until M1 this file was a static mockup whose values (source "RS-1043",
- * "3 pending sync") were hardcoded. It is now built step by step from the
- * real task modules, and a step appears here only once it works:
+ *   1. Source   — T07: server catalogue, cached on the phone per account
+ *   2. Protocol — T08: SYN-COLOR-001 read window (SYNTHETIC, ADR-M1-001)
+ *   3. Capture  — T09: photo + manual region, or manual without a photo
+ *   4. Review   — T11: manual reading (no approved profile exists)
+ *   5. Save     — T12: durable local receipt before anything is claimed
+ *   6. Queue    — T15: foreground sync, Sync now, per-record status
  *
- *   1. Source      — T07: server catalogue, cached on the phone per account
- *   2. Protocol    — T08 (next)
- *   3. Capture     — T09
- *   4. Review      — T11
- *   5. Save + sync — T12, T15
+ * Wording rules (tests/status-label.test.ts, tests/sync-client.test.ts): no
+ * potability claim, no confidence percentage, no closed-app sync claim.
  *
- * Wording rules (tests/status-label.test.ts): no potability claim, no
- * confidence percentage, no remediation instruction. All data is synthetic
- * (ADR-M1-001).
+ * Known M1 limits, recorded rather than hidden:
+ *   - The monotonic clock is `performance.now()` (process-relative) with a
+ *     null boot id: a restart mid-test yields `indeterminate`, the safe
+ *     direction. Binding SystemClock.elapsedRealtime() is role B's (T08).
+ *   - T10 quality rules and native features are not wired to capture, so
+ *     quality is recorded as QUALITY_NOT_ASSESSED and every reading is manual.
  */
 
-import React, { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { randomUUID } from 'expo-crypto';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { DEV_API_BASE, fetchCatalogue } from './api';
+import { analyseBaseline, type ReviewAnalysis, type ReviewObservation } from './analysis/baseline';
+import { DEV_API_BASE, fetchCatalogue, httpTransport } from './api';
+import { CaptureScreen } from './capture';
 import { deviceSql } from './deviceDb';
+import { BINS, INSTRUCTIONS, PROTOCOL, REQUIRE_REFERENCE_CARD, SYNTHETIC_LOT } from './m1Protocol';
+import { ProtocolScreen } from './protocol';
+import { QueueScreen } from './queue';
+import { ReviewScreen } from './review';
+import { buildSample } from './sample';
 import type { Session } from './session';
 import { freshnessLabel, freshnessOf, type CachedSource } from './sourceCatalog';
 import { SourcesScreen } from './sources';
-import { applyCatalogueFetch, loadCatalogue, type CatalogueView } from './storage';
+import {
+  applyCatalogueFetch, getMeta, loadCatalogue, openLocalStorage, setMeta,
+  type CatalogueView, type LocalReceipt, type LocalSaveInput,
+} from './storage';
+import { pendingCount, queueItems, STEP_TEXT, syncOnce, type QueueItem, type SyncResult, type SyncSession } from './sync';
 import { colors, radius, spacing, type } from './theme';
+import type { Attempt, TimingVerdict } from './timer';
 import { Card, CardTitle, Row, StepRail } from './ui';
 
 const STEPS = ['Source', 'Protocol', 'Capture', 'Review', 'Save'] as const;
+const CLIENT_BUILD = 'jalsakshi-mobile/m1-synthetic';
 
 const PROBLEM_TEXT: Record<NonNullable<CatalogueView['problem']>, string> = {
   offline: 'Offline — showing the copy saved on this phone.',
   auth_required: 'Your sign-in has expired. Sign in again to refresh.',
   server_error: 'The server could not send the source list — showing the saved copy.',
 };
+
+type Step =
+  | { name: 'source' }
+  | { name: 'protocol'; source: CachedSource }
+  | { name: 'capture'; source: CachedSource; attempt: Attempt; timing: TimingVerdict }
+  | { name: 'review'; source: CachedSource; timing: TimingVerdict; photoUri: string | null; capturedAt: string }
+  | { name: 'saving'; input: LocalSaveInput; error: string | null }
+  | { name: 'saved'; receipt: LocalReceipt }
+  | { name: 'queue' };
+
+function deviceId(): string {
+  const sql = deviceSql();
+  let id = getMeta(sql, 'device_id');
+  if (!id) {
+    id = randomUUID();
+    setMeta(sql, 'device_id', id);
+  }
+  return id;
+}
 
 export interface WorkerAppProps {
   session: Session;
@@ -49,7 +85,44 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
     ...loadCatalogue(deviceSql(), owner), origin: 'cache', problem: null,
   }));
   const [refreshing, setRefreshing] = useState(false);
-  const [source, setSource] = useState<CachedSource | null>(null);
+  const [step, setStep] = useState<Step>({ name: 'source' });
+  const [queue, setQueue] = useState<{ items: QueueItem[]; pending: number }>(() => ({
+    items: queueItems(deviceSql(), owner), pending: pendingCount(deviceSql(), owner),
+  }));
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
+  const storage = useRef<ReturnType<typeof openLocalStorage> | null>(null);
+  const syncSession = useRef<SyncSession>({ autoAttempts: 0 });
+  const running = useRef(false);
+
+  storage.current ??= openLocalStorage(deviceSql());
+
+  const reloadQueue = useCallback(() => {
+    setQueue({ items: queueItems(deviceSql(), owner), pending: pendingCount(deviceSql(), owner) });
+  }, [owner]);
+
+  const sync = useCallback(async (manual: boolean) => {
+    if (running.current) return; // One pass at a time; a second tap is not a second push.
+    running.current = true;
+    setSyncing(true);
+    let result: SyncResult | null = null;
+    try {
+      result = await syncOnce(
+        { sql: deviceSql(), transport: httpTransport(DEV_API_BASE, session.auth.token), owner, deviceId: deviceId(), now: Date.now, random: Math.random },
+        syncSession.current,
+        { manual },
+      );
+      setSyncStatus(STEP_TEXT[result.push === 'done' || result.push === 'nothing_due' ? result.pull : result.push]);
+      setCatalogue({ ...loadCatalogue(deviceSql(), owner), origin: 'cache', problem: null });
+    } catch {
+      setSyncStatus('Sync stopped unexpectedly. Saved records are still on this phone.');
+    } finally {
+      running.current = false;
+      setSyncing(false);
+      reloadQueue();
+    }
+    if (result?.push === 'auth_paused' || result?.pull === 'auth_paused') onAuthExpired();
+  }, [owner, session.auth.token, reloadQueue, onAuthExpired]);
 
   const refresh = async () => {
     setRefreshing(true);
@@ -61,52 +134,187 @@ export function WorkerApp({ session, onAuthExpired, now = Date.now }: WorkerAppP
 
   useEffect(() => {
     void refresh();
+    void sync(false);
+    // Each return to the foreground is a new session: reopen retries.
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') {
+        syncSession.current = { autoAttempts: 0 };
+        void sync(false);
+      }
+    });
+    return () => sub.remove();
     // Once per signed-in account.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [owner]);
 
-  const age = freshnessLabel(freshnessOf(catalogue.servedAt, now()));
+  const save = async (input: LocalSaveInput) => {
+    setStep({ name: 'saving', input, error: null });
+    try {
+      const receipt = await (await storage.current!).save(input);
+      setStep({ name: 'saved', receipt });
+      reloadQueue();
+      void sync(false);
+    } catch (error) {
+      // Never report success on failure. Retrying reuses the same ids, so
+      // T12's idempotent save cannot create a second record.
+      setStep({ name: 'saving', input, error: error instanceof Error ? error.message : 'Unknown storage error' });
+    }
+  };
 
-  if (!source) {
-    return (
-      <View style={s.screen}>
-        <View style={s.pad}>
-          <StepRail steps={STEPS} current={0} />
-          <Text style={s.meta} testID="catalogue-status">
-            {refreshing ? 'Updating source list…' : catalogue.problem ? PROBLEM_TEXT[catalogue.problem] : 'Source list from server.'}
-            {catalogue.servedAt ? ` ${age.replace('Last known record', 'Saved list')}.` : ''}
-          </Text>
-        </View>
-        <SourcesScreen cache={catalogue.items} onSelectSource={setSource} now={now} />
-      </View>
+  const onReviewed = (review: Extract<Step, { name: 'review' }>, observation: ReviewObservation) => {
+    const sampleId = randomUUID();
+    const sample = buildSample(
+      { sampleId, sourceId: review.source.id, protocol: PROTOCOL, kitLotId: SYNTHETIC_LOT.id, capturedAtDevice: review.capturedAt, clientBuild: CLIENT_BUILD },
+      review.timing,
+      observation,
     );
-  }
+    void save({
+      owner,
+      eventId: randomUUID(),
+      assetId: review.photoUri ? randomUUID() : null,
+      sourceUri: review.photoUri,
+      mediaType: review.photoUri ? 'image/jpeg' : null,
+      sample,
+    });
+  };
 
-  return (
-    <View style={[s.screen, s.pad]}>
-      <StepRail steps={STEPS} current={1} />
-      <Card>
-        <CardTitle>Source selected</CardTitle>
-        <Text style={s.label} testID="selected-source">{source.label}</Text>
-        <Row label="Locality" value={source.locality} />
-        <Row label="Code" value={source.qrCode} />
-      </Card>
-      <Text style={s.meta}>Next step: kit protocol and read window (T08).</Text>
-      <Pressable style={s.btn} onPress={() => setSource(null)} accessibilityRole="button" testID="change-source">
-        <Text style={s.btnText}>Choose a different source</Text>
-      </Pressable>
-    </View>
+  const queueButton = (
+    <Pressable style={s.btn} onPress={() => { reloadQueue(); setStep({ name: 'queue' }); }} accessibilityRole="button" testID="open-queue">
+      <Text style={s.btnText}>
+        Saved records{queue.pending ? ` — ${queue.pending} waiting to send` : ''}
+      </Text>
+    </Pressable>
   );
+
+  switch (step.name) {
+    case 'source': {
+      const age = freshnessLabel(freshnessOf(catalogue.servedAt, now()));
+      return (
+        <View style={s.screen}>
+          <View style={s.pad}>
+            <StepRail steps={STEPS} current={0} />
+            <Text style={s.meta} testID="catalogue-status">
+              {refreshing ? 'Updating source list…' : catalogue.problem ? PROBLEM_TEXT[catalogue.problem] : 'Source list from server.'}
+              {catalogue.servedAt ? ` ${age.replace('Last known record', 'Saved list')}.` : ''}
+            </Text>
+            {queueButton}
+          </View>
+          <SourcesScreen cache={catalogue.items} onSelectSource={(source) => setStep({ name: 'protocol', source })} now={now} />
+        </View>
+      );
+    }
+    case 'protocol':
+      return (
+        <View style={s.screen}>
+          <View style={s.pad}><StepRail steps={STEPS} current={1} /><Text style={s.meta}>Source: {step.source.label}</Text></View>
+          <ProtocolScreen
+            protocol={PROTOCOL}
+            lot={SYNTHETIC_LOT}
+            instructions={INSTRUCTIONS}
+            readClock={() => ({ wallMs: Date.now(), monotonicMs: performance.now(), bootId: null })}
+            newAttemptId={randomUUID}
+            onProceedToCapture={(attempt, timing) => setStep({ name: 'capture', source: step.source, attempt, timing })}
+          />
+        </View>
+      );
+    case 'capture': {
+      const toReview = (photoUri: string | null) =>
+        setStep({ name: 'review', source: step.source, timing: step.timing, photoUri, capturedAt: new Date().toISOString() });
+      return (
+        <View style={s.screen}>
+          <View style={s.pad}><StepRail steps={STEPS} current={2} /></View>
+          <CaptureScreen
+            request={{
+              sourceId: step.source.id, protocolId: PROTOCOL.id, protocolVersion: PROTOCOL.version,
+              attemptId: step.attempt.attemptId, requireReferenceCard: REQUIRE_REFERENCE_CARD,
+            }}
+            newJobId={randomUUID}
+            onManualEntry={() => toReview(null)}
+            onAnalysed={(_features, _corners, _orientation, photoUri) => toReview(photoUri)}
+          />
+        </View>
+      );
+    }
+    case 'review': {
+      const analysis: ReviewAnalysis = analyseBaseline({
+        features: null,
+        quality: { decision: 'review', reasons: ['QUALITY_NOT_ASSESSED'] },
+        timingValid: step.timing.timingValid,
+        profile: null,
+      });
+      return (
+        <View style={s.screen}>
+          <View style={s.pad}>
+            <StepRail steps={STEPS} current={3} />
+            <Text style={s.meta}>{step.photoUri ? 'Photo kept on this phone.' : 'No photo — manual reading only.'}</Text>
+          </View>
+          <ReviewScreen
+            analysis={analysis}
+            bins={BINS}
+            onComplete={(observation) => onReviewed(step, observation)}
+            onRetake={() => setStep({ name: 'protocol', source: step.source })}
+          />
+        </View>
+      );
+    }
+    case 'saving':
+      return (
+        <View style={[s.screen, s.pad]}>
+          <StepRail steps={STEPS} current={4} />
+          {step.error ? (
+            <Card>
+              <CardTitle>Not saved</CardTitle>
+              <Text style={s.body} testID="save-error">The reading was NOT saved: {step.error}</Text>
+              <Pressable style={s.btn} onPress={() => void save(step.input)} accessibilityRole="button" testID="save-retry">
+                <Text style={s.btnText}>Try saving again</Text>
+              </Pressable>
+            </Card>
+          ) : (
+            <Text style={s.body}>Saving on this phone…</Text>
+          )}
+        </View>
+      );
+    case 'saved':
+      return (
+        <ScrollView contentContainerStyle={s.pad} style={s.screen}>
+          <StepRail steps={STEPS} current={4} />
+          <Card>
+            <CardTitle>Saved on this phone</CardTitle>
+            <Text style={s.body} testID="saved-receipt">
+              This reading is stored on this phone and survives closing the app. It has not been sent yet unless the queue says so.
+            </Text>
+            <Row label="Record" value={step.receipt.sampleId} />
+            <Row label="Saved at" value={new Date(step.receipt.savedAt).toLocaleString()} />
+            <Row label="Photo" value={step.receipt.assetId ? `Kept on this phone (${step.receipt.assetBytes} bytes)` : 'None — manual reading'} />
+            <Row label="Record fingerprint" value={step.receipt.payloadHash.slice(0, 16)} />
+          </Card>
+          {queueButton}
+          <Pressable style={s.btnGhost} onPress={() => setStep({ name: 'source' })} accessibilityRole="button" testID="new-test">
+            <Text style={s.btnGhostText}>Start another test</Text>
+          </Pressable>
+        </ScrollView>
+      );
+    case 'queue':
+      return (
+        <QueueScreen
+          items={queue.items}
+          pending={queue.pending}
+          status={syncStatus}
+          busy={syncing}
+          onSyncNow={() => void sync(true)}
+          onBack={() => setStep({ name: 'source' })}
+        />
+      );
+  }
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   pad: { padding: spacing.lg, gap: spacing.md },
-  meta: { ...type.small, color: colors.textMuted },
-  label: { ...type.h3, color: colors.text },
-  btn: {
-    borderRadius: radius.md, borderWidth: 1, borderColor: colors.border,
-    paddingVertical: spacing.md, alignItems: 'center',
-  },
-  btnText: { ...type.body, color: colors.text },
+  meta: { ...type.small },
+  body: { ...type.body, color: colors.text },
+  btn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center' },
+  btnText: { ...type.body, color: '#fff', fontWeight: '700' },
+  btnGhost: { borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.md, alignItems: 'center' },
+  btnGhostText: { ...type.body, color: colors.text },
 });

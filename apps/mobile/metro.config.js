@@ -14,7 +14,8 @@ config.resolver.assetExts.push('onnx');
 // this, Metro fails at runtime with "Unable to resolve module
 // ../../../modules/capture-native/index" even though Node and tsc resolve it
 // fine — they do not sandbox to the project root the way Metro does.
-config.watchFolders = [...(config.watchFolders ?? []), path.join(repoRoot, 'modules')];
+// protocols/: the canonical SYN-COLOR-001 JSON is imported, not copied (M1).
+config.watchFolders = [...(config.watchFolders ?? []), path.join(repoRoot, 'modules'), path.join(repoRoot, 'protocols')];
 
 // Resolve dependencies from the app first, then the repo root, so the shared
 // module can still find react/react-native without a duplicate install.

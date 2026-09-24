@@ -62,7 +62,8 @@ export interface CaptureScreenProps {
   /** Worker chose to type the reading instead. Owned by T11. */
   onManualEntry(reason: CaptureFailureReason | 'worker_choice'): void;
   /** A capture was analysed and accepted by the worker. */
-  onAnalysed(features: unknown, corners: RoiCorners, orientation: number): void;
+  /** `photoUri` is the capture file; T12 copies it into private storage on save. */
+  onAnalysed(features: unknown, corners: RoiCorners, orientation: number, photoUri: string): void;
   now?: () => number;
 }
 
@@ -188,7 +189,7 @@ export function CaptureScreen({
       setState(settleJob(started.state, jobId, { kind: 'failed', reason: 'roi_invalid' }).state);
       return;
     }
-    onAnalysed(null, check.corners, shot.orientation);
+    onAnalysed(null, check.corners, shot.orientation, shot.uri);
   }, [shot, roi, state, request, newJobId, now, onAnalysed]);
 
   const onPreviewLayout = (e: LayoutChangeEvent) =>

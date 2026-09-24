@@ -31,8 +31,8 @@ from .sources import DEFAULT_LIMIT, MAX_LIMIT, InvalidCursor, Source, list_sourc
 
 
 class SampleChange(BaseModel):
-    """Server-accepted sample summary. `payload_hash` lets a device prove the
-    accepted record is the one it saved."""
+    """Server-accepted sample summary. `payload_hash` is the server's canonical
+    event hash; it is not comparable with the phone's own save hash."""
 
     id: str
     event_id: str

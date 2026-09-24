@@ -140,3 +140,60 @@ export async function fetchCatalogue(
   }
   return { kind: 'failed', status: 0, code: 'TOO_MANY_PAGES', retryable: false };
 }
+
+// --- T15: sync transport (T13 push, T14 pull/bootstrap) ---------------------
+
+export interface PushEvent {
+  event_id: string;
+  kind: 'sample.create' | 'sample.correct';
+  schema_version: 1;
+  payload: unknown;
+}
+
+export interface EventReceipt {
+  event_id: string;
+  status: 'accepted' | 'duplicate' | 'rejected' | 'conflict';
+  resource_id: string | null;
+  resource_version: number | null;
+  server_time: string;
+  error: { code: string; detail: string; retryable: boolean } | null;
+}
+
+export interface PullChange {
+  seq: number;
+  entity_type: 'sample';
+  entity_id: string;
+  operation: 'upsert' | 'tombstone';
+  version: number;
+  sample: { id: string; event_id: string; status: string; received_at_server: string } | null;
+}
+
+export interface PullPage {
+  changes: PullChange[];
+  next_cursor: string;
+  has_more: boolean;
+  server_time: string;
+}
+
+export interface BootstrapPage {
+  sources: SourcesPage['items'];
+  next_cursor: string | null;
+  snapshot_cursor: string | null;
+  server_time: string;
+}
+
+export interface SyncTransport {
+  push(deviceId: string, events: PushEvent[]): Promise<ApiOutcome<{ results: EventReceipt[] }>>;
+  pull(cursor: string): Promise<ApiOutcome<PullPage>>;
+  bootstrap(cursor: string | null): Promise<ApiOutcome<BootstrapPage>>;
+}
+
+export function httpTransport(base: string, token: string, fetchImpl?: typeof fetch): SyncTransport {
+  const q = (cursor: string | null) => (cursor ? `&cursor=${encodeURIComponent(cursor)}` : '');
+  return {
+    push: (deviceId, events) =>
+      request(base, '/v1/sync/push', { method: 'POST', token, fetchImpl, body: { device_id: deviceId, events } }),
+    pull: (cursor) => request(base, `/v1/sync/pull?limit=100${q(cursor)}`, { token, fetchImpl }),
+    bootstrap: (cursor) => request(base, `/v1/bootstrap?limit=100${q(cursor)}`, { token, fetchImpl }),
+  };
+}

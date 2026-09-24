@@ -10,6 +10,11 @@ export interface ReviewBin {
   reviewTrigger: boolean;
 }
 
+/** What a manual reading needs. No reference colour: a protocol without one
+ * (SYN-COLOR-001) still supports manual review, and inventing RGB would be
+ * fabricated data. */
+export type ManualBin = Pick<ReviewBin, 'key' | 'label' | 'reviewTrigger'>;
+
 export interface BaselineProfile {
   id: string;
   version: number;
@@ -163,7 +168,7 @@ export function confirmSuggestion(analysis: ReviewAnalysis): ReviewObservation {
 
 export function recordManualInterpretation(
   analysis: ReviewAnalysis,
-  bins: readonly ReviewBin[],
+  bins: readonly ManualBin[],
   selectedBin: string,
   reason: string,
 ): ReviewObservation {

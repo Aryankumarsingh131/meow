@@ -55,10 +55,10 @@ done silently. A box is ticked in `to-do.md` only after real DoD evidence.
 | T09 | A | T04 T08 | `[!]` built; cancel + non-1 EXIF **need a physical phone**. | handoff-T09.md |
 | T10 | B | T04 | `[x]` complete 2026-09-23; Re-run 2026-09-24: Python fixtures 8/8, 0 mismatches; Kotlin `QualityTest` 4/4. | handoff-T10.md |
 | T11 | A | T09 T10 | `[x]` complete 2026-09-24; `node tests/review.test.ts` 12/12 re-run. | handoff-T11.md |
-| T12 | A | T11 | `[~]` built; 7/7 fault-injection tests re-run. **Outstanding:** real process kill on the running app. | handoff-T12.md |
+| T12 | A | T11 | `[~]` 7/7 fault-injection; post-commit `kill -9` on emulator keeps the record (T15 run). T15 fixed: owner scoping, optional photo, one DB connection. **Outstanding:** kill *during* a write on a device. | handoff-T12.md, handoff-T15.md |
 | T13 | C | T05 T06 | `[~]` built; 10/10 re-run 2026-09-24 incl. PostgreSQL 17.6 two-connection replay race. **Outstanding:** independent sync-ordering review (AGENTS.md). | handoff-T13.md |
 | T14 | C | T13 | `[~]` built 2026-09-24: tenant-locked changefeed, `/v1/sync/pull`, `/v1/bootstrap`, 410 reset; 12/12 incl. PostgreSQL late-commit; 11/11 + global-sequence mutants caught. Fixed a T07 cursor-length defect. **Outstanding:** independent sync-ordering review. | handoff-T14.md |
-| T15 | A | T12 T14 | not started | — |
+| T15 | A | T12 T14 | `[~]` built 2026-09-24: sync engine + queue + full worker flow. Emulator: offline save → kill -9 → offline relaunch → reconnect → same record accepted (server 1 row). 15/15 real-server tests; 13/14 mutants (survivor equivalent). **Outstanding:** physical phone, independent review. | handoff-T15.md |
 | T45 | C+A | T06 T12 T15 | not started | — |
 
 ## What exists

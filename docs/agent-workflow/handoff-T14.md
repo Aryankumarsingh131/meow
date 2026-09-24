@@ -26,7 +26,7 @@
 - **Partial-page rollback.** A reference device apply (page + cursor in one SQLite transaction) fails mid-page, leaving 0 rows and an unmoved cursor. Re-pulling the same cursor returns an **identical** page, which then applies fully. The production client apply is T15's.
 - **Bootstrap snapshot.** The head is captured before page 1. A sample committed between pages arrives via pull from `snapshot_cursor`. A bootstrap cursor from another tenant returns 422.
 - **Only effects enter the feed.** Duplicate, conflict, rejected and retryable-rejected events roll back their allocation. Concurrent duplicate replay on PostgreSQL produces exactly one feed row.
-- **"Same accepted record".** Each change carries the server's `payload_hash` (= `canonical_event_hash`), so a device can prove the accepted record is the one it saved.
+- **"Same accepted record".** Each change carries the server's `payload_hash` (= `canonical_event_hash`). **Corrected in T15:** this is the server's canonical hash and is *not* comparable with the phone's T12 hash (a different serialisation). The phone's proof is the idempotency guard: its `event_id` with a different payload yields `conflict`, never `accepted`/`duplicate`, so an `accepted`/`duplicate` receipt for its own event means the server holds exactly what it sent.
 - **Version conflict structured.** Changes carry `version`, and push conflicts remain T13's typed `conflict` receipts (`IDEMPOTENCY_MISMATCH`, `SAMPLE_ID_CONFLICT`). **Not applicable in M1:** the contract's `409 + current_version` belongs to versioned mutable commands (case commands T17, admin source PATCH). M1 has no such mutation because samples are append-only, so nothing here claims it.
 
 ## Found and fixed along the way

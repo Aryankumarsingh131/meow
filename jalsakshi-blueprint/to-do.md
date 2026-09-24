@@ -158,7 +158,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T12 — Crash-safe local save
 
-- [~] T12 complete with evidence — OUTSTANDING: process kill on a running app (fault injection only so far).
+- [~] T12 complete with evidence — OUTSTANDING: kill DURING a write on a device (only post-commit kill -9 done on emulator 2026-09-24; mid-write is fault-injected). Fixed: owner scoping, optional photo, single connection (handoff-T15.md).
 
 - Requirements: REQ-007.
 - Owner: A/storage. Estimated effort: 2 h slice.
@@ -197,7 +197,7 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 
 ## T15 — Foreground reconnect and queue UX
 
-- [ ] T15 complete with evidence
+- [~] T15 complete with evidence — OUTSTANDING: physical-phone run and independent sync review. Emulator airplane/kill -9/reconnect run showed the same record accepted (server 1 row); 15/15 real-server tests (handoff-T15.md).
 
 - Requirements: REQ-008.
 - Owner: A/mobile. Estimated effort: 1–2 h.

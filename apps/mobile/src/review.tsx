@@ -6,13 +6,13 @@ import {
   MANUAL_REASON_MAX_LENGTH,
   recordManualInterpretation,
   type ReviewAnalysis,
-  type ReviewBin,
+  type ManualBin,
   type ReviewObservation,
 } from './analysis/baseline';
 
 export interface ReviewScreenProps {
   analysis: ReviewAnalysis;
-  bins: readonly ReviewBin[];
+  bins: readonly ManualBin[];
   onComplete(observation: ReviewObservation): void;
   onRetake(): void;
 }

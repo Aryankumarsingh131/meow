@@ -26,6 +26,7 @@ const CAPTURE = new Uint8Array([1, 3, 3, 7]);
 const SAVED_AT = '2026-09-24T12:34:56.000Z';
 
 const input: LocalSaveInput = {
+  owner: 'account-a',
   eventId: EVENT_ID,
   assetId: ASSET_ID,
   sourceUri: SOURCE_URI,
@@ -44,11 +45,12 @@ function sha256(value: string | Uint8Array) {
 
 function receipt(
   sample: LocalSaveBundle['sample'],
-  asset: LocalSaveBundle['asset'],
+  asset: NonNullable<LocalSaveBundle['asset']>,
 ): LocalReceipt {
   return {
     status: 'saved',
     sampleId: sample.id,
+    owner: sample.owner,
     eventId: sample.eventId,
     assetId: asset.id,
     assetUri: asset.uri,
@@ -62,7 +64,7 @@ function receipt(
 function memoryStore(failAt?: FailurePoint) {
   const files = new Map<string, Uint8Array>([[SOURCE_URI, CAPTURE]]);
   const samples = new Map<string, LocalSaveBundle['sample']>();
-  const assets = new Map<string, LocalSaveBundle['asset']>();
+  const assets = new Map<string, NonNullable<LocalSaveBundle['asset']>>();
   const outbox = new Map<string, LocalSaveBundle['outbox']>();
 
   const dependencies: LocalSaveDependencies = {
@@ -101,7 +103,7 @@ function memoryStore(failAt?: FailurePoint) {
       async commit(bundle) {
         if (failAt === 'before_commit') throw new Error('process killed before commit');
         samples.set(bundle.sample.id, bundle.sample);
-        assets.set(bundle.asset.id, bundle.asset);
+        if (bundle.asset) assets.set(bundle.asset.id, bundle.asset);
         outbox.set(bundle.outbox.eventId, bundle.outbox);
         if (failAt === 'after_commit') throw new Error('commit acknowledgement lost');
       },
