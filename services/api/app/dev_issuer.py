@@ -91,6 +91,8 @@ DEMO_USERS: tuple[DemoUser, ...] = (
     DemoUser("worker", "jalsakshi", _uid("user.worker")),
     DemoUser("supervisor", "jalsakshi", _uid("user.supervisor")),
     DemoUser("other-worker", "jalsakshi", _uid("user.other-worker")),
+    # T19: verification needs a lab reviewer who is NOT the report's recorder.
+    DemoUser("lab-reviewer", "jalsakshi", _uid("user.lab-reviewer")),
 )
 
 #: Synthetic memberships. T06's rule: tenant comes from THIS lookup, never from
@@ -99,6 +101,7 @@ _MEMBERSHIPS: tuple[Membership, ...] = (
     Membership(_uid("user.worker"), SYNTHETIC_TENANT_ID, "worker", active=True),
     Membership(_uid("user.supervisor"), SYNTHETIC_TENANT_ID, "supervisor", active=True),
     Membership(_uid("user.other-worker"), SYNTHETIC_OTHER_TENANT_ID, "worker", active=True),
+    Membership(_uid("user.lab-reviewer"), SYNTHETIC_TENANT_ID, "lab_reviewer", active=True),
 )
 
 

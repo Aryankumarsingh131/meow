@@ -34,8 +34,8 @@ _PROTOCOLS = Path(__file__).resolve().parents[3] / "protocols"
 
 
 @lru_cache(maxsize=None)
-def protocol_policy(protocol_id: str, version: int) -> dict[str, Any] | None:
-    """The protocol's quality_policy, or None when unknown (callers fail closed)."""
+def protocol_doc(protocol_id: str, version: int) -> dict[str, Any] | None:
+    """The canonical protocol document, or None when unknown (callers fail closed)."""
     if not _PROTOCOLS.is_dir():
         return None
     for path in _PROTOCOLS.glob("*.json"):
@@ -44,8 +44,13 @@ def protocol_policy(protocol_id: str, version: int) -> dict[str, Any] | None:
         except (OSError, ValueError):
             continue
         if doc.get("id") == protocol_id and doc.get("version") == version:
-            return doc.get("quality_policy")
+            return doc
     return None
+
+
+def protocol_policy(protocol_id: str, version: int) -> dict[str, Any] | None:
+    doc = protocol_doc(protocol_id, version)
+    return doc.get("quality_policy") if doc else None
 
 
 @dataclass
@@ -112,8 +117,45 @@ def not_yet_available(code: str) -> Guard:
     return guard
 
 
-# Replaced by T19/T20/T21 with guards that read real evidence.
-g_verified: Guard = not_yet_available("LAB_REPORT_NOT_VERIFIED")
+def current_verified_reports(ctx: Context) -> list[dict[str, Any]]:
+    """G-VERIFIED's evidence (T19): reports on this case that are VERIFIED, not
+    superseded by a later report, and carried no mismatch. An uploaded or
+    rejected report never counts - upload is not verification."""
+    from .samples import sql
+
+    cursor = ctx.connection.cursor()
+    cursor.execute(
+        sql(
+            "SELECT r.id, r.lab_interpretation, r.mismatches FROM lab_reports r "
+            "WHERE r.tenant_id = ? AND r.case_id = ? AND r.verification_state = 'verified' "
+            "AND NOT EXISTS (SELECT 1 FROM lab_reports n WHERE n.tenant_id = r.tenant_id AND n.supersedes_id = r.id)",
+            ctx.connection,
+        ),
+        (ctx.tenant_id, ctx.case["id"]),
+    )
+    return [{"id": str(r[0]), "lab_interpretation": r[1]} for r in cursor.fetchall() if json.loads(r[2]) == []]
+
+
+def g_verified(ctx: Context) -> str | None:
+    return None if current_verified_reports(ctx) else "LAB_REPORT_NOT_VERIFIED"
+
+
+def g_lab_adverse(ctx: Context) -> str | None:
+    """Row 6. The protocol schema defines no lab action rule, so the rule is
+    the LAB's own stated interpretation, transcribed and verified (T19; T46)."""
+    reports = current_verified_reports(ctx)
+    return None if any(r["lab_interpretation"] == "exceeds_limit" for r in reports) else "LAB_RESULT_NOT_ADVERSE"
+
+
+def g_lab_within_limit(ctx: Context) -> str | None:
+    """Row 8, the no-remediation path: EVERY current verified report must say
+    within_limit. One exceeds_limit or not_stated report blocks it."""
+    reports = current_verified_reports(ctx)
+    ok = bool(reports) and all(r["lab_interpretation"] == "within_limit" for r in reports)
+    return None if ok else "LAB_RESULT_NOT_WITHIN_LIMIT"
+
+
+# Replaced by T20/T21 with guards that read real evidence.
 g_action: Guard = not_yet_available("ACTION_EVIDENCE_MISSING")
 g_retest: Guard = not_yet_available("RETEST_INVALID")
 g_close: Guard = not_yet_available("CLOSURE_EVIDENCE_INCOMPLETE")
@@ -131,9 +173,9 @@ TRANSITIONS: dict[tuple[str, str], Transition] = {
     ("review_needed", "refer_to_lab"): Transition("awaiting_lab", (g_owner,)),               # row 3
     ("review_needed", "record_action"): Transition("action_required", (g_policy_direct_action,)),  # row 4
     ("review_needed", "dismiss"): Transition("closed", (g_dismiss,)),                        # row 5
-    ("awaiting_lab", "record_action"): Transition("action_required", (g_verified,)),         # row 6
+    ("awaiting_lab", "record_action"): Transition("action_required", (g_verified, g_lab_adverse)),  # row 6
     ("awaiting_lab", "link_retest"): Transition("retest_due", (g_verified, g_no_retest_sample)),  # row 7
-    ("awaiting_lab", "request_closure"): Transition("closure_review", (g_verified, g_disposition)),  # row 8
+    ("awaiting_lab", "request_closure"): Transition("closure_review", (g_verified, g_lab_within_limit, g_disposition)),  # row 8
     ("action_required", "accept_action"): Transition("retest_due", (g_action,)),            # row 9
     ("retest_due", "link_retest"): Transition("closure_review", (g_retest,)),               # row 10
     ("closure_review", "close"): Transition("closed", (g_close,)),                          # row 11

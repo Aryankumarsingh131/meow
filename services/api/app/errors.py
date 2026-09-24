@@ -33,6 +33,12 @@ ERROR_CODES: dict[str, tuple[int, str, bool]] = {
     "DISPOSITION_REQUIRED": (409, "Disposition required", False),
     "ACTION_EVIDENCE_MISSING": (409, "Action evidence missing", False),
     "RETEST_INVALID": (409, "Retest sample invalid", False),
+    # T19 lab reports.
+    "LAB_RESULT_NOT_ADVERSE": (409, "No verified report states the result exceeds the limit", False),
+    "LAB_RESULT_NOT_WITHIN_LIMIT": (409, "Not every verified report states the result is within the limit", False),
+    "LAB_REPORT_MISMATCH": (409, "Report does not match the case", False),
+    "LAB_REPORT_DECIDED": (409, "Report already verified or rejected", False),
+    "LAB_REPORT_SUPERSEDED": (409, "Report has been superseded", False),
     # api-contracts.md: expired sync cursor -> 410 with safe rebootstrap instructions.
     "RESET_REQUIRED": (410, "Sync reset required", False),
     "PAYLOAD_TOO_LARGE": (413, "Payload too large", False),

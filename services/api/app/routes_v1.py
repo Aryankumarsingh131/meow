@@ -23,6 +23,7 @@ from .errors import ApiError
 from . import evidence as ev
 from .offline_grants import OfflineGrant, OfflineGrantRequest, issue_grant
 from . import case_reads
+from . import lab_reports as labs
 from . import cases as case_engine
 from .schemas import CaseCommandRequest, PushRequest
 from .sources import (
@@ -365,6 +366,27 @@ def get_cases(
 @router.get("/cases/{case_id}")
 def get_case(case_id: str, session: Session = Depends(require_session), conn: Any = Depends(db)) -> dict[str, Any]:
     outcome = case_reads.case_detail(conn, session, case_id, now=_now())
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
+    return outcome
+
+
+# --- T19: lab reports ---------------------------------------------------------
+
+
+@router.post("/lab-reports", response_model=labs.LabReportView)
+def post_lab_report(body: labs.LabReportCreate, session: Session = Depends(require_session), conn: Any = Depends(db)) -> labs.LabReportView:
+    outcome = labs.record_report(conn, session, body, now=_now())
+    if isinstance(outcome, case_engine.Refused):
+        raise _case_refused(outcome)
+    return outcome
+
+
+@router.post("/lab-reports/{report_id}/verify", response_model=labs.DecisionReceipt)
+def post_lab_report_decision(
+    report_id: str, body: labs.VerifyRequest, session: Session = Depends(require_session), conn: Any = Depends(db),
+) -> labs.DecisionReceipt:
+    outcome = labs.decide_report(conn, session, report_id, body, now=_now())
     if isinstance(outcome, case_engine.Refused):
         raise _case_refused(outcome)
     return outcome

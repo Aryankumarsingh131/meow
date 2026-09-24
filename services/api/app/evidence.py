@@ -45,7 +45,7 @@ State = Literal["uploading", "quarantined", "available", "rejected", "deleted"]
 
 class IntentRequest(BaseModel):
     asset_id: UUID
-    context: Literal["sample_photo"]
+    context: Literal["sample_photo", "lab_report"]
     target_id: UUID
     bytes: int = Field(gt=0)
     media_type: str = Field(max_length=64)
@@ -155,22 +155,33 @@ def create_intent(
 ) -> IntentResponse | Refused:
     if not enabled:
         return Refused("EVIDENCE_UPLOAD_DISABLED", "Evidence upload is not enabled for this deployment.")
-    if body.media_type not in MEDIA_TYPES or body.media_type == "application/pdf":
-        # PDFs belong to lab reports (T19); a sample photo is an image.
-        return Refused("VALIDATION_FAILED", "Media type is not allowed for a sample photo.")
+    photo = body.context == "sample_photo"
+    if body.media_type not in MEDIA_TYPES or (photo and body.media_type == "application/pdf"):
+        # A sample photo is an image; a lab report file may also be a PDF (T19).
+        return Refused("VALIDATION_FAILED", "Media type is not allowed for this evidence.")
     if body.bytes > MAX_BYTES[body.media_type]:
         return Refused("PAYLOAD_TOO_LARGE", "Evidence is larger than allowed.")
 
     cursor = connection.cursor()
-    cursor.execute(
-        sql("SELECT created_by FROM samples WHERE tenant_id = ? AND id = ?", connection),
-        (session.tenant_id, str(body.target_id)),
-    )
-    sample = cursor.fetchone()
-    # A worker attaches photos only to their own captures; a cross-tenant or
-    # missing sample is the same NOT_FOUND.
-    if sample is None or (session.role == "worker" and str(sample[0]) != session.user_id):
-        return Refused("NOT_FOUND", "Sample was not found.")
+    if photo:
+        cursor.execute(
+            sql("SELECT created_by FROM samples WHERE tenant_id = ? AND id = ?", connection),
+            (session.tenant_id, str(body.target_id)),
+        )
+        sample = cursor.fetchone()
+        # A worker attaches photos only to their own captures; a cross-tenant
+        # or missing sample is the same NOT_FOUND.
+        if sample is None or (session.role == "worker" and str(sample[0]) != session.user_id):
+            return Refused("NOT_FOUND", "Sample was not found.")
+    else:
+        # T19: a lab report file belongs to a case, and only roles that record
+        # lab reports may attach one.
+        if session.role not in ("supervisor", "lab_reviewer", "admin"):
+            return Refused("FORBIDDEN", "This role cannot attach lab report files.")
+        cursor.execute(sql("SELECT 1 FROM cases WHERE tenant_id = ? AND id = ?", connection),
+                       (session.tenant_id, str(body.target_id)))
+        if cursor.fetchone() is None:
+            return Refused("NOT_FOUND", "Case was not found.")
 
     asset_id = str(body.asset_id)
     existing = _row(connection, session.tenant_id, asset_id)

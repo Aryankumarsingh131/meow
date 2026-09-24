@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from . import case_policy as policy
 from .auth import Session
 from .cases import NOT_FOUND, Refused, _plain, load_case
+from .lab_reports import reports_for_case
 from .samples import sql
 
 CASE_READ_ROLES = frozenset({"supervisor", "lab_reviewer", "admin"})  # authorization-matrix.md
@@ -193,6 +194,9 @@ def case_detail(connection: Any, session: Session, case_id: str, *, now: str) ->
             "quality_reasons": json.loads(s[11]), "timing_valid": bool(s[12]),
         },
         "evidence": evidence,
+        # Lab results: their own provenance (T19). "verification_state" is shown
+        # as recorded; an unverified report is never presented as confirmed.
+        "lab_reports": reports_for_case(connection, session.tenant_id, case_id),
         "timeline": timeline,
         "as_of": now,
     }
