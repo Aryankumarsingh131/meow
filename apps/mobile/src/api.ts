@@ -15,6 +15,7 @@
  * T06's handoff forbids persisting it until secure storage exists.
  */
 
+import { recordFailure } from './diagnostics.ts';
 import type { CachedSource } from './sourceCatalog';
 
 /** The hosted backend. A Metro dev build talks to the local stack instead;
@@ -67,7 +68,7 @@ export type ApiOutcome<T> =
   | { kind: 'ok'; value: T }
   | { kind: 'auth_required' }
   | { kind: 'offline' }
-  | { kind: 'failed'; status: number; code: string | null; retryable: boolean };
+  | { kind: 'failed'; status: number; code: string | null; retryable: boolean; requestId?: string | null };
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT';
@@ -107,13 +108,17 @@ export async function request<T>(base: string, path: string, opts: RequestOption
     // A non-JSON body (e.g. a proxy error page) is handled by status below.
   }
   if (response.ok) return { kind: 'ok', value: json as T };
+  const problem = (json ?? {}) as { code?: unknown; retryable?: unknown; request_id?: unknown };
+  const requestId = typeof problem.request_id === 'string' ? problem.request_id : response.headers.get('x-request-id');
+  const code = typeof problem.code === 'string' ? problem.code : null;
+  recordFailure(path, response.status, code, requestId);
   if (response.status === 401) return { kind: 'auth_required' };
-  const problem = (json ?? {}) as { code?: unknown; retryable?: unknown };
   return {
     kind: 'failed',
     status: response.status,
-    code: typeof problem.code === 'string' ? problem.code : null,
+    code,
     retryable: problem.retryable === true || [408, 429, 502, 503, 504].includes(response.status),
+    ...(requestId ? { requestId } : {}),
   };
 }
 

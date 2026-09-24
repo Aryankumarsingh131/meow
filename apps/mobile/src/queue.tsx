@@ -4,6 +4,7 @@
  * Wording lives in sync.ts (QUEUE_TEXT etc.) so it is testable in Node.
  */
 
+import { lastReference } from './diagnostics';
 import React from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -28,6 +29,9 @@ export function QueueScreen({ items, pending, status, busy, onSyncNow, onBack }:
           {pending === 0 ? 'Nothing waiting to send' : `${pending} saved record${pending === 1 ? '' : 's'} waiting to send`}
         </Text>
         {status ? <Text style={s.meta} testID="sync-status">{status}</Text> : null}
+        {lastReference() ? (
+          <Text style={s.meta} testID="support-reference">Reference for support: {lastReference()}</Text>
+        ) : null}
         <Text style={s.meta}>{FOREGROUND_NOTE} {PHOTO_NOTE}</Text>
         <Pressable
           style={[s.btn, busy && s.btnBusy]}

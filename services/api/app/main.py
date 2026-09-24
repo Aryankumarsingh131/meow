@@ -128,6 +128,12 @@ if _origins:
         max_age=600,
     )
 
+# T33: added last, so it is the OUTERMOST layer: it sees every response
+# (including the 503 mapping above) and every crash, and logs each request once.
+from .telemetry import trace_requests  # noqa: E402
+
+app.middleware("http")(trace_requests)
+
 # Mounted everywhere; without `app.state.auth` every route answers 503.
 app.include_router(v1_router)
 

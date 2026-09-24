@@ -47,6 +47,8 @@ ERROR_CODES: dict[str, tuple[int, str, bool]] = {
     "EVIDENCE_NOT_AVAILABLE": (409, "Evidence not available", False),
     "RATE_LIMITED": (429, "Rate limited", True),
     "TEMPORARILY_UNAVAILABLE": (503, "Temporarily unavailable", True),
+    # T33: an unhandled server fault, answered with the request id to quote.
+    "INTERNAL_ERROR": (500, "Internal error", False),
 }
 
 
@@ -76,6 +78,11 @@ class ApiError(Exception):
 
 
 def request_id(request: Request) -> str:
+    # T33: the id the tracing middleware already assigned, so the problem body
+    # and the log line carry the same value.
+    assigned = getattr(request.state, "request_id", None)
+    if assigned:
+        return assigned
     existing = request.headers.get("x-request-id")
     return existing if existing and len(existing) <= 128 and existing.isascii() and existing.isprintable() else str(uuid.uuid4())
 
