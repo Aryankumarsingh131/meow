@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "id": "f96bdca3-5020-5313-b65a-072967c46292",
+  "version": 1,
+  "manufacturer": "SYNTHETIC - no manufacturer (JalSakshi demo boundary)",
+  "kit": "SYN-COLOR-001 synthetic reference card v1",
+  "parameter": "synthetic_colour_class",
+  "unit": null,
+  "method": "colorimetric_strip",
+  "read_window": {
+    "prepare_seconds": 10,
+    "read_at_seconds": 30,
+    "tolerance_seconds": 15,
+    "invalid_after_seconds": 120
+  },
+  "bins": [
+    {
+      "key": "bin_0",
+      "ordinal": 0,
+      "chart_value": "SYN-A",
+      "labels": { "en": "SYN-A (synthetic)" },
+      "review_trigger": false
+    },
+    {
+      "key": "bin_1",
+      "ordinal": 1,
+      "chart_value": "SYN-B",
+      "labels": { "en": "SYN-B (synthetic)" },
+      "review_trigger": false
+    },
+    {
+      "key": "bin_2",
+      "ordinal": 2,
+      "chart_value": "SYN-C",
+      "labels": { "en": "SYN-C (synthetic)" },
+      "review_trigger": false
+    },
+    {
+      "key": "bin_3",
+      "ordinal": 3,
+      "chart_value": "SYN-D",
+      "labels": { "en": "SYN-D (synthetic)" },
+      "review_trigger": true
+    }
+  ],
+  "quality_policy": {
+    "require_reference_card": true,
+    "min_roi_pixels": 40,
+    "max_blur_variance": 2637.4152,
+    "max_clipped_fraction": 0.659722,
+    "max_glare_fraction": 0.149306,
+    "allow_manual_without_capture": true,
+    "allow_direct_action": false,
+    "closure_requires": {
+      "verified_report": true,
+      "accepted_action": true,
+      "linked_retest": true,
+      "communication": true
+    },
+    "model": {
+      "enabled": false,
+      "min_confidence": null,
+      "abstain_outside_domain": true
+    }
+  },
+  "reference_card": {
+    "layout_id": "syn-color-001-card-v1",
+    "patch_count": 4,
+    "lot": "SYN-CARD-V1"
+  },
+  "validity": {
+    "from": "2026-09-24T00:00:00Z",
+    "until": null
+  },
+  "approved_by": {
+    "actor": "project owner",
+    "role": "synthetic_boundary_authorization_only",
+    "at": "2026-09-24T00:00:00Z",
+    "source_document": "docs/decisions/ADR-M1-001-synthetic-protocol-boundary.md"
+  }
+}

@@ -30,3 +30,9 @@ Thumbs.db
 **/.gradle/
 *.iml
 local.properties
+
+# Local runtime data and key material. The dev token issuer (M1, ADR-M1-002)
+# persists an RSA PRIVATE KEY under .data/ -- it must never be committed.
+.data/
+*.pem
+*.key

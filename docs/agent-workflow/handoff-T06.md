@@ -180,3 +180,49 @@ choice and the auth implementation:
 - Pins: `services/api/requirements.txt`
 - Evidence: the command block above, reproducible from commit
   `1c371043629f061c945cf4a38af68c84af8e6bff` plus these six files.
+
+---
+
+## M1 Definition-of-Done review — 2026-09-24
+
+**Acceptance: met.** `auth.py` and `auth.ts` were not changed. The suites
+`tests/auth_test.py` and `tests/auth_client.test.ts` still pass.
+
+**Gap found.** Nothing could mint a token that `authenticate()` accepts, and no
+production route calls it. M1 needs auth "enforced even while offline, not
+bypassed", so T06 on its own gives M1 nothing to enforce.
+
+**Resolution (project owner's choice): synthetic dev issuer,
+[ADR-M1-002](../decisions/ADR-M1-002-synthetic-dev-issuer.md).**
+`services/api/app/dev_issuer.py` provides:
+- real RS256 tokens and a JWKS;
+- an `.invalid` issuer;
+- no tenant or role claims;
+- mounting in development+synthetic only.
+
+It does not re-implement verification. Its tokens go through T06's real
+`authenticate()`.
+
+Evidence (reproducible):
+
+    python -m unittest tests.dev_issuer_test     # 26 OK
+    python -m unittest tests.auth_test tests.sources_postgres_test   # 56 OK
+    python -m pytest services/api -q             # 38 passed
+    node --experimental-strip-types --test tests/*.test.ts   # 8/8 files pass
+
+Mutation check: 6/6 caught. The mutants were:
+- gate forced on;
+- gate ignoring data mode;
+- private JWK published;
+- password check skipped;
+- revocation made a no-op;
+- `.data/` and `*.pem` removed from .gitignore.
+
+**Handed on, not fixed here:**
+- `apps/mobile/src/auth.ts` has a dead `refreshToken` field and no refresh
+  function. It belongs to T15/T45, which own reconnect and offline lease.
+- No API route calls `authenticate()` yet. T13 (ingestion) is the first
+  consumer and must use `app.state.dev_issuer.oidc_config()` and
+  `.memberships.lookup` in development.
+- Real provider, JWKS fetching and the independent auth review are all still
+  open. **Box not ticked.**

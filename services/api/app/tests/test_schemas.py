@@ -38,7 +38,7 @@ def make_valid_sample(**overrides) -> dict:
         protocol={"id": str(uuid4()), "version": 1},
         kit_lot_id=str(uuid4()),
         captured_at_device="2026-09-25T10:00:00Z",
-        timing={"elapsed_ms": 60000, "valid": True},
+        timing={"state": "in_window", "elapsed_ms": 30000, "valid": True},
         method="assisted",
         observation={
             "machine_bin": "bin_2",
@@ -84,6 +84,83 @@ class CanonicalSampleTests(unittest.TestCase):
         self.assertEqual(sample.observation.machine_bin, "bin_2")
         self.assertEqual(sample.observation.manual_bin, "bin_1")
         self.assertNotEqual(sample.observation.machine_bin, sample.observation.manual_bin)
+
+
+class TimingDiscriminatorTests(unittest.TestCase):
+    """The v1 `Timing` shape was changed from `{elapsed_ms, valid: bool}` to a
+    discriminated union (2026-09-24, M1 T05 review). These pin why.
+
+    The original shape could not record a rebooted test without inventing
+    `elapsed_ms=0`, and its `valid: bool` made late / expired / indeterminate
+    indistinguishable. Both contradict T08's device timer and AGENTS.md.
+    """
+
+    def _sample(self, timing: dict) -> CanonicalSampleV1:
+        return CanonicalSampleV1(**make_valid_sample(timing=timing))
+
+    def test_indeterminate_timing_needs_no_invented_number(self):
+        s = self._sample({"state": "indeterminate", "reason": "reboot"})
+        self.assertEqual(s.timing.state, "indeterminate")
+        self.assertEqual(s.timing.reason, "reboot")
+        self.assertFalse(s.timing.valid)
+        # The honest shape has NO elapsed time at all.
+        self.assertFalse(hasattr(s.timing, "elapsed_ms"))
+
+    def test_indeterminate_cannot_carry_an_elapsed_time(self):
+        # REJECTED, not silently dropped. Pydantic ignores unknown fields by
+        # default, which would let a client send a guessed number and have it
+        # vanish quietly; TimingIndeterminate forbids extras so the
+        # contradiction surfaces as an error.
+        with self.assertRaises(ValidationError):
+            self._sample({"state": "indeterminate", "reason": "reboot", "elapsed_ms": 0})
+
+    def test_indeterminate_can_never_be_valid(self):
+        with self.assertRaises(ValidationError):
+            self._sample({"state": "indeterminate", "reason": "reboot", "valid": True})
+
+    def test_every_indeterminate_reason_is_accepted(self):
+        for reason in ("reboot", "clock_rollback", "clock_disagreement",
+                       "monotonic_regression", "read_window_malformed"):
+            with self.subTest(reason=reason):
+                self.assertEqual(self._sample({"state": "indeterminate", "reason": reason}).timing.reason, reason)
+
+    def test_unknown_indeterminate_reason_rejected(self):
+        with self.assertRaises(ValidationError):
+            self._sample({"state": "indeterminate", "reason": "the_dog_ate_it"})
+
+    def test_late_expired_and_indeterminate_are_now_distinguishable(self):
+        late = self._sample({"state": "late", "elapsed_ms": 60000, "valid": False}).timing
+        expired = self._sample({"state": "expired", "elapsed_ms": 130000, "valid": False}).timing
+        indet = self._sample({"state": "indeterminate", "reason": "reboot"}).timing
+        self.assertEqual({late.state, expired.state, indet.state}, {"late", "expired", "indeterminate"})
+
+    def test_only_in_window_may_be_valid(self):
+        self.assertTrue(self._sample({"state": "in_window", "elapsed_ms": 30000, "valid": True}).timing.valid)
+        for state in ("preparing", "waiting", "late", "expired"):
+            with self.subTest(state=state):
+                self.assertFalse(
+                    self._sample({"state": state, "elapsed_ms": 1000, "valid": False}).timing.valid
+                )
+
+    def test_a_client_cannot_claim_an_expired_capture_is_valid(self):
+        # The lying-client case: the server must not believe `valid` blindly.
+        with self.assertRaises(ValidationError):
+            self._sample({"state": "expired", "elapsed_ms": 130000, "valid": True})
+
+    def test_a_client_cannot_claim_an_in_window_capture_is_invalid(self):
+        with self.assertRaises(ValidationError):
+            self._sample({"state": "in_window", "elapsed_ms": 30000, "valid": False})
+
+    def test_measured_timing_still_requires_a_non_negative_elapsed_time(self):
+        with self.assertRaises(ValidationError):
+            self._sample({"state": "late", "elapsed_ms": -1, "valid": False})
+        with self.assertRaises(ValidationError):
+            self._sample({"state": "late", "valid": False})
+
+    def test_the_old_shape_is_rejected(self):
+        # No discriminator -> rejected. The pre-review shape cannot be sent.
+        with self.assertRaises(ValidationError):
+            self._sample({"elapsed_ms": 60000, "valid": True})
 
 
 class SampleEventDiscriminatorTests(unittest.TestCase):

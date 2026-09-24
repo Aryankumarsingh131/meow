@@ -13,13 +13,11 @@ deliberately not created here - one owner per migration, per AGENTS.md. The
 source-history read in services/api/app/sources.py therefore depends on T13's
 table; see that module's docstring for the interface expectation.
 
-**PostgreSQL is the target and has never been run against.** No PostgreSQL
-server and no psycopg driver exist in this environment, so the DDL below is
-exercised against SQLite in tests/sources_test.py. The dialect differences are
-isolated to `_TYPES` rather than maintained as two separate scripts, and a
-test asserts both dialects produce the same columns and constraints. That is
-not the same as having run the migration on PostgreSQL - it has not been, and
-the handoff records that.
+**PostgreSQL is the target.** The DDL is applied to a real PostgreSQL 17 server
+by tests/sources_postgres_test.py and to SQLite by tests/sources_test.py. The
+dialect differences are isolated to `_TYPES` rather than maintained as two
+separate scripts. SQLite maps `uuid` to `text` and accepts any string, so the
+query layer validates caller-supplied ids itself (`sources._is_uuid`).
 
 No `DROP` and no hard delete: deactivation is `active = false`
 (api-contracts.md, `PATCH /v1/admin/sources/{id}`).

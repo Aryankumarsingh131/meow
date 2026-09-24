@@ -2,6 +2,16 @@
 
 Status: prototype-only, prepared before event confirmation on 22 September 2026.
 
+**Adopted 24 September 2026 as M1's explicit synthetic-only protocol boundary**
+(`docs/decisions/ADR-M1-001-synthetic-protocol-boundary.md`). Its canonical
+machine-readable form, conforming to `docs/architecture/protocol-schema.md`, is
+`protocols/SYN-COLOR-001.v1.json` at the repository root. That file adds a
+**SYNTHETIC read window** (prepare 10 s, read at 30 s ± 15 s, invalid after
+120 s) chosen solely to exercise T08's timer states — there is no chemical
+reaction on a printed colour card, so these values mean nothing about any kit
+and must never be copied into a real protocol. This adoption is **not** a
+domain review; "domain review of timing/units" remains an open G0 gate.
+
 This protocol exercises capture, offline persistence, sync and supervisor review. It is **not water analysis**, has no concentration, safety or potability meaning, and is not evidence that any field kit or model has been scientifically validated.
 
 ## Controlled inputs

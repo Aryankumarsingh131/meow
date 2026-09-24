@@ -38,6 +38,7 @@ an expectation to agree with T13's owner, not a schema this task defines.
 from __future__ import annotations
 
 import re
+import uuid
 from dataclasses import dataclass
 from typing import Any, Literal, Sequence
 
@@ -47,7 +48,7 @@ from ..migrations.source import MAX_LABEL_LENGTH, MAX_QR_CODE_LENGTH
 # Bounds for list/history paging. A caller asking for more gets the maximum,
 # not an error: a bounded result is always a correct answer to "give me some".
 DEFAULT_LIMIT = 50
-MAX_LIMIT = 200
+MAX_LIMIT = 100  # api-contracts.md: default 50, max 100
 MAX_SEARCH_LENGTH = 60
 
 # Columns `source_history` expects T13 to provide on `samples`.
@@ -64,6 +65,20 @@ SAMPLES_COLUMNS_EXPECTED = (
 # A JalSakshi QR payload is an opaque bounded token. It is deliberately NOT a
 # URL: see `parse_qr_payload`.
 _QR_TOKEN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
+
+
+def _is_uuid(value: str) -> bool:
+    """True if `value` can be bound to a PostgreSQL `uuid` column.
+
+    Ids reaching this module from a path or a cursor are caller-controlled.
+    PostgreSQL raises on `id = 'abc'` (and aborts the transaction); SQLite
+    accepts anything. Checking here makes both dialects answer the same way.
+    """
+    try:
+        uuid.UUID(value)
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
 
 
 @dataclass(frozen=True)
@@ -89,6 +104,18 @@ class Source:
 class SourcePage:
     items: tuple[Source, ...]
     next_cursor: str | None
+
+
+@dataclass(frozen=True)
+class InvalidCursor:
+    """The cursor is not one this server issued (api-contracts.md: 422).
+
+    Returned, not silently treated as "first page": a client that loops on
+    `next_cursor` would otherwise restart from page one forever.
+    """
+
+    code: Literal["VALIDATION_FAILED"] = "VALIDATION_FAILED"
+    detail: str = "Unrecognised paging cursor."
 
 
 @dataclass(frozen=True)
@@ -259,7 +286,7 @@ def list_sources(
     include_inactive: bool = False,
     cursor: str | None = None,
     limit: int | None = None,
-) -> SourcePage:
+) -> SourcePage | InvalidCursor:
     """Tenant-scoped, searchable, keyset-paginated source catalogue.
 
     `include_inactive` is available for completeness but the field catalogue
@@ -289,10 +316,11 @@ def list_sources(
 
     if cursor is not None:
         decoded = _decode_cursor(cursor)
-        if decoded is not None:
-            last_label, last_id = decoded
-            conditions.append("(label, id) > (?, ?)")
-            params.extend([last_label, last_id])
+        if decoded is None:
+            return InvalidCursor()
+        last_label, last_id = decoded
+        conditions.append("(label, id) > (?, ?)")
+        params.extend([last_label, last_id])
 
     # `page_size + 1` tells us whether a further page exists without a second
     # COUNT query over the whole catalogue.
@@ -322,10 +350,8 @@ def _encode_cursor(label: str, source_id: str) -> str:
 def _decode_cursor(cursor: str) -> tuple[str, str] | None:
     """Decode a paging cursor, or `None` if it is not one.
 
-    A bad cursor yields the first page rather than an error: cursors are
-    opaque to the client, so a malformed one is our bug or a stale link, and
-    neither should show the worker a failure. It is never trusted as SQL - the
-    decoded values are bound as parameters like everything else.
+    Callers turn `None` into `InvalidCursor` (422). The decoded values are
+    never trusted as SQL - they are bound as parameters like everything else.
     """
     import base64
     import json
@@ -339,7 +365,7 @@ def _decode_cursor(cursor: str) -> tuple[str, str] | None:
         return None
     if not all(isinstance(part, str) for part in value):
         return None
-    if len(value[0]) > MAX_LABEL_LENGTH or len(value[1]) > MAX_QR_CODE_LENGTH:
+    if len(value[0]) > MAX_LABEL_LENGTH or not _is_uuid(value[1]):
         return None
     return value[0], value[1]
 
@@ -352,7 +378,7 @@ def source_history(
     served_at: str,
     cursor: str | None = None,
     limit: int | None = None,
-) -> HistoryPage | Denied:
+) -> HistoryPage | Denied | InvalidCursor:
     """Accepted tests for one source, newest first.
 
     Returns `Denied("NOT_FOUND")` when the source is not in the session
@@ -362,6 +388,9 @@ def source_history(
     Reads `samples`, which is T13's table - see the module docstring.
     """
     page_size = _clamp_limit(limit)
+    # A malformed id cannot name any source: same answer as a missing one.
+    if not _is_uuid(source_id):
+        return Denied("NOT_FOUND", "Resource not found.")
     db = connection.cursor()
 
     # Re-check the parent object in this tenant before reading any child rows.
@@ -377,10 +406,11 @@ def source_history(
 
     if cursor is not None:
         decoded = _decode_cursor(cursor)
-        if decoded is not None:
-            last_received, last_id = decoded
-            conditions.append("(received_at_server, id) < (?, ?)")
-            params.extend([last_received, last_id])
+        if decoded is None:
+            return InvalidCursor()
+        last_received, last_id = decoded
+        conditions.append("(received_at_server, id) < (?, ?)")
+        params.extend([last_received, last_id])
 
     statement = (
         "SELECT id, received_at_server, status, method, indicative_flag FROM samples "
@@ -393,7 +423,7 @@ def source_history(
     has_more = len(rows) > page_size
     items = tuple(
         HistoryEntry(
-            sample_id=row[0],
+            sample_id=str(row[0]),  # psycopg returns uuid.UUID; see _row_to_source
             received_at_server=row[1],
             status=row[2],
             method=row[3],
