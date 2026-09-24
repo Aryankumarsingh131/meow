@@ -119,7 +119,8 @@ export interface components {
              * Format: date-time
              */
             captured_at_device: string;
-            timing: components["schemas"]["Timing"];
+            /** Timing */
+            timing: components["schemas"]["TimingMeasured"] | components["schemas"]["TimingIndeterminate"];
             method: components["schemas"]["Method"];
             observation: components["schemas"]["Observation"];
             /** Evidence Ids */
@@ -481,7 +482,8 @@ export interface components {
              * Format: date-time
              */
             captured_at_device: string;
-            timing: components["schemas"]["Timing"];
+            /** Timing */
+            timing: components["schemas"]["TimingMeasured"] | components["schemas"]["TimingIndeterminate"];
             method: components["schemas"]["Method"];
             observation: components["schemas"]["Observation"];
             /** Evidence Ids */
@@ -515,8 +517,48 @@ export interface components {
             schema_version: 1;
             payload: components["schemas"]["CanonicalSampleV1"];
         };
-        /** Timing */
-        Timing: {
+        /**
+         * TimingIndeterminate
+         * @description Elapsed time could NOT be established (reboot, clock change, ...).
+         *
+         *     Deliberately has NO `elapsed_ms`. The previous v1 shape required one, so
+         *     a rebooted test could only be recorded by inventing a number
+         *     (`elapsed_ms=0`) — fabricated precision, forbidden by AGENTS.md. Absence of
+         *     the field is the only honest representation of "unknown".
+         */
+        TimingIndeterminate: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            state: "indeterminate";
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "reboot" | "clock_rollback" | "clock_disagreement" | "monotonic_regression" | "read_window_malformed";
+            /**
+             * Valid
+             * @default false
+             * @constant
+             */
+            valid: false;
+        };
+        /**
+         * TimingMeasured
+         * @description Elapsed time was genuinely measured on a trustworthy clock.
+         *
+         *     `valid` is not free for the client to assert: it must equal
+         *     `state == "in_window"`, enforced below. protocol-schema.md makes the
+         *     in-window case the ONLY valid one, so a client cannot send
+         *     `state="expired", valid=true` and have the server believe it.
+         */
+        TimingMeasured: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            state: "expired" | "in_window" | "late" | "preparing" | "waiting";
             /** Elapsed Ms */
             elapsed_ms: number;
             /** Valid */

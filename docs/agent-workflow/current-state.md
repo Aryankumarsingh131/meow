@@ -46,7 +46,7 @@ done silently. A box is ticked in `to-do.md` only after real DoD evidence.
 
 | Task | Role | Depends on | Status | Evidence / blocker |
 |---|---|---|---|---|
-| T05 | C | T01 | built earlier — **DoD review pending** | handoff-T05.md |
+| T05 | C | T01 | **reviewed 2026-09-24 — CONTRACT CHANGED.** Frozen `Timing` could not carry indeterminate timing without inventing `elapsed_ms=0`, and `valid: bool` collapsed late/expired/indeterminate. Now discriminated on `state`; re-frozen deterministically (openapi.json `3ac6b2b8…`, client.ts `c92c158a…`). 26 schema + 12 contract checks; 7/7 mutants caught. **Wants independent review of the new shape** — not ticked. | handoff-T05.md |
 | T06 | C | T03 T05 | built earlier — **DoD review pending** | handoff-T06.md |
 | T07 | A | T03 T05 | built earlier — **DoD review pending** | handoff-T07.md |
 | T08 | A | T01 T07 | mechanism built — wire to SYN-COLOR-001 | handoff-T08.md |

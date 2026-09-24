@@ -24,7 +24,7 @@ from enum import Enum
 from typing import Annotated, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # --- shared enums (api-contracts.md / data-model.md) -----------------------
 
@@ -58,9 +58,71 @@ class ProtocolRef(BaseModel):
     version: int = Field(ge=1)
 
 
-class Timing(BaseModel):
+#: Read-window states the device timer (apps/mobile/src/timer.ts, T08) can
+#: MEASURE. Mirrors T08's TimingState minus "indeterminate", which has its
+#: own model below because it has no elapsed time at all.
+MeasuredTimingState = Literal["preparing", "waiting", "in_window", "late", "expired"]
+
+#: Why elapsed time could not be established. Mirrors T08's
+#: ElapsedIndeterminateReason, plus `read_window_malformed` for a protocol
+#: whose window is unusable (T08 returns indeterminate with no reason there).
+IndeterminateReason = Literal[
+    "reboot",
+    "clock_rollback",
+    "clock_disagreement",
+    "monotonic_regression",
+    "read_window_malformed",
+]
+
+
+class TimingMeasured(BaseModel):
+    """Elapsed time was genuinely measured on a trustworthy clock.
+
+    `valid` is not free for the client to assert: it must equal
+    `state == "in_window"`, enforced below. protocol-schema.md makes the
+    in-window case the ONLY valid one, so a client cannot send
+    `state="expired", valid=true` and have the server believe it.
+    """
+
+    state: MeasuredTimingState
     elapsed_ms: int = Field(ge=0)
     valid: bool
+
+    @model_validator(mode="after")
+    def _valid_matches_state(self) -> "TimingMeasured":
+        if self.valid != (self.state == "in_window"):
+            raise ValueError(
+                f"timing.valid={self.valid} contradicts state={self.state!r}; "
+                "only 'in_window' is valid"
+            )
+        return self
+
+
+class TimingIndeterminate(BaseModel):
+    """Elapsed time could NOT be established (reboot, clock change, ...).
+
+    Deliberately has NO `elapsed_ms`. The previous v1 shape required one, so
+    a rebooted test could only be recorded by inventing a number
+    (`elapsed_ms=0`) — fabricated precision, forbidden by AGENTS.md. Absence of
+    the field is the only honest representation of "unknown".
+    """
+
+    # extra="forbid": pydantic otherwise IGNORES unknown fields, so a client
+    # sending {"state": "indeterminate", "elapsed_ms": 0} would have the
+    # guessed number silently dropped rather than refused. Contradictory input
+    # at a trust boundary is rejected, not quietly cleaned.
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["indeterminate"]
+    reason: IndeterminateReason
+    valid: Literal[False] = False
+
+
+#: Discriminated on `state`. Replaces the original `{elapsed_ms, valid: bool}`,
+#: which could not carry indeterminate timing and whose `valid: bool`
+#: collapsed late / expired / indeterminate into one indistinguishable value.
+#: Contract change recorded in docs/agent-workflow/handoff-T05.md.
+Timing = Annotated[Union[TimingMeasured, TimingIndeterminate], Field(discriminator="state")]
 
 
 class Observation(BaseModel):

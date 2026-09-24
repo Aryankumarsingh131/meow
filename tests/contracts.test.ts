@@ -62,10 +62,14 @@ const validSample = {
   schema_version: 1,
   sample_id: "11111111-1111-4111-8111-111111111111",
   source_id: "22222222-2222-4222-8222-222222222222",
-  protocol: { id: "33333333-3333-4333-8333-333333333333", version: 1 },
-  kit_lot_id: "44444444-4444-4444-8444-444444444444",
+  // SYN-COLOR-001 v1 (protocols/SYN-COLOR-001.v1.json) — the canonical M1
+  // synthetic protocol adopted by ADR-M1-001, not a placeholder id.
+  protocol: { id: "f96bdca3-5020-5313-b65a-072967c46292", version: 1 },
+  kit_lot_id: "d839e38e-3e34-529a-820f-996d5e64e099",
   captured_at_device: "2026-09-25T10:00:00Z",
-  timing: { elapsed_ms: 60000, valid: true },
+  // Discriminated timing (T05 review, 2026-09-24). 30 s is in_window for
+  // SYN-COLOR-001's synthetic read window (30 s +/- 15 s).
+  timing: { state: "in_window", elapsed_ms: 30000, valid: true },
   method: "assisted",
   observation: {
     machine_bin: "bin_2",
@@ -187,6 +191,40 @@ check(
   "push batch over 50 events is REJECTED (api-contracts.md batch bound)",
   schemaFor("PushRequest")(oversizeBatch) === false,
 );
+
+// --- (c) discriminated timing (T05 review, 2026-09-24) ---------------------
+//
+// The original v1 Timing was `{elapsed_ms: int>=0, valid: bool}`. It could not
+// record a rebooted test without inventing `elapsed_ms=0`, and `valid: bool`
+// made late / expired / indeterminate indistinguishable.
+
+const withTiming = (timing: unknown) => ({
+  ...validPushRequest,
+  events: [{ ...validPushRequest.events[0], payload: { ...validSample, timing } }],
+});
+
+check(
+  "indeterminate timing (reboot) is ACCEPTED with no invented elapsed time",
+  schemaFor("PushRequest")(withTiming({ state: "indeterminate", reason: "reboot" })) === true,
+  ajv.errors,
+);
+check(
+  "indeterminate timing carrying a guessed elapsed_ms is REJECTED",
+  schemaFor("PushRequest")(withTiming({ state: "indeterminate", reason: "reboot", elapsed_ms: 0 })) === false,
+);
+check(
+  "the pre-review timing shape (no discriminator) is REJECTED",
+  schemaFor("PushRequest")(withTiming({ elapsed_ms: 60000, valid: true })) === false,
+);
+check(
+  "an unknown indeterminate reason is REJECTED",
+  schemaFor("PushRequest")(withTiming({ state: "indeterminate", reason: "the_dog_ate_it" })) === false,
+);
+// NOT attempted here, deliberately: "state=expired, valid=true" is a
+// cross-field rule (valid must equal state=='in_window'). JSON Schema cannot
+// express it, so ajv would accept it; the server's pydantic model_validator
+// rejects it. Covered by services/api/app/tests/test_schemas.py
+// TimingDiscriminatorTests. Same situation as the close-command rule above.
 
 console.log(`\n${failures === 0 ? "ALL CHECKS PASSED" : `${failures} CHECK(S) FAILED`}`);
 process.exit(failures === 0 ? 0 : 1);

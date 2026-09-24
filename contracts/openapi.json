@@ -279,7 +279,26 @@
             "title": "Captured At Device"
           },
           "timing": {
-            "$ref": "#/components/schemas/Timing"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TimingMeasured"
+              },
+              {
+                "$ref": "#/components/schemas/TimingIndeterminate"
+              }
+            ],
+            "title": "Timing",
+            "discriminator": {
+              "propertyName": "state",
+              "mapping": {
+                "expired": "#/components/schemas/TimingMeasured",
+                "in_window": "#/components/schemas/TimingMeasured",
+                "indeterminate": "#/components/schemas/TimingIndeterminate",
+                "late": "#/components/schemas/TimingMeasured",
+                "preparing": "#/components/schemas/TimingMeasured",
+                "waiting": "#/components/schemas/TimingMeasured"
+              }
+            }
           },
           "method": {
             "$ref": "#/components/schemas/Method"
@@ -1106,7 +1125,26 @@
             "title": "Captured At Device"
           },
           "timing": {
-            "$ref": "#/components/schemas/Timing"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TimingMeasured"
+              },
+              {
+                "$ref": "#/components/schemas/TimingIndeterminate"
+              }
+            ],
+            "title": "Timing",
+            "discriminator": {
+              "propertyName": "state",
+              "mapping": {
+                "expired": "#/components/schemas/TimingMeasured",
+                "in_window": "#/components/schemas/TimingMeasured",
+                "indeterminate": "#/components/schemas/TimingIndeterminate",
+                "late": "#/components/schemas/TimingMeasured",
+                "preparing": "#/components/schemas/TimingMeasured",
+                "waiting": "#/components/schemas/TimingMeasured"
+              }
+            }
           },
           "method": {
             "$ref": "#/components/schemas/Method"
@@ -1184,8 +1222,53 @@
         ],
         "title": "SampleCreateEvent"
       },
-      "Timing": {
+      "TimingIndeterminate": {
         "properties": {
+          "state": {
+            "type": "string",
+            "const": "indeterminate",
+            "title": "State"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "reboot",
+              "clock_rollback",
+              "clock_disagreement",
+              "monotonic_regression",
+              "read_window_malformed"
+            ],
+            "title": "Reason"
+          },
+          "valid": {
+            "type": "boolean",
+            "const": false,
+            "title": "Valid",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "state",
+          "reason"
+        ],
+        "title": "TimingIndeterminate",
+        "description": "Elapsed time could NOT be established (reboot, clock change, ...).\n\nDeliberately has NO `elapsed_ms`. The previous v1 shape required one, so\na rebooted test could only be recorded by inventing a number\n(`elapsed_ms=0`) \u2014 fabricated precision, forbidden by AGENTS.md. Absence of\nthe field is the only honest representation of \"unknown\"."
+      },
+      "TimingMeasured": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "preparing",
+              "waiting",
+              "in_window",
+              "late",
+              "expired"
+            ],
+            "title": "State"
+          },
           "elapsed_ms": {
             "type": "integer",
             "minimum": 0.0,
@@ -1198,10 +1281,12 @@
         },
         "type": "object",
         "required": [
+          "state",
           "elapsed_ms",
           "valid"
         ],
-        "title": "Timing"
+        "title": "TimingMeasured",
+        "description": "Elapsed time was genuinely measured on a trustworthy clock.\n\n`valid` is not free for the client to assert: it must equal\n`state == \"in_window\"`, enforced below. protocol-schema.md makes the\nin-window case the ONLY valid one, so a client cannot send\n`state=\"expired\", valid=true` and have the server believe it."
       }
     }
   }
