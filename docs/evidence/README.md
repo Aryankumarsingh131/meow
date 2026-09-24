@@ -1,6 +1,6 @@
 # Visual evidence — JalSakshi mobile screens
 
-Captured 2026-09-22. Two independent surfaces:
+Initial captures recorded 2026-09-22; T11 captures added 2026-09-24. Two independent surfaces:
 
 1. **Android emulator** (`emulator-*.png`) — the real native build running on a
    real Android 15 emulator. This is what T03/T07/T08 were previously blocked
@@ -68,6 +68,8 @@ state transitions are real elapsed-time behaviour, not staged renders.
 | `t08-timer-in-window.png` | Inside the read window |
 | `t08-timer-expired.png` | Past `invalid_after` |
 | `t08-protocol-blocked-expired.png` | Expired + unverified lot blocked |
+| `t11-review-suggestion.png` | T11 S05 research-only suggestion, screening boundary and confirm/manual actions |
+| `t11-review-manual-override.png` | T11 S05 accessible bin selection and required human-override reason |
 
 ## Two real defects these captures found
 

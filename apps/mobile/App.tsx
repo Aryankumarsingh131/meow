@@ -7,6 +7,8 @@ import { SourcesScreen } from './src/sources';
 import type { CachedSource, HistoryRow } from './src/sourceCatalog';
 import { ProtocolScreen } from './src/protocol';
 import { CaptureScreen } from './src/capture';
+import { ReviewScreen } from './src/review';
+import { analyseBaseline, type BaselineProfile } from './src/analysis/baseline';
 import { runNativeGolden } from './src/nativeGolden';
 import type { ClockReading, KitLot, Protocol } from './src/timer';
 
@@ -98,6 +100,26 @@ const DEMO_INSTRUCTIONS = [
   'Start the timer and place the tube upright out of direct sunlight.',
 ];
 
+const DEMO_BASELINE: BaselineProfile = {
+  id: 'fixture-profile',
+  version: 1,
+  protocolId: DEMO_PROTOCOL.id,
+  protocolVersion: DEMO_PROTOCOL.version,
+  status: 'research',
+  bins: [
+    { key: 'bin_a', label: 'Fixture bin A', ordinal: 0, referenceRgb: [45, 45, 45], reviewTrigger: false },
+    { key: 'bin_b', label: 'Fixture bin B', ordinal: 1, referenceRgb: [120, 40, 201], reviewTrigger: true },
+    { key: 'bin_c', label: 'Fixture bin C', ordinal: 2, referenceRgb: [210, 210, 210], reviewTrigger: true },
+  ],
+};
+
+const DEMO_REVIEW = analyseBaseline({
+  features: { schema_version: 1, median_r: 120, median_g: 40, median_b: 201 },
+  quality: { decision: 'accept', reasons: [] },
+  timingValid: true,
+  profile: DEMO_BASELINE,
+});
+
 /** Real clock readings. `performance.now()` is monotonic — it does not jump
  *  when the wall clock changes, which is the property timer.ts relies on. */
 function readClock(): ClockReading {
@@ -107,7 +129,7 @@ function readClock(): ClockReading {
 let attemptCounter = 0;
 const newAttemptId = () => `attempt-${(attemptCounter += 1)}`;
 
-type Tab = 'demo' | 'sources' | 'protocol' | 'protocol-blocked' | 'protocol-fast' | 'capture';
+type Tab = 'demo' | 'sources' | 'protocol' | 'protocol-blocked' | 'protocol-fast' | 'capture' | 'review';
 
 const TABS: ReadonlyArray<readonly [Tab, string]> = [
   ['demo', 'Demo workflow'],
@@ -116,6 +138,7 @@ const TABS: ReadonlyArray<readonly [Tab, string]> = [
   ['protocol-blocked', 'T08 Expired'],
   ['protocol-fast', 'T08 Timer'],
   ['capture', 'T09 Capture'],
+  ['review', 'T11 Review'],
 ];
 
 export default function App() {
@@ -168,6 +191,15 @@ export default function App() {
             newJobId={newAttemptId}
             onManualEntry={(reason) => console.log('manual entry', reason)}
             onAnalysed={(_f, corners) => console.log('analysed', corners.length, 'corners')}
+          />
+        )}
+
+        {tab === 'review' && (
+          <ReviewScreen
+            analysis={DEMO_REVIEW}
+            bins={DEMO_BASELINE.bins}
+            onComplete={(observation) => console.log('reviewed', observation.method, observation.selectedBin)}
+            onRetake={() => setTab('capture')}
           />
         )}
 

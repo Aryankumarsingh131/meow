@@ -186,6 +186,12 @@ rendering correctly with fictional fixtures says nothing about any real kit.
   completed 23 September 2026 IST on `feature/t10-quality-native`. The Python
   fixture runner and compiled Kotlin mirror agree on decisions/reason codes;
   thresholds remain explicitly provisional. See [handoff-T10.md](handoff-T10.md).
+- T11 (Indicative review and manual fallback) — owner/reviewer: Codex (role A),
+  completed 24 September 2026 IST on `feature/t11-review`. The deterministic
+  baseline, accessible review screen and camera-denied/uncertain/human-
+  disagreement paths are tested and rendered. Only an explicitly supplied,
+  valid versioned profile may produce a suggestion; the repository still has
+  no real approved kit profile. See [handoff-T11.md](handoff-T11.md).
 
 **Android toolchain and visual evidence (2026-09-22, explicitly authorized by
 the user).** JDK 17, the Android SDK (platform 35, build-tools 35.0.0,
