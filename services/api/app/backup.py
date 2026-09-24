@@ -62,16 +62,18 @@ def _plain(value: Any) -> Any:
     return value
 
 
-_TIMESTAMP = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)$")
+# Includes SQLite's CURRENT_TIMESTAMP form, '2026-09-25 10:00:00' (UTC, no zone).
+_TIMESTAMP = re.compile(r"^\d{4}-\d\d-\d\d[T ]\d\d:\d\d:\d\d(\.\d+)?(Z|[+-]\d\d:\d\d)?$")
 
 
 def _canon_value(v: Any) -> Any:
     """SQLite keeps booleans as 0/1 and timestamps as whatever text was written
-    ('+00:00' or 'Z'); PostgreSQL returns bool and datetime. Hash both alike."""
+    ('+00:00', 'Z' or none); PostgreSQL returns bool and datetime. Hash both alike."""
     if isinstance(v, bool):
         return int(v)
     if isinstance(v, str) and _TIMESTAMP.match(v):
-        return _plain(datetime.fromisoformat(v))
+        t = datetime.fromisoformat(v)
+        return _plain(t if t.tzinfo else t.replace(tzinfo=timezone.utc))
     return v
 
 
