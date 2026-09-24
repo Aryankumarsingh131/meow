@@ -6,7 +6,7 @@ import type { ExpoConfig } from "expo/config";
 const config: ExpoConfig = {
   name: "mobile",
   slug: "mobile",
-  version: "2.1.0",
+  version: "2.2.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
@@ -15,7 +15,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: "org.jalsakshi.mobile",
-    versionCode: 3,
+    versionCode: 4,
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/android-icon-foreground.png",
