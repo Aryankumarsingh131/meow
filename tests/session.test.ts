@@ -11,6 +11,7 @@ import {
   SIGN_IN_ERROR,
   checkSignInInput,
   continueAsPublic,
+  hostedSession,
   signInFailureFor,
   staffSession,
   surfaceFor,
@@ -75,9 +76,20 @@ test('a session always names its issuer as synthetic', () => {
   assert.equal(staffSession('worker', AUTH).issuer, 'synthetic_dev_issuer');
 });
 
-test('there is no resident account', () => {
-  // authorization-matrix.md: a resident is not a user and has no login.
+test('the synthetic issuer has no resident user', () => {
+  // Residents sign in only through the hosted path (Supabase Auth, 006).
   assert.ok(!(DEMO_USERNAMES as readonly string[]).includes('resident'));
+});
+
+test('a hosted sign-in routes by the role the server returned', () => {
+  const resident = hostedSession(' A@Example.org ', 'resident', 't');
+  assert.deepEqual(resident, { kind: 'resident', email: 'a@example.org', token: 't' });
+  assert.equal(surfaceFor(resident), 'resident');
+  const worker = hostedSession('w@example.org', 'field_worker', 't');
+  assert.equal(surfaceFor(worker), 'staff');
+  assert.equal(worker?.kind === 'staff_v2' && worker.role, 'field_worker');
+  assert.equal(surfaceFor(hostedSession('s@example.org', 'supervisor', 't')), 'staff');
+  assert.equal(hostedSession('x@example.org', 'admin', 't'), null);   // unknown role: no surface
 });
 
 test('the session module no longer checks passwords locally', async () => {
@@ -86,7 +98,7 @@ test('the session module no longer checks passwords locally', async () => {
   assert.ok(!/password\s*===|===\s*password|DEMO_ACCOUNTS/.test(src), 'local password check is back');
 });
 
-test('the root routes only to the two product surfaces', async () => {
+test('the root routes only to the product surfaces', async () => {
   const src = await (await import('node:fs/promises')).readFile(
     new URL('../apps/mobile/App.tsx', import.meta.url),
     'utf8',
@@ -96,6 +108,8 @@ test('the root routes only to the two product surfaces', async () => {
     assert.ok(!new RegExp(`<${gone}`).test(src), `root still renders ${gone}`);
   }
   assert.ok(/<WorkerApp/.test(src), 'root does not render the field app');
+  assert.ok(/<StaffApp/.test(src), 'root does not render the staff app');
+  assert.ok(/<ResidentApp/.test(src), 'root does not render the resident app');
   assert.ok(/<PublicApp/.test(src), 'root does not render the public portal');
   assert.ok(/<LoginScreen/.test(src), 'root has no login gate');
 });

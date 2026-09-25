@@ -1,0 +1,58 @@
+# EAS Build upload filter. When this file exists EAS IGNORES .gitignore,
+# so the secret/key rules below are repeated from it on purpose.
+# The mobile build needs: apps/mobile, modules/ (capture-native, incl. its
+# android/ folder), protocols/, and the root package*.json / tsconfig.json.
+
+# ---- Secrets and key material (never upload) ----
+.env
+.env.*
+!.env.example
+.data/
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+
+# ---- Dependencies and generated output (EAS installs / prebuilds itself) ----
+node_modules/
+.expo/
+.metro-health-check*
+*.tsbuildinfo
+expo-env.d.ts
+/apps/mobile/android/
+/apps/mobile/ios/
+**/android/build/
+**/.gradle/
+.kotlin/
+*.iml
+local.properties
+
+# ---- Python caches ----
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# ---- Not used by the mobile app ----
+/dist/
+/output/
+/docs/
+/ml/
+/services/
+/tests/
+/tools/
+/infra/
+/contracts/
+/jalsakshi-blueprint/
+/render.yaml
+/.github/
+/.vscode/
+*.db
+*.sqlite3
+
+# ---- OS / editor ----
+.DS_Store
+Thumbs.db

@@ -58,6 +58,34 @@ MATRIX = {
     ("GET", "/v1/reports/export/{job_id}"): "A's export job is 404 to B",
     ("POST", "/v1/reports/export/{job_id}/cancel"): "B cannot cancel A's job",
     ("GET", "/v1/reports/export/{job_id}/content"): "A's export file is 404 to B",
+    ("POST", "/v1/auth/login"): "a token names only the profile whose email and password were verified",
+    # Residents (no tenant: account isolation, enforced by RLS in 006). Checked in
+    # tests/public_v2_http_test.py and tests/public_v2_postgres_test.py.
+    ("POST", "/v1/public/accounts"): "one account per email; a second registration is 409, never a takeover",
+    ("GET", "/v1/public/me"): "RLS: resident B's token reads B's residents row only",
+    ("POST", "/v1/public/complaints"): "the complaint is filed as the token's own resident only",
+    ("GET", "/v1/public/complaints"): "RLS: B's list excludes A's complaints and every staff-only column",
+    ("GET", "/v1/public/map"): "public by design: fuzzed locations, no screening results",
+    # Staff v2 (team isolation; another team's object is 404). Checked in tests/staff_v2_http_test.py.
+    ("GET", "/v1/staff/me"): "reports only the caller's own staff profile and points",
+    ("GET", "/v1/staff/kits"): "shared kit configuration; no team or person data",
+    ("POST", "/v1/staff/sources"): "a source is created in the caller's own team only",
+    ("GET", "/v1/staff/sources"): "B's sources exclude A's",
+    ("POST", "/v1/staff/sources/{source_id}/lab-verified"): "A's source is 404 to B's supervisor",
+    ("POST", "/v1/staff/test-records"): "B cannot record a test on A's source (404)",
+    ("GET", "/v1/staff/reports"): "B's reports exclude A's",
+    ("GET", "/v1/staff/reports/{report_id}"): "A's report is 404 to B",
+    ("POST", "/v1/staff/reports/{report_id}/transition"): "A's report is 404 to B's supervisor",
+    ("POST", "/v1/staff/reports/{report_id}/close"): "A's report is 404 to B's supervisor",
+    ("POST", "/v1/staff/reports/{report_id}/lab-referrals"): "A's report is 404 to B's supervisor",
+    ("POST", "/v1/staff/reports/{report_id}/photos"): "B cannot attach a photo to A's report (404)",
+    ("POST", "/v1/staff/lab-referrals/{referral_id}/result"): "B cannot record a result on A's referral (404)",
+    ("POST", "/v1/staff/lab-referrals/{referral_id}/verify"): "A's referral is 404 to B's supervisor",
+    ("GET", "/v1/staff/blobs/{blob_id}"): "A's photos and lab files are 404 to B",
+    ("GET", "/v1/staff/complaints"): "B's supervisor sees B's sources' complaints and unsourced ones only",
+    ("POST", "/v1/staff/complaints/{complaint_id}/review"): "A's complaint is 404 to B's supervisor",
+    ("GET", "/v1/staff/notifications"): "only the caller's own notifications",
+    ("POST", "/v1/staff/notifications/{notification_id}/ack"): "another user's notification is 404",
 }
 
 

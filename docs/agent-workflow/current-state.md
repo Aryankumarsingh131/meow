@@ -105,6 +105,155 @@ Entry check 2026-09-24: immutable ingestion met in code (T13/T14 unreviewed), co
 | T19 | C | T16 T17 | `[~]` built 2026-09-24: lab report recording (mismatch detection, idempotent, correction/supersession) and verification (role-separated, self-review blocked at the DB layer too); `g_verified`/`g_lab_adverse`/`g_lab_within_limit` case-policy guards now read real evidence. 21/21. **Outstanding:** concurrency/closure review (shares T17's guards); PostgreSQL race tests not re-run here (no `TEST_DATABASE_URL`); UI is out of scope per T18's separate-app decision; T46. | handoff-T19.md |
 | T20 | A/C | T18 | `[~]` claimed 2026-09-24 by this agent for API/actions, migration, contracts and tests. Action record and operator-note acceptance built; 7/7 focused tests, full Python suite 275 passed, 11 skipped. **Outstanding:** separate board UI, PostgreSQL race, independent review. | handoff-T20.md |
 
+### Public v2 layer — residents, complaints, points (2026-09-25, owner instruction; P1–P8)
+
+**Owner decisions (2026-09-25):** (1) keep the FastAPI backend and the
+`jalsakshi` schema as the system; add the v2 resident features as FastAPI
+routes over the v2 tables in `public` — *not* Supabase Edge Functions/PostgREST;
+(2) the v2 spec is the schema + seed pasted in chat plus the "loop engineering"
+prompt — the 11 documents it names (`schema.sql`, `backend-requirements.md`,
+`*-spec.md`, `*-db.md`, `credentials.md`, `erd.md`) **do not exist in the repo**;
+(3) the v1 `public` tables that were replaced (below) stay dropped.
+
+**What happened to the database the same day, in order:** the old `public`
+tables (`cases`, `screening_records`, `ivr_complaints`, `retests`, …, plus RPCs
+`close_case`, `verify_lab_report`, `link_ivr_complaint_to_case`) were dropped at
+the owner's request and replaced by the v2 schema + seed. Row backup (no DDL):
+`C:\Users\Aryan Kumar Singh\jalsakshi_db_backup_2026-09-25.json`. Nothing in
+this repo referenced those tables; they most likely belonged to the external
+supervisor board (T18). **Correction:** the agent first told the owner the
+FastAPI backend would break — wrong. The API lives in schema `jalsakshi`
+(15 tables), untouched.
+
+Files: `services/api/sql/public_v2/{001_schema,002_hardening,003_demo_reconcile}.sql`,
+`seed_v2_demo.sql`, `tools/apply_public_v2.py`, `services/api/app/public_v2.py`
+(+ `errors.py` codes, `config.py` `public_session_secret`, `main.py` mount),
+`tests/public_v2_{postgres,http,rebuild}_test.py`, 10 rows in
+`tests/security/tenant_test.py`'s route matrix.
+
+| Task | Status | Evidence (all against the live Supabase DB, PostgreSQL 17.6, 2026-09-25) |
+|---|---|---|
+| P1 schema in repo, rebuildable | `[x]` | `PUBLIC_V2_REBUILD_TEST=1 python -m unittest tests.public_v2_rebuild_test`: drop all v2 objects → 001 → 002 → seed in one rolled-back transaction → exact demo state (counts, ledger by reason, balances, stock, refs). 1/1 OK. |
+| P2 Data API lockdown | `[~]` | **Found live:** anon/authenticated held 168 grants on `public`; views ran as owner (BYPASSRLS), so the publishable key could read `leaderboard_public` (names, profile ids) and `public_map_view`. 002 revokes all, RLS on every table (deny-by-default, no policies), views `security_invoker`, all functions pin `search_path`. Test sets the real `anon` role: 9/9 reads/calls → `InsufficientPrivilege`. **Open (B1):** PostGIS's `spatial_ref_sys`/`geometry_columns`/`geography_columns` are owned by `supabase_admin`; `postgres` cannot revoke, and anon can write `spatial_ref_sys` via the Data API. |
+| P3 public login | `[~]` | `/v1/public/{accounts,session,password,me}`; HMAC token `pub1.*`, 12 h; one account per *number* (E.164 check + canonicalisation; `+91 …`/`+91-…` spellings were two accounts); lockout 5 → `423 ACCOUNT_LOCKED`; default `1234` forces change (`403 PASSWORD_CHANGE_REQUIRED` on complaint/redeem); forged/other-key/expired/deactivated tokens → 401. **Open (B2):** phone ownership not verified — no SMS provider. Hosted needs `JALSAKSHI_PUBLIC_SESSION_SECRET` (≥32 chars) or sign-in answers 503. |
+| P4 complaints | `[~]` | Submit (typed, ≤1000-char description, source must exist), 40-bit `JS-XXXXXXXXXX` reference (DB default), status lookup via `check_complaint_status` (status/type/date only). Rate limits in `complaint_rate_limits`, **proved by repeated requests**: 4th anonymous complaint → `429`. `illness` → in-app `queued` notification per team supervisor + audit row (test: exactly 1 row for East Plains). **Open:** photo attachment (B5); delivery beyond the queue (B3). |
+| P5 points triggers | `[x]` | Insert → +10; escalate → +100; de-/re-escalate → nothing; close → +50; reopen+close → nothing (unique partial index + `ON CONFLICT DO NOTHING`); anonymous → 0; balance `>= 0` check; balance == ledger for all 33 profiles. **Root-caused:** trigger functions used the caller's search_path, so every API insert failed (`jalsakshi` has no `points_ledger`) — reproduced first, then pinned. |
+| P6 `redeem_reward` | `[x]` | Atomic function: locks reward then profile; refusals `insufficient_points`, `reward_out_of_stock`, `reward_unavailable` (inactive / sponsor ended), `reward_not_found`, `account_not_found` (staff); nothing debited on refusal. **Two-connection races** (committed, cleaned up): same account double-spend → second waits, then `insufficient_points`; last unit → exactly one winner. HTTP: 409 codes mapped. |
+| P7 retention | `[x]` | Purge aborted the WHOLE run on the FK from `reports.test_record_id` — fixed (skips referenced test_records; reports/lab_referrals/complaints never touched, no policy rows). **Executed by pg_cron**: temporary every-minute job → `succeeded`, 4 `purge_run` audit rows, job removed. Nightly 02:00 UTC job not yet observed firing. |
+| P8 map + leaderboard | `[x]` | `/v1/public/map`: fuzzed to 0.005° unless `lab_verified_safe`, "Not yet tested" default, disclaimer. `refresh-public-map` **observed succeeding under pg_cron** (09:15 UTC). `/v1/public/leaderboard`: display names only, disclaimer. `leaderboard_location` fan-out fixed (sum now == ledger, 1250). |
+
+Demo data: `003_demo_reconcile.sql` brought the live seed to its own stated
+intent (3 reports were inserted already `closed`, so 3 residents never got +50;
+3 redemptions were raw inserts with no debit). Now: 5 × +50, 3 × −100, stock 47.
+
+Tests: `python -m unittest tests.public_v2_postgres_test` 22/22,
+`tests.public_v2_http_test` 12/12, rebuild 1/1 (opt-in). Full regression
+2026-09-25: `python -m unittest discover -s tests -p "*_test.py"` → 365 OK,
+13 skipped (12 need `TEST_DATABASE_URL`, 1 opt-in rebuild); baseline before
+this work was 330 OK / 12 skipped. The first post-change run caught a real
+regression — T31's route matrix rejected the 10 new routes — fixed with matrix
+rows plus an explicit cross-account test. `node tests/*.test.ts` 19/19.
+Uncommitted at time of writing.
+
+**Prompt requirements mapped to existing work, not rebuilt (decision 1):**
+`close_case` = case command `close` + `g_close` (T22); `verify_lab_report` =
+`POST /v1/lab-reports/{id}/verify` (T19); `link_retest_sample` = `g_retest`
+(T21); "reports.version" concurrency = `CASE_VERSION_CONFLICT` (T17). Their
+status is unchanged (`[~]`, independent reviews owed).
+
+**Blockers (external or owner decision; not worked around):**
+- **B1** Supabase Data API exposes `public`. Owner action: Dashboard → API → Exposed schemas → remove `public` (the API never uses the Data API).
+- **B2** SMS/OTP provider — phone verification, resident SMS.
+- **B3** Push provider — delivering queued in-app/push notifications.
+- **B4** Telephony/IVR provider — IVR complaints.
+- ~~B5 photo storage~~ — **resolved 2026-09-25** (below): private `photo_blobs` table, decode-validated, PDFs quarantined.
+- ~~B6 case model~~ — **resolved 2026-09-25 by the owner's `erd.md`**: `REPORTS ||--o{ COMPLAINTS (linked_report_id)` and the +50 "resolve event" on reports make `public.reports` the case for the v2/resident world. `jalsakshi.cases` still serves the mobile sync slice (T13–T22); the two are not bridged.
+- Database password marked compromised in `.env` — owner must rotate.
+
+#### ERD pass (2026-09-25, owner: "scan erd.md and make all the necessary changes that are not there")
+
+The ERD's tables all existed; its *behaviour* did not. Added
+`services/api/sql/public_v2/004_erd_workflows.sql` (applied to live, idempotent,
+with backfills), `services/api/app/staff_v2.py` (`/v1/staff/*`, 20 routes; staff
+token `sub` = `profiles.auth_user_id`), resident photo + self-test on
+`POST /v1/public/complaints`, and `tests/public_v2_workflow_test.py`,
+`tests/staff_v2_http_test.py`.
+
+| ERD item | Now enforced | Evidence |
+|---|---|---|
+| Flow 1/2 `TEST_RECORDS \|\|--\|\| REPORTS` | medium/high test → exactly one report (trigger + partial unique index); idempotent push on `local_record_id` (replay = `duplicate`, same id + other payload = 409); manual tests may not carry a machine suggestion; source `current_risk_level` = latest test | workflow 13/13; staff HTTP |
+| Flow 3 re-report loop, `REPORTS \|\|--o\| REPORTS` | lab `re_report_requested` → new report pointing back, original untouched; at most one per report. **Backfill:** 3 seeded requests had no re-report → 3 open re-reports created | workflow + HTTP; live `reports` 11 → 14 |
+| `reports.version` | bumped by trigger on every update; every guarded call takes `expected_version` → `409 CASE_VERSION_CONFLICT` | stale-version tests (DB + HTTP) |
+| Labs pending/uploaded/verified | CHECK: verified needs verifier, time, file; worker/supervisor *records* (fact), supervisor *verifies* (deliberate); self-review refused; quarantined PDF cannot be verified or served | workflow + HTTP |
+| Closure | only `close_report()`: `action_taken`, reason ≥ 10 chars, verified lab result (distinct refusals for none vs unverified), corrective/closure photo, no open re-report | 6 distinct refusals tested |
+| Flow 4 process photos | JPEG/PNG, decode-validated, `photo_blobs`; worker = field level only | HTTP |
+| Flow 5 notifications | report status change queues SMS to each linked complainant + push to its creator; staff read/ack their queue. No back-filled history | HTTP: SMS `queued` to the resident's phone |
+| Flow 6 complaint photo + self-test | base64 photo (image only, rejected if not a real image); self-test needs account + source | HTTP |
+| Flow 8 pins | manual pin approver must be an active supervisor (trigger); GPS pin must carry accuracy (CHECK; API also caps 100 m) | DB + HTTP |
+| Note 10 points | escalate (+100) and close (+50) now reachable through the API | HTTP: resident 10 → 110 → 160 |
+| Sponsors | redemption fulfil / cancel (refund + restock), decided once | DB + HTTP |
+| Public status | derived from open reports (`under_review` / `action_pending`); **added `no_open_issues`** (all reports closed — neither "not yet tested" nor a safety claim); `lab_verified_safe` only by explicit supervisor action on a verified lab result, cleared by the next open report. Backfill: 6 under review, 1 no open issues | DB + HTTP |
+
+Rebuild from repo now replays 001 → 002 → seed → 004 and matches live exactly
+(rebuild test updated). Live counts after all tests: 18 sources, 14 reports,
+15 complaints, 10 notifications, ledger 1100, 0 blobs — tests leave nothing.
+One teardown bug (mixed-type id list) left 3 throwaway sources on the live DB
+during development; found, purged, and the cleanup rewritten.
+
+Still open from the ERD: nothing structural. The mobile app still syncs to
+`jalsakshi` (T15), not to `/v1/staff/test-records`; switching it is an app change
+the owner has not asked for. Lab PDFs stay quarantined until a malware scanner
+exists (same limit as T16).
+
+Known limitations: public tokens are not revoked by a password change
+(12 h expiry); fixed-window rate limits (2× burst at a window edge); each
+request opens a new pooler connection (2–3 s from this host).
+
+### 006 — residents on Supabase Auth, resident complaints, Pluccy, worker points (2026-09-25, owner decisions)
+
+**Supersedes P3 (phone login) and the resident points/rewards rows above.** The
+owner's brief named the dropped v1 tables; the owner chose to build on live v2
+names instead (screening_records→`test_records`, cases→`reports`,
+lab_reports→`lab_referrals`, ivr_complaints→`complaints`).
+
+- **Residents:** Supabase Auth user + `residents` row (not a profile;
+  `profiles.role` is now supervisor|field_worker only). `public_accounts`,
+  `pub1.*` tokens and `JALSAKSHI_PUBLIC_SESSION_SECRET` are gone. The 15 demo
+  residents kept their ids and got unique random passwords, recorded only in
+  the gitignored `.data/resident_credentials.csv`. Email/phone unverified (B2).
+- **RLS:** resident reads run as `authenticated` with the resident's JWT claims
+  (`public_v2.resident_scope`); policies return only their own residents row
+  and complaints, and column grants expose only resident-safe columns.
+- **Complaints:** `new → linked → resolved` (`resolution` case_closed|dismissed;
+  closing the linked report resolves it). Supervisor review: `link` (must name
+  the report's current `version`), `open_report` (a `reports.origin='resident'`
+  report without a test record), `dismiss`. Linking bumps the report version.
+- **Pluccy:** `reading_parameters` (bands, ranges, tips; BIS 10500 where one
+  exists — screening bands, not lab verdicts), `kit_parameters`,
+  `test_readings`, `test_kits.dip_instruction/read_grace_sec`,
+  `test_records.dip_started_at/read_at/rule_assessment`; `assess_readings()`
+  sets the risk server-side. App: `pluccy.tsx`, `staffApp.tsx`, `residentApp.tsx`.
+- **Points:** one ledger, field workers only: +10 when every kit reading, a
+  photo, and `wait ≤ read_at − dip_started_at ≤ wait + grace` (deferred
+  trigger). Sponsors/rewards/redemptions and resident points removed. Streak
+  and 10/50/100 milestones computed in `/v1/staff/me`.
+- **Portal:** `GET /portal` (resident web page). `tools/dev_tunnel.sh` writes
+  the ngrok URL into `apps/mobile/.env`.
+
+Evidence (live DB, 2026-09-25): pre-migration row backup
+`.data/backup_pre006_2026-09-25.json`; dry run rolled back, then applied
+(twice, idempotent); `public_v2_postgres_test` 20/20, `public_v2_workflow_test`
+14/14, `public_v2_http_test` 14/14 (incl. a `create_resident_login` user
+signing in through real Supabase Auth), `staff_v2_http_test` 11/11, tenant
+matrix OK, rebuild test (001→006, 006 twice) OK, `node tests/pluccy.test.ts`
+6/6; end to end through the ngrok URL 15/15.
+
+**Open:** the Render deployment still runs pre-006 code against this database
+(its resident routes now fail) — retire or redeploy it. The coliform kit waits
+24 h with a 60 s read grace, so it can practically never earn points; tune
+`test_kits.read_grace_sec`. Pluccy keeps the dip time in memory only (a
+ponytail note in `pluccy.tsx`). Dip/read times come from the phone's clock.
+
 ## What exists
 
 `jalsakshi-blueprint/` — planning/reference package only, untouched, not edited by this task.

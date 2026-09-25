@@ -1,13 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useState } from 'react';
-import { Alert, Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Platform, Pressable, StatusBar as RNStatusBar, StyleSheet, Text, View } from 'react-native';
 
 import { deviceSql } from './src/deviceDb';
 import { LoginScreen } from './src/login';
 import { OFFLINE_LIMIT_NOTE, revokeOfflineAccess } from './src/offlineAccess';
 import { pendingCount } from './src/sync';
 import { PublicApp } from './src/publicApp';
+import { ResidentApp } from './src/residentApp';
+import { StaffApp } from './src/staffApp';
 import { WorkerApp } from './src/workerApp';
+import { isDemoToken } from './src/demoBackend';
 import { surfaceFor, type AppSession } from './src/session';
 import { colors, spacing, type } from './src/theme';
 
@@ -51,6 +54,10 @@ export default function App(): React.JSX.Element {
   }
 
   const isStaff = session.kind === 'staff';
+  const title = { field: 'Field work', staff: 'Field work', resident: 'My water reports', public: 'Public water quality' }[surface];
+  const subtitle = session.kind === 'staff' ? `Signed in as ${session.username}`
+    : session.kind === 'staff_v2' || session.kind === 'resident' ? `Signed in as ${session.email}`
+    : 'Open information — no account';
 
   // Sign-out ends this account's offline access on this phone (T45). It never
   // deletes saved records; with unsent records it warns first.
@@ -72,15 +79,10 @@ export default function App(): React.JSX.Element {
   return (
     <View style={styles.root}>
       <View style={styles.bar}>
+        <Image source={require('./assets/ui/logo.png')} style={styles.logo} resizeMode="contain" />
         <View style={{ flex: 1 }}>
-          <Text style={styles.barTitle}>
-            {isStaff ? 'Field work' : 'Public water quality'}
-          </Text>
-          <Text style={styles.barSub}>
-            {isStaff
-              ? `Signed in as ${session.username}`
-              : 'Open information — no account'}
-          </Text>
+          <Text style={styles.barTitle}>{title}</Text>
+          <Text style={styles.barSub}>{subtitle}</Text>
         </View>
         <Pressable
           style={styles.signOut}
@@ -88,7 +90,7 @@ export default function App(): React.JSX.Element {
           accessibilityRole="button"
           testID="sign-out"
         >
-          <Text style={styles.signOutText}>{isStaff ? 'Sign out' : 'Back'}</Text>
+          <Text style={styles.signOutText}>{surface === 'public' ? 'Back' : 'Sign out'}</Text>
         </Pressable>
       </View>
 
@@ -99,6 +101,12 @@ export default function App(): React.JSX.Element {
         </Text>
       )}
 
+      {(session.kind === 'staff_v2' || session.kind === 'resident') && isDemoToken(session.token) && (
+        <Text style={styles.unverified} testID="offline-demo-banner">
+          Offline demo — the server is unreachable. Data stays on this phone and is lost when the app closes.
+        </Text>
+      )}
+
       {isStaff && session.offlineUntilMs !== null && (
         <Text style={styles.unverified} testID="offline-banner">
           Working offline until {new Date(session.offlineUntilMs).toLocaleString()}. Nothing is sent until you sign in. {OFFLINE_LIMIT_NOTE}
@@ -106,7 +114,10 @@ export default function App(): React.JSX.Element {
       )}
 
       <View style={styles.body}>
-        {surface === 'field' && isStaff ? <WorkerApp session={session} onAuthExpired={() => setSession(null)} /> : <PublicApp />}
+        {session.kind === 'staff' ? <WorkerApp session={session} onAuthExpired={() => setSession(null)} />
+          : session.kind === 'staff_v2' ? <StaffApp session={session} onAuthExpired={() => setSession(null)} />
+          : session.kind === 'resident' ? <ResidentApp session={session} onAuthExpired={() => setSession(null)} />
+          : <PublicApp />}
       </View>
 
       <StatusBar style="auto" />
@@ -130,6 +141,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  logo: { width: 30, height: 30 },
   barTitle: { ...type.h3, color: colors.primaryDark },
   barSub: { ...type.tiny },
   signOut: {

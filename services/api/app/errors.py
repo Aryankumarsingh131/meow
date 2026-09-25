@@ -45,6 +45,14 @@ ERROR_CODES: dict[str, tuple[int, str, bool]] = {
     # T16. Upload is off unless the deployment enables it (AC-018).
     "EVIDENCE_UPLOAD_DISABLED": (403, "Evidence upload disabled", False),
     "EVIDENCE_NOT_AVAILABLE": (409, "Evidence not available", False),
+    # Public v2 (public_v2.py).
+    "PHONE_ALREADY_REGISTERED": (409, "Phone number already registered", False),
+    "EMAIL_ALREADY_REGISTERED": (409, "Email already registered", False),
+    # Staff v2 (staff_v2.py, 004/006 SQL).
+    "LAB_RESULT_MISSING": (409, "No lab result recorded", False),
+    "LAB_RESULT_ALREADY_RECORDED": (409, "Lab result already recorded", False),
+    "RE_REPORT_OPEN": (409, "A requested re-report is still open", False),
+    "COMPLAINT_ALREADY_REVIEWED": (409, "Complaint already reviewed", False),
     "RATE_LIMITED": (429, "Rate limited", True),
     "TEMPORARILY_UNAVAILABLE": (503, "Temporarily unavailable", True),
     # T33: an unhandled server fault, answered with the request id to quote.

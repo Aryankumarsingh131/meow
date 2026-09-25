@@ -24,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { Asset } from 'expo-asset';
+import { API_BASE } from './api';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Device from 'expo-device';
 import { Paths } from 'expo-file-system';
@@ -59,7 +60,7 @@ export function DemoWorkflowScreen() {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('Ready for a synthetic capture.');
-  const [apiUrl, setApiUrl] = useState('http://10.0.2.2:8000');
+  const [apiUrl, setApiUrl] = useState(API_BASE);
   const [localRecords, setLocalRecords] = useState<LocalRecord[]>([]);
   const [serverRecords, setServerRecords] = useState<ServerRecord[]>([]);
 

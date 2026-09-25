@@ -637,6 +637,24 @@ Claim one focused task in [current-state](docs/agent-workflow/current-state.md).
 - Verification: Repeat affected test matrix and manual access checks on exact release build.
 - Completion evidence: handoff with changed files, exact command/procedure, result, build/commit and artifact location; update current-state and this checkbox only after review.
 
+## P1–P9 — Public v2 layer (added 2026-09-25 by owner instruction)
+
+Residents, complaints, points, rewards, map and leaderboard, as FastAPI routes over the v2 tables in `public` (owner decision: FastAPI stays the backend; no Edge Functions). Schema and guarded functions: `services/api/sql/public_v2/`. Evidence and blockers B1–B6: current-state.md, "Public v2 layer".
+
+- [x] P1 v2 schema committed and rebuildable from the repo — 2026-09-25: rebuild test 1/1 (drop → 001 → 002 → seed → exact demo state, rolled back).
+- [~] P2 Data API lockdown — RLS on every table, zero anon/authenticated grants on JalSakshi objects, real `anon` role refused 9/9. Outstanding: B1 (PostGIS objects owned by supabase_admin; remove `public` from exposed schemas).
+- [~] P3 Public phone + password login — lockout, forced change of default password, token forgery/expiry/deactivation refused (HTTP 12/12). Outstanding: B2 phone verification (no SMS provider).
+- [~] P4 Complaints — submit, reference, status lookup, rate limit proved by repeated requests, symptom report → queued supervisor notification, photo (decode-validated) and self-test attached (2026-09-25). Outstanding: B3 delivery.
+- [x] P5 Points triggers pay once per event, end to end — 2026-09-25: postgres suite 22/22 incl. API search_path reproduction.
+- [x] P6 `redeem_reward` atomic and race-safe — 2026-09-25: every refusal + two committed two-connection races.
+- [x] P7 Retention purge fixed and executed by pg_cron — 2026-09-25: temporary job `succeeded`, 4 audit rows. Nightly firing not yet observed.
+- [x] P8 Public map (fuzzed, honest labels, pg_cron refresh observed) and leaderboard (no identifiers).
+- [~] P9 Complaint → case linking — 2026-09-25: erd.md settles B6 (`public.reports`); supervisor escalate/link/dismiss via `review_complaint`, +100/+50 through the API. Outstanding: IVR intake (B4 telephony provider).
+- [x] P10 erd.md flows 1–3: test record → exactly one report, idempotent push, lab re-report loop (≤1 per report) — 2026-09-25: workflow 13/13, staff HTTP 5/5, 3 missing re-reports backfilled.
+- [x] P11 Report lifecycle: `reports.version` bumped on every update and checked; uploaded ≠ verified (CHECK + separate record/verify, self-review refused); `close_report` the only close path with 6 distinct refusals — 2026-09-25.
+- [x] P12 erd.md flows 4–5, 8: process photos, report-change notifications (SMS/push queued; staff read/ack), supervisor-approved manual pins, GPS accuracy required — 2026-09-25.
+- [x] P13 Public status derived from reports (+ `no_open_issues`), explicit lab-verified mark; redemption fulfil/cancel with refund — 2026-09-25.
+
 ## Checkpoints
 
 - [!] G0: T01–T04 feasibility reviewed; unsafe claims blocked. — BLOCKED: only met via the synthetic-only boundary (ADR-M1-001).

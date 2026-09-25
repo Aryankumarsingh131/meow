@@ -137,6 +137,18 @@ app.middleware("http")(trace_requests)
 # Mounted everywhere; without `app.state.auth` every route answers 503.
 app.include_router(v1_router)
 
+# Residents and staff sign in with the same identity provider (Supabase Auth,
+# or the dev issuer on the synthetic stack); /portal is the resident web page.
+from .public_v2 import auth_router as email_login_router  # noqa: E402
+from .public_v2 import portal_router  # noqa: E402
+from .public_v2 import router as public_router  # noqa: E402
+from .staff_v2 import router as staff_router  # noqa: E402
+
+app.include_router(email_login_router)
+app.include_router(public_router)
+app.include_router(portal_router)
+app.include_router(staff_router)
+
 if SYNTHETIC_DEV:
     app.state.demo_data_dir = ".data/demo"
     app.include_router(demo_router)
@@ -168,6 +180,10 @@ if HOSTED:
 
     app.state.connect = connector(settings.database_url, Path(".data") / "unused.sqlite3")
     app.state.auth = HostedAuth(settings.oidc_issuer, settings.oidc_audience, db_membership_lookup(app.state.connect))
+    # Staff email sign-in (/v1/auth/login) goes to Supabase Auth with the
+    # publishable key only; the password is never checked by this service.
+    if settings.supabase_url and settings.supabase_publishable_key:
+        app.state.supabase_auth = (settings.supabase_url, settings.supabase_publishable_key)
 
 
 @app.api_route("/", methods=["GET", "HEAD"])

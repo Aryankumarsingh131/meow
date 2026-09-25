@@ -138,7 +138,7 @@ test('neither screen writes status strings inline', async () => {
   // The whole point of statusLabel.ts is that wording lives in one auditable
   // place. If a screen hardcodes a verdict, this catches it.
   const fs = await import('node:fs/promises');
-  for (const f of ['workerApp.tsx', 'publicApp.tsx', 'modelCheck.tsx']) {
+  for (const f of ['workerApp.tsx', 'publicApp.tsx', 'modelCheck.tsx', 'pluccy.tsx', 'staffApp.tsx', 'residentApp.tsx']) {
     const src = await fs.readFile(new URL(`../apps/mobile/src/${f}`, import.meta.url), 'utf8');
     for (const w of ['Safe to drink', 'safe for drinking', 'Low risk of contamination']) {
       assert.ok(!src.includes(w), `${f} hardcodes the banned phrase "${w}"`);

@@ -4,15 +4,17 @@
  * Pure logic, no React — so the routing rules are testable without rendering
  * anything (tests/session.test.ts).
  *
- * ## Roles come from the authorization matrix, not from this file
+ * ## Two sign-in paths
  *
- * jalsakshi-blueprint/docs/architecture/authorization-matrix.md fixes the role
- * enum at exactly `worker`, `supervisor`, `lab_reviewer`, `admin`, and is
- * explicit that a **resident is not a user**: "No account, no login. Receives
- * operator-recorded communication only."
+ * Hosted (Supabase Auth): one email + password sign-in (`v2.login`) for staff
+ * and residents. The server answers with the role - `field_worker`,
+ * `supervisor` or `resident` - and that picks the surface: the staff app
+ * (Pluccy screening, points, complaint review) or the resident app
+ * (complaints). Residents became accounts by owner decision on 2026-09-25
+ * (006); they are never staff profiles.
  *
- * That is why the public water-quality portal is reachable WITHOUT credentials
- * rather than via a "resident" login.
+ * Synthetic dev issuer (below): the M1 field flow, staff only. The public
+ * water-quality page stays reachable without any account.
  *
  * ## Sign-in is checked by the server, not by this file
  *
@@ -29,14 +31,22 @@
 
 import { ISSUER, type Issuer, type SignedIn } from './api.ts';
 
-/** Fixed by authorization-matrix.md. `resident` is deliberately NOT here. */
+/** M1 roles, fixed by authorization-matrix.md (synthetic dev issuer only). */
 export type Role = 'worker' | 'supervisor' | 'lab_reviewer' | 'admin';
 
-/** The two product surfaces. */
-export type Surface = 'field' | 'public';
+/** field: M1 flow. staff: hosted staff app. resident: resident app. public: no account. */
+export type Surface = 'field' | 'staff' | 'resident' | 'public';
 
-/** Public synthetic demo usernames (password "jalsakshi"), shown on the login screen. */
+/** Public synthetic demo usernames (password "jalsakshi") of the M1 dev issuer. */
 export const DEMO_USERNAMES = ['worker', 'supervisor'] as const;
+
+/** Demo accounts offered in the login dropdown (007_easy_demo_logins.sql).
+ *  DEMO ONLY: remove before any real use. */
+export const DEMO_LOGINS = [
+  { label: 'Field worker', email: '1@demo.org', password: '1234' },
+  { label: 'Supervisor', email: '2@demo.org', password: '1234' },
+  { label: 'Resident', email: '3@demo.org', password: '1234' },
+] as const;
 
 export interface Session {
   kind: 'staff';
@@ -56,7 +66,29 @@ export interface PublicVisitor {
   kind: 'public';
 }
 
-export type AppSession = Session | PublicVisitor | null;
+/** Hosted sign-in. The token is in memory only, like the M1 session's. */
+export interface StaffV2Session {
+  kind: 'staff_v2';
+  email: string;
+  role: 'supervisor' | 'field_worker';
+  token: string;
+}
+
+export interface ResidentSession {
+  kind: 'resident';
+  email: string;
+  token: string;
+}
+
+export type AppSession = Session | StaffV2Session | ResidentSession | PublicVisitor | null;
+
+/** Route a hosted sign-in by the role the server returned. */
+export function hostedSession(email: string, role: string, token: string): StaffV2Session | ResidentSession | null {
+  const e = email.trim().toLowerCase();
+  if (role === 'resident') return { kind: 'resident', email: e, token };
+  if (role === 'supervisor' || role === 'field_worker') return { kind: 'staff_v2', email: e, role, token };
+  return null;
+}
 
 export type SignInFailure = 'empty_username' | 'empty_password' | 'unknown_account' | 'offline' | 'server_error';
 
@@ -111,10 +143,15 @@ export const SIGN_IN_ERROR: Record<SignInFailure, string> = {
  */
 export function surfaceFor(session: AppSession): Surface | null {
   if (!session) return null;
-  return session.kind === 'public' ? 'public' : 'field';
+  switch (session.kind) {
+    case 'public': return 'public';
+    case 'staff': return 'field';
+    case 'staff_v2': return 'staff';
+    case 'resident': return 'resident';
+  }
 }
 
-/** The public portal needs no credentials, per the authorization matrix. */
+/** The public water-quality page needs no credentials. */
 export function continueAsPublic(): PublicVisitor {
   return { kind: 'public' };
 }

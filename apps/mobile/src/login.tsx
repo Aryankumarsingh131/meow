@@ -1,268 +1,185 @@
 /**
- * Single entry point for both JalSakshi surfaces.
+ * Sign-in: one email + password form against the API behind ngrok. The
+ * server's role picks the staff app or the resident app (session.ts).
  *
- * Staff sign in with credentials and land in the field-work app. Residents
- * reach the public water-quality portal without signing in at all, because
- * authorization-matrix.md states a resident is not a user and has no account.
- *
- * All routing decisions live in `session.ts`; this file is presentation.
+ * DEMO: a dropdown fills in one of the demo accounts (1/2/3@demo.org,
+ * password 1234) so a tester never types credentials. Remove it with the
+ * accounts (007) before any real use.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+  Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 
 import { colors, radius, spacing, type } from './theme';
-import { API_BASE, fetchAuthConfig, requestOfflineGrant, signIn } from './api';
-import { deviceId, deviceSql } from './deviceDb';
-import { OFFLINE_LIMIT_NOTE, offlineAccounts, recordGrant, revokeOfflineAccess } from './offlineAccess';
 import {
-  DEMO_USERNAMES,
-  SIGN_IN_ERROR,
-  checkSignInInput,
-  continueAsPublic,
-  offlineSession,
-  signInFailureFor,
-  staffSession,
-  type AppSession,
+  DEMO_LOGINS, SIGN_IN_ERROR, checkSignInInput, continueAsPublic, hostedSession, signInFailureFor, type AppSession,
 } from './session';
+import { PORTAL_URL, login } from './v2';
 
-const CLIENT_BUILD = 'jalsakshi-mobile/m1-synthetic';
+const NAVY = '#0B2545';
 
 export interface LoginScreenProps {
   onSession(session: AppSession): void;
 }
 
 export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [offline, setOffline] = useState<ReturnType<typeof offlineAccounts>>([]);
-  // null until the backend has said how to sign in. Asking early also wakes a
-  // sleeping Render instance while the person is still typing.
-  const [hosted, setHosted] = useState<boolean | null>(null);
-  useEffect(() => {
-    let live = true;
-    void fetchAuthConfig(API_BASE).then((r) => { if (live && r.kind === 'ok') setHosted(r.value !== null); });
-    return () => { live = false; };
-  }, []);
 
   const submit = async () => {
     if (busy) return;
-    const invalid = checkSignInInput(username, password);
-    if (invalid) {
-      setError(SIGN_IN_ERROR[invalid]);
-      return;
-    }
+    const invalid = checkSignInInput(email, password);
+    if (invalid) return setError(invalid === 'empty_username' ? 'Enter your email.' : SIGN_IN_ERROR[invalid]);
     setBusy(true);
-    const result = await signIn(API_BASE, username, password);
+    const r = await login(email, password);
     setBusy(false);
-    if (result.kind !== 'ok') {
-      setError(SIGN_IN_ERROR[signInFailureFor(result.kind)]);
-      // Offline: offer accounts this phone still holds a valid lease for.
-      setOffline(result.kind === 'offline' ? offlineAccounts(deviceSql(), Date.now()) : []);
-      return;
-    }
+    if (r.kind !== 'ok') return setError(SIGN_IN_ERROR[signInFailureFor(r.kind)]);
+    const next = hostedSession(email, r.value.role, r.value.token);
+    if (!next) return setError(SIGN_IN_ERROR.unknown_account);
     setError(null);
-    // T45: provision offline access while online. The server decides scope and
-    // lease; a refusal (revoked membership) removes any lease already held.
-    const grant = await requestOfflineGrant(API_BASE, result.value.token, deviceId(), CLIENT_BUILD);
-    if (grant.kind === 'ok') recordGrant(deviceSql(), username, grant.value, result.value.subject, Date.now());
-    else if (grant.kind === 'failed' && grant.status === 403) revokeOfflineAccess(deviceSql(), result.value.subject);
-    onSession(staffSession(username, result.value));
+    onSession(next);
+  };
+
+  const pick = (d: (typeof DEMO_LOGINS)[number]) => {
+    setEmail(d.email);
+    setPassword(d.password);
+    setPicked(`${d.label} · ${d.email}`);
+    setMenuOpen(false);
+    setError(null);
   };
 
   return (
-    <KeyboardAvoidingView
-      style={s.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
-        <View style={s.brandBlock}>
-          <View style={s.drop}>
-            <Text style={s.dropMark}>◆</Text>
+        <View style={s.hero}>
+          <Image source={require('../assets/ui/hero.jpg')} style={s.heroImage} resizeMode="cover" accessibilityIgnoresInvertColors />
+          <View style={s.brand}>
+            <Image source={require('../assets/ui/logo.png')} style={s.logo} resizeMode="contain" />
+            <View>
+              <Text style={s.brandName}>JalSakshi</Text>
+              <Text style={s.brandSub}>Water quality workspace</Text>
+            </View>
           </View>
-          <Text style={s.brand}>JalSakshi</Text>
-          <Text style={s.tagline}>Clear water. Accountable tomorrow.</Text>
         </View>
 
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Staff sign in</Text>
-          <Text style={s.cardSub}>
-            For trained field workers and supervisors.
-          </Text>
+        <View style={s.body}>
+          <Image source={require('../assets/ui/shape-blue.png')} style={s.shapeBlue} resizeMode="contain" />
+          <Text style={s.headline}>Every source.{'\n'}Every signal.</Text>
+          <Text style={[s.headline, s.headlineBlue]}>In focus.</Text>
+          <Text style={s.lede}>Turn field evidence into clear, accountable action for the communities you serve.</Text>
 
-          <Text style={s.label}>{hosted === false ? 'Username' : 'Email'}</Text>
-          <TextInput
-            style={s.input}
-            value={username}
-            onChangeText={(t) => {
-              setUsername(t);
-              setError(null);
-            }}
-            placeholder={hosted === false ? 'worker' : 'you@example.org'}
-            keyboardType={hosted === false ? 'default' : 'email-address'}
-            placeholderTextColor={colors.textFaint}
-            autoCapitalize="none"
-            autoCorrect={false}
-            testID="login-username"
-            accessibilityLabel={hosted === false ? 'Username' : 'Email'}
-          />
+          <View style={s.card}>
+            <Text style={s.welcome}>Welcome back.</Text>
+            <Text style={s.small}>Sign in to your JalSakshi workspace.</Text>
 
-          <Text style={s.label}>Password</Text>
-          <TextInput
-            style={s.input}
-            value={password}
-            onChangeText={(t) => {
-              setPassword(t);
-              setError(null);
-            }}
-            // NOT a row of dots: a dot placeholder is visually identical to
-            // masked input, so an empty field looks filled. That cost a real
-            // debugging cycle during on-device testing.
-            placeholder="Enter your password"
-            placeholderTextColor={colors.textFaint}
-            secureTextEntry
-            autoCapitalize="none"
-            testID="login-password"
-            accessibilityLabel="Password"
-            onSubmitEditing={submit}
-          />
-
-          {error && (
-            <Text style={s.error} accessibilityLiveRegion="polite">
-              {error}
-            </Text>
-          )}
-
-          <Pressable
-            style={[s.btn, s.btnPrimary, busy && s.btnDisabled]}
-            onPress={submit}
-            disabled={busy}
-            accessibilityRole="button"
-            testID="login-submit"
-          >
-            <Text style={s.btnPrimaryText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
-          </Pressable>
-          {busy && (
-            <Text style={s.cardSub} testID="login-waking">
-              Connecting to the server. After a quiet spell it can take up to a minute to wake.
-            </Text>
-          )}
-
-          {offline.map((account) => (
-            <Pressable
-              key={account.subject}
-              style={[s.btn, s.btnOutline]}
-              onPress={() => onSession(offlineSession(account.username, account.subject, account.expiresAtMs))}
-              accessibilityRole="button"
-              testID={`continue-offline-${account.username}`}
-            >
-              <Text style={s.btnOutlineText}>
-                Continue offline as {account.username} (until {new Date(account.expiresAtMs).toLocaleString()})
-              </Text>
+            <Text style={s.label}>Demo account</Text>
+            <Pressable style={s.select} onPress={() => setMenuOpen(!menuOpen)} accessibilityRole="button"
+              accessibilityState={{ expanded: menuOpen }} testID="login-demo-picker">
+              <Text style={[s.selectText, !picked && s.placeholder]}>{picked ?? 'Choose a demo account'}</Text>
+              <Text style={s.chevron}>{menuOpen ? '▲' : '▼'}</Text>
             </Pressable>
-          ))}
-          {offline.length > 0 && <Text style={s.cardSub}>{OFFLINE_LIMIT_NOTE}</Text>}
+            {menuOpen && (
+              <View style={s.menu}>
+                {DEMO_LOGINS.map((d) => (
+                  <Pressable key={d.email} style={s.option} onPress={() => pick(d)} accessibilityRole="button"
+                    testID={`login-demo-${d.email}`}>
+                    <Text style={s.optionTitle}>{d.label}</Text>
+                    <Text style={s.small}>{d.email} · password {d.password}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            )}
 
-          {hosted === false && <View style={s.demoNote}>
-            <Text style={s.demoTitle}>Synthetic sign-in</Text>
-            <Text style={s.demoText}>
-              Checked by the JalSakshi server's synthetic test issuer, not a real
-              identity provider. All data is synthetic. Use{' '}
-              {DEMO_USERNAMES.join(' or ')} with the password “jalsakshi”.
-            </Text>
-          </View>}
+            <Text style={s.label}>Email address</Text>
+            <View style={s.field}>
+              <Text style={s.fieldIcon}>✉</Text>
+              <TextInput style={s.input} value={email} onChangeText={(t) => { setEmail(t); setError(null); }}
+                placeholder="you@district.gov.in" placeholderTextColor={colors.textFaint} keyboardType="email-address"
+                autoCapitalize="none" autoCorrect={false} testID="login-username" accessibilityLabel="Email address" />
+            </View>
+
+            <Text style={s.label}>Password</Text>
+            <View style={s.field}>
+              <Text style={s.fieldIcon}>🔒</Text>
+              <TextInput style={s.input} value={password} onChangeText={(t) => { setPassword(t); setError(null); }}
+                placeholder="Enter your password" placeholderTextColor={colors.textFaint} secureTextEntry={!showPassword}
+                autoCapitalize="none" testID="login-password" accessibilityLabel="Password" onSubmitEditing={submit} />
+              <Pressable onPress={() => setShowPassword(!showPassword)} accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'} hitSlop={10}>
+                <Text style={s.eye}>{showPassword ? 'Hide' : 'Show'}</Text>
+              </Pressable>
+            </View>
+
+            {error && <Text style={s.error} accessibilityLiveRegion="polite">{error}</Text>}
+
+            <Pressable style={[s.signIn, busy && s.dim]} onPress={submit} disabled={busy} accessibilityRole="button" testID="login-submit">
+              <Text style={s.signInText}>{busy ? 'Signing in…' : 'Sign in'}</Text>
+              <Text style={s.signInText}>→</Text>
+            </Pressable>
+            <Text style={s.tiny}>Use your assigned district account. Contact your administrator if you need access.</Text>
+          </View>
+
+          <Pressable onPress={() => void Linking.openURL(PORTAL_URL)} accessibilityRole="link" testID="login-register">
+            <Text style={s.link}>New resident? Create an account →</Text>
+          </Pressable>
+          <Pressable onPress={() => onSession(continueAsPublic())} accessibilityRole="button" testID="login-public">
+            <Text style={s.link}>View public water quality information →</Text>
+          </Pressable>
+          <Image source={require('../assets/ui/shape-red.png')} style={s.shapeRed} resizeMode="contain" />
         </View>
-
-        <View style={s.divider}>
-          <View style={s.dividerLine} />
-          <Text style={s.dividerText}>or</Text>
-          <View style={s.dividerLine} />
-        </View>
-
-        {/* Residents have no account by design (authorization-matrix.md). */}
-        <Pressable
-          style={[s.btn, s.btnGhost]}
-          onPress={() => onSession(continueAsPublic())}
-          accessibilityRole="button"
-          testID="login-public"
-        >
-          <Text style={s.btnGhostText}>View public water quality information</Text>
-        </Pressable>
-        <Text style={s.publicNote}>
-          Open to everyone. No account needed.
-        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+const serif = Platform.select({ android: 'serif', ios: 'Georgia', default: undefined });
+
 const s = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.xl, gap: spacing.lg, justifyContent: 'center', flexGrow: 1 },
-  brandBlock: { alignItems: 'center', gap: 6, marginBottom: spacing.sm },
-  drop: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dropMark: { color: colors.onPrimary, fontSize: 24, fontWeight: '800' },
-  brand: { fontSize: 28, fontWeight: '800', color: colors.primaryDark },
-  tagline: { ...type.small },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.sm,
-  },
-  cardTitle: { ...type.h2 },
-  cardSub: { ...type.small, marginBottom: spacing.xs },
-  label: { ...type.small, marginTop: spacing.xs },
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 12,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.cardAlt,
-  },
-  error: { color: colors.alert, fontSize: 13, fontWeight: '600', marginTop: spacing.xs },
-  btn: { paddingVertical: 14, borderRadius: radius.md, alignItems: 'center' },
-  btnPrimary: { backgroundColor: colors.primary, marginTop: spacing.sm },
-  btnPrimaryText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
-  btnOutline: { borderWidth: 1, borderColor: colors.primary, marginTop: spacing.sm, paddingHorizontal: spacing.md },
-  btnOutlineText: { color: colors.primary, fontWeight: '700', fontSize: 14, textAlign: 'center' },
-  btnDisabled: { opacity: 0.6 },
-  btnGhost: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.primary },
-  btnGhostText: { color: colors.primary, fontWeight: '700', fontSize: 15 },
-  demoNote: {
-    backgroundColor: colors.watchSoft,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginTop: spacing.sm,
-    gap: 3,
-  },
-  demoTitle: { fontSize: 12.5, fontWeight: '700', color: colors.watch },
-  demoText: { fontSize: 12, color: colors.text, lineHeight: 17 },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  dividerText: { ...type.small },
-  publicNote: { ...type.tiny, textAlign: 'center' },
+  screen: { flex: 1, backgroundColor: '#FBF8F1' },
+  content: { flexGrow: 1, paddingBottom: spacing.xl },
+  hero: { height: 250, overflow: 'hidden' },
+  heroImage: { width: '100%', height: 340, position: 'absolute', top: -40 },
+  brand: { position: 'absolute', top: spacing.lg, left: spacing.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
+           backgroundColor: 'rgba(251,248,241,0.92)', paddingVertical: 6, paddingHorizontal: spacing.md, borderRadius: radius.pill },
+  logo: { width: 34, height: 34 },
+  brandName: { fontSize: 20, fontWeight: '800', color: NAVY },
+  brandSub: { fontSize: 11, color: colors.textMuted },
+  body: { padding: spacing.xl, gap: spacing.md, overflow: 'hidden' },
+  shapeBlue: { position: 'absolute', right: -90, top: -40, width: 200, height: 200, opacity: 0.9 },
+  shapeRed: { width: 170, height: 170, alignSelf: 'flex-end', marginRight: -60, marginBottom: -70, opacity: 0.9 },
+  headline: { fontFamily: serif, fontSize: 34, lineHeight: 38, fontWeight: '700', color: NAVY },
+  headlineBlue: { color: colors.primary, marginTop: -spacing.md },
+  lede: { ...type.body, color: colors.textMuted, lineHeight: 20 },
+  card: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.lg,
+          gap: spacing.sm, marginTop: spacing.sm },
+  welcome: { fontFamily: serif, fontSize: 26, fontWeight: '700', color: NAVY },
+  small: { ...type.small },
+  tiny: { ...type.tiny, marginTop: spacing.xs },
+  label: { fontSize: 13.5, fontWeight: '700', color: NAVY, marginTop: spacing.sm },
+  select: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.borderStrong, borderRadius: radius.md,
+            paddingHorizontal: spacing.md, paddingVertical: 13, backgroundColor: colors.primarySoft },
+  selectText: { flex: 1, fontSize: 15, color: colors.text, fontWeight: '600' },
+  placeholder: { color: colors.textMuted, fontWeight: '400' },
+  chevron: { color: colors.primary, fontSize: 12 },
+  menu: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.card, overflow: 'hidden' },
+  option: { paddingHorizontal: spacing.md, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: colors.border },
+  optionTitle: { ...type.body, fontWeight: '700' },
+  field: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.borderStrong,
+           borderRadius: radius.md, paddingHorizontal: spacing.md, backgroundColor: colors.card },
+  fieldIcon: { fontSize: 15, color: colors.textMuted },
+  input: { flex: 1, paddingVertical: 12, fontSize: 15, color: colors.text },
+  eye: { color: colors.primary, fontWeight: '700', fontSize: 13 },
+  error: { color: colors.alert, fontSize: 13, fontWeight: '600' },
+  signIn: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: NAVY,
+            borderRadius: radius.md, paddingVertical: 15, paddingHorizontal: spacing.lg, marginTop: spacing.md },
+  signInText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  dim: { opacity: 0.6 },
+  link: { color: colors.primary, fontWeight: '700', fontSize: 14, paddingVertical: spacing.xs },
 });

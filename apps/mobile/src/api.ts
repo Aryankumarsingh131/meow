@@ -18,15 +18,14 @@
 import { recordFailure } from './diagnostics.ts';
 import type { CachedSource } from './sourceCatalog';
 
-/** The hosted backend. A Metro dev build talks to the local stack instead;
- *  EXPO_PUBLIC_API_BASE overrides both at build time. */
-export const HOSTED_API_BASE = 'https://jalsakshi-api.onrender.com';
-const IS_DEV = typeof __DEV__ !== 'undefined' && __DEV__;
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || (IS_DEV ? 'http://10.0.2.2:8000' : HOSTED_API_BASE);
+/** The backend, for every build: the local API behind ngrok
+ *  (tools/dev_tunnel.sh), so it is only up while that script runs.
+ *  EXPO_PUBLIC_API_BASE overrides it at build time. */
+export const HOSTED_API_BASE = 'https://angelfish-juice-refresh.ngrok-free.dev';
+export const API_BASE = process.env.EXPO_PUBLIC_API_BASE || HOSTED_API_BASE;
 
-/** Render's free plan sleeps after 15 min idle and takes ~50 s to wake. The
- *  first call of a sign-in waits long enough for that instead of reporting
- *  "cannot reach the server" after the normal 10 s budget. */
+/** The first call of a sign-in may wait on a cold tunnel and Supabase Auth; it
+ *  gets a longer budget than the normal 10 s before reporting "offline". */
 export const WAKE_TIMEOUT_MS = 75_000;
 
 export type HostedAuth = { url: string; key: string };
