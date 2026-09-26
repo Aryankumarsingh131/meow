@@ -13,8 +13,9 @@ indistinguishable from a missing one.
 
 from __future__ import annotations
 
+import json
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Literal
 
 import psycopg
@@ -78,6 +79,7 @@ DB_ERRORS: dict[str, tuple[str, str]] = {
     "self_review": ("VERIFICATION_SELF_REVIEW", "Whoever recorded a lab result cannot verify it."),
     "action_evidence_missing": ("ACTION_EVIDENCE_MISSING", "Add a corrective-action or closure photo first."),
     "re_report_open": ("RE_REPORT_OPEN", "The re-report the lab asked for is still open."),
+    "re_report_exists": ("CASE_TRANSITION_ILLEGAL", "A follow-up sample (re-report) was already requested for this case."),
     "complaint_not_new": ("COMPLAINT_ALREADY_REVIEWED", "This complaint was already linked or resolved."),
     "report_closed": ("CASE_TRANSITION_ILLEGAL", "That report is closed; link the complaint to an open one."),
     "source_mismatch": ("VALIDATION_FAILED", "The report is about a different water source than the complaint."),
@@ -148,7 +150,7 @@ def me(staff: Staff = Depends(require_staff), conn: Any = Depends(pg)) -> dict[s
 def kits(staff: Staff = Depends(require_staff), conn: Any = Depends(pg)) -> dict[str, Any]:
     """Pluccy's config: what to dip, how long to wait, which readings to enter."""
     rows = conn.execute(
-        "select k.id::text, k.name, k.strip_type, k.dip_instruction, k.timing_window_sec, k.read_grace_sec,"
+        "select k.id::text, k.name, k.strip_type, k.dip_instruction, k.timing_window_sec, k.read_grace_sec, k.protocol,"
         " rp.key, rp.label, rp.unit, rp.input_kind, rp.min_value, rp.max_value, rp.ok_min, rp.ok_max,"
         " rp.watch_min, rp.watch_max, rp.tip, rp.basis"
         " from public.test_kits k join public.kit_parameters kp on kp.kit_id = k.id"
@@ -158,11 +160,14 @@ def kits(staff: Staff = Depends(require_staff), conn: Any = Depends(pg)) -> dict
     out: dict[str, dict[str, Any]] = {}
     for r in rows:
         kit = out.setdefault(r[0], {"kit_id": r[0], "name": r[1], "strip_type": r[2], "dip_instruction": r[3],
-                                    "wait_seconds": r[4], "read_grace_seconds": r[5], "parameters": []})
-        kit["parameters"].append({"key": r[6], "label": r[7], "unit": r[8], "input_kind": r[9],
-                                  "min": num(r[10]), "max": num(r[11]), "ok_min": num(r[12]), "ok_max": num(r[13]),
-                                  "watch_min": num(r[14]), "watch_max": num(r[15]), "tip": r[16], "basis": r[17]})
+                                    "wait_seconds": r[4], "read_grace_seconds": r[5], "protocol": r[6], "parameters": []})
+        kit["parameters"].append({"key": r[7], "label": r[8], "unit": r[9], "input_kind": r[10],
+                                  "min": num(r[11]), "max": num(r[12]), "ok_min": num(r[13]), "ok_max": num(r[14]),
+                                  "watch_min": num(r[15]), "watch_max": num(r[16]), "tip": r[17], "basis": r[18]})
+    criteria = conn.execute("select key, category, question, tip from public.inspection_criteria"
+                            " order by category desc, position").fetchall()
     return {"items": list(out.values()), "points_rule": POINTS_RULE,
+            "inspection_criteria": [{"key": k, "category": c, "question": q, "tip": t} for k, c, q, t in criteria],
             "notice": "Bands are screening bands, not a laboratory result."}
 
 
@@ -227,6 +232,105 @@ def list_sources(staff: Staff = Depends(require_staff), conn: Any = Depends(pg))
         "updated_at": r[11].isoformat()} for r in rows]}
 
 
+class SourceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=120)
+    village: str | None = Field(default=None, max_length=120)
+    ward: str | None = Field(default=None, max_length=120)
+
+
+@router.patch("/sources/{source_id}")
+def update_source(source_id: str, body: SourceUpdate, staff: Staff = Depends(supervisor),
+                  conn: Any = Depends(pg)) -> dict[str, Any]:
+    """Supervisor edit of a source's name and area. The location pin is not
+    editable here: it stays GPS-or-approved-override (flow 8)."""
+    sid = _team_source(conn, staff, source_id)
+    fields = body.model_dump(exclude_none=True)
+    if not fields:
+        raise ApiError("VALIDATION_FAILED", "Nothing to change.")
+    conn.execute("update public.water_sources set name = coalesce(%s, name), village = coalesce(%s, village),"
+                 " ward = coalesce(%s, ward) where id = %s", (body.name, body.village, body.ward, sid))
+    conn.execute("insert into public.audit_log (actor_id, entity_type, entity_id, action, after_data)"
+                 " values (%s, 'water_sources', %s, 'source_edited', %s)", (staff.profile_id, sid, json.dumps(fields)))
+    conn.execute("select public.refresh_public_map()")
+    conn.commit()
+    return {"source_id": sid, **fields}
+
+
+@router.get("/team")
+def team(staff: Staff = Depends(supervisor), conn: Any = Depends(pg)) -> dict[str, Any]:
+    """The supervisor's team with each member's screening activity and points."""
+    rows = conn.execute(
+        "select p.id::text, p.email, p.full_name, p.role, p.active, p.points_balance,"
+        " (select count(*) from public.test_records t where t.performed_by = p.id),"
+        " (select count(*) from public.reports r join public.test_records t on t.id = r.test_record_id"
+        "   where t.performed_by = p.id and not r.is_re_report),"
+        " (select count(*) from public.points_ledger l where l.profile_id = p.id and l.reason = 'screening_on_time')"
+        " from public.profiles p where p.team_id = %s order by p.role desc, p.full_name", (staff.team_id,)).fetchall()
+    return {"items": [{"profile_id": r[0], "email": r[1], "full_name": r[2], "role": r[3], "active": r[4],
+                       "points_balance": r[5], "tests": r[6], "reports_raised": r[7], "on_time_screenings": r[8]}
+                      for r in rows]}
+
+
+class NoteRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=1000)
+
+
+def _team_report(conn: Any, staff: Staff, report_id: str) -> str:
+    rid = _id(report_id, "Report")
+    if conn.execute("select 1 from public.reports r join public.water_sources ws on ws.id = r.source_id"
+                    " where r.id = %s and ws.team_id = %s", (rid, staff.team_id)).fetchone() is None:
+        raise ApiError("NOT_FOUND", "Report not found.")
+    return rid
+
+
+@router.post("/reports/{report_id}/notes", status_code=201)
+def add_note(report_id: str, body: NoteRequest, staff: Staff = Depends(require_staff),
+             conn: Any = Depends(pg)) -> dict[str, Any]:
+    rid = _team_report(conn, staff, report_id)
+    conn.execute("insert into public.audit_log (actor_id, entity_type, entity_id, action, after_data)"
+                 " values (%s, 'reports', %s, 'note', %s)", (staff.profile_id, rid, json.dumps({"text": body.text.strip()})))
+    conn.commit()
+    return {"report_id": rid, "note": body.text.strip()}
+
+
+class CommunicationRequest(BaseModel):
+    """A record of a message a supervisor sent or attempted outside the app.
+    Recording it sends nothing."""
+
+    channel: Literal["sms", "ivr"]
+    message: str = Field(min_length=1, max_length=500)
+    delivery_status: Literal["queued", "sent", "failed", "confirmed"]
+    sent_at: datetime | None = None
+
+
+@router.post("/reports/{report_id}/communications", status_code=201)
+def log_communication(report_id: str, body: CommunicationRequest, staff: Staff = Depends(supervisor),
+                      conn: Any = Depends(pg)) -> dict[str, Any]:
+    rid = _team_report(conn, staff, report_id)
+    if body.delivery_status != "queued" and body.sent_at is None:
+        raise ApiError("VALIDATION_FAILED", "Say when the message was sent.", field_errors={"sent_at": "required"})
+    nid = conn.execute("insert into public.notifications (related_report_id, channel, message, sent_at, delivery_status)"
+                       " values (%s, %s, %s, %s, %s) returning id",
+                       (rid, body.channel, body.message, body.sent_at, body.delivery_status)).fetchone()[0]
+    conn.execute("insert into public.audit_log (actor_id, entity_type, entity_id, action, after_data)"
+                 " values (%s, 'reports', %s, 'communication_logged', %s)",
+                 (staff.profile_id, rid, json.dumps({"channel": body.channel, "delivery_status": body.delivery_status})))
+    conn.commit()
+    return {"communication_id": str(nid), "delivery_status": body.delivery_status}
+
+
+class VersionRequest(BaseModel):
+    version: int
+
+
+@router.post("/reports/{report_id}/re-report", status_code=201)
+def request_re_report(report_id: str, body: VersionRequest, staff: Staff = Depends(supervisor),
+                      conn: Any = Depends(pg)) -> dict[str, Any]:
+    child = guarded(conn, "select public.request_re_report(%s, %s, %s)",
+                    (_id(report_id, "Report"), staff.profile_id, body.version))
+    return {"report_id": report_id, "re_report_id": str(child)}
+
+
 @router.post("/sources/{source_id}/lab-verified")
 def mark_lab_verified(source_id: str, staff: Staff = Depends(supervisor), conn: Any = Depends(pg)) -> dict[str, Any]:
     guarded(conn, "select public.mark_source_lab_verified(%s, %s)", (_id(source_id, "Water source"), staff.profile_id))
@@ -238,13 +342,20 @@ def mark_lab_verified(source_id: str, staff: Staff = Depends(supervisor), conn: 
 class TestRecordRequest(TestPayload):
     source_id: str
     photo: Upload | None = None   # Pluccy's photo proof (JPEG/PNG)
+    extra_photos: list[Upload] = Field(default_factory=list, max_length=3)   # more angles (011)
+
+    @model_validator(mode="after")
+    def photos_start_with_photo(self) -> "TestRecordRequest":
+        if self.extra_photos and self.photo is None:
+            raise ValueError("send the first photo as 'photo'")
+        return self
 
 
 @router.post("/test-records")
 def push_test_record(body: TestRecordRequest, response: Response, staff: Staff = Depends(require_staff),
                      conn: Any = Depends(pg)) -> dict[str, Any]:
     sid = _team_source(conn, staff, body.source_id)
-    outcome, record_id = insert_test_record(conn, body, sid, staff.profile_id, body.photo)
+    outcome, record_id = insert_test_record(conn, body, sid, staff.profile_id, body.photo, body.extra_photos)
     conn.commit()   # the points trigger (006) decides here
     risk, assessment, report, awarded = conn.execute(
         "select t.computed_risk_level, t.rule_assessment,"
@@ -279,42 +390,90 @@ def list_reports(status: Literal["open", "sent_to_lab", "under_review", "action_
     return {"items": [_report_json(r) for r in rows]}
 
 
+def _iso(v: Any) -> str | None:
+    return v.isoformat() if v else None
+
+
+def report_details(conn: Any, rows: list[tuple]) -> list[dict[str, Any]]:
+    """Full details for many reports with one query per kind (not per report):
+    the supervisor board loads a whole team at once."""
+    if not rows:
+        return []
+    ids = [r[0] for r in rows]
+    tests = {t[0]: t[1:] for t in conn.execute(
+        "select t.id::text, method, dropdown_selection, raw_input, autofill_calculation, computed_risk_level,"
+        " performed_by::text, rule_assessment, photo_url, dip_started_at, read_at,"
+        " (select jsonb_object_agg(parameter, value) from public.test_readings where test_record_id = t.id), extra_photo_urls"
+        " from public.test_records t where t.id = any(%s::uuid[])", ([r[3] for r in rows if r[3]],)).fetchall()}
+    by: dict[str, dict[str, list]] = {rid: {"labs": [], "photos": [], "complaints": [], "history": [], "messages": []} for rid in ids}
+    owner: dict[str, str] = {rid: rid for rid in ids}   # audit entity id -> report id
+    for l in conn.execute("select report_id::text, id::text, lab_name, verification_status, re_report_requested, result_file_url,"
+                          " verified_by::text, verified_at, sent_at from public.lab_referrals where report_id = any(%s::uuid[])"
+                          " order by sent_at", (ids,)).fetchall():
+        by[l[0]]["labs"].append(l[1:])
+        owner[l[1]] = l[0]
+    for ph in conn.execute("select report_id::text, id::text, photo_url, process_stage, inspection_level, uploaded_at"
+                           " from public.process_photos where report_id = any(%s::uuid[]) order by uploaded_at", (ids,)).fetchall():
+        by[ph[0]]["photos"].append(ph[1:])
+        owner[ph[1]] = ph[0]
+    for c in conn.execute("select linked_report_id::text, id::text, reference_number, complaint_type, status from public.complaints"
+                          " where linked_report_id = any(%s::uuid[]) order by submitted_at", (ids,)).fetchall():
+        by[c[0]]["complaints"].append(c[1:])
+        owner[c[1]] = c[0]
+    children = {c[0]: c[1:] for c in conn.execute(
+        "select previous_report_id::text, id::text, status from public.reports where previous_report_id = any(%s::uuid[])", (ids,)).fetchall()}
+    # Case history: each report's audit rows and those of its referrals, photos and linked complaints.
+    for h in conn.execute("select a.entity_id::text, a.id, a.at, a.actor_id::text, a.entity_type, a.action, a.after_data"
+                          " from public.audit_log a where a.entity_id = any(%s::uuid[]) order by a.at, a.id", (list(owner),)).fetchall():
+        rows_h = by[owner[h[0]]]["history"]
+        if len(rows_h) < 500:
+            rows_h.append(h[1:])
+    for m in conn.execute("select related_report_id::text, id::text, channel, message, sent_at, delivery_status from public.notifications"
+                          " where related_report_id = any(%s::uuid[]) and channel in ('sms', 'ivr', 'email')"
+                          " order by coalesce(sent_at, now()), id", (ids,)).fetchall():
+        by[m[0]]["messages"].append(m[1:])
+    out = []
+    for row in rows:
+        d, test, child = by[row[0]], tests.get(row[3]) if row[3] else None, children.get(row[0])
+        out.append({
+            **_report_json(row),
+            # Provenance kept structurally separate - never merged into one value.
+            # A resident-origin report has no test record.
+            "test": {"method": test[0], "dropdown_selection": test[1], "human_observation": test[2],
+                     "machine_suggestion": test[3], "computed_risk_level": test[4], "performed_by": test[5],
+                     "rule_assessment": test[6], "photo": test[7], "readings": test[10], "extra_photos": list(test[11] or []),
+                     "dip_started_at": _iso(test[8]), "read_at": _iso(test[9])} if test else None,
+            "lab_referrals": [{"lab_referral_id": l[0], "lab_name": l[1], "verification_status": l[2],
+                               "re_report_requested": l[3], "result_file": l[4], "verified_by": l[5],
+                               "verified_at": _iso(l[6]), "sent_at": l[7].isoformat()} for l in d["labs"]],
+            "photos": [{"photo_id": p[0], "photo": p[1], "process_stage": p[2], "inspection_level": p[3],
+                        "uploaded_at": p[4].isoformat()} for p in d["photos"]],
+            "linked_complaints": [{"complaint_id": c[0], "reference_number": c[1], "complaint_type": c[2],
+                                   "status": c[3]} for c in d["complaints"]],
+            "re_report": {"report_id": child[0], "status": child[1]} if child else None,
+            "history": [{"id": h[0], "at": h[1].isoformat(), "actor": h[2], "entity": h[3], "action": h[4],
+                         "details": h[5]} for h in d["history"]],
+            "communications": [{"id": m[0], "channel": m[1], "message": m[2], "sent_at": _iso(m[3]),
+                                "delivery_status": m[4]} for m in d["messages"]],
+        })
+    return out
+
+
+# Declared before /reports/{report_id} so "details" is not read as an id.
+@router.get("/reports/details")
+def team_report_details(staff: Staff = Depends(require_staff), conn: Any = Depends(pg)) -> dict[str, Any]:
+    """Every report of the team (the same 200 as GET /reports) with its full details, in one call."""
+    rows = conn.execute(REPORT_COLUMNS + " where ws.team_id = %s order by r.created_at desc limit 200", (staff.team_id,)).fetchall()
+    return {"items": report_details(conn, rows)}
+
+
 @router.get("/reports/{report_id}")
 def report_detail(report_id: str, staff: Staff = Depends(require_staff), conn: Any = Depends(pg)) -> dict[str, Any]:
     rid = _id(report_id, "Report")
     row = conn.execute(REPORT_COLUMNS + " where r.id = %s and ws.team_id = %s", (rid, staff.team_id)).fetchone()
     if row is None:
         raise ApiError("NOT_FOUND", "Report not found.")
-    test = conn.execute("select method, dropdown_selection, raw_input, autofill_calculation, computed_risk_level,"
-                        " performed_by::text, rule_assessment, photo_url, dip_started_at, read_at,"
-                        " (select jsonb_object_agg(parameter, value) from public.test_readings where test_record_id = t.id)"
-                        " from public.test_records t where id = %s", (row[3],)).fetchone() if row[3] else None
-    labs = conn.execute("select id::text, lab_name, verification_status, re_report_requested, result_file_url,"
-                        " verified_by::text, verified_at, sent_at from public.lab_referrals where report_id = %s"
-                        " order by sent_at", (rid,)).fetchall()
-    photos = conn.execute("select id::text, photo_url, process_stage, inspection_level, uploaded_at"
-                          " from public.process_photos where report_id = %s order by uploaded_at", (rid,)).fetchall()
-    complaints = conn.execute("select id::text, reference_number, complaint_type, status from public.complaints"
-                              " where linked_report_id = %s order by submitted_at", (rid,)).fetchall()
-    child = conn.execute("select id::text, status from public.reports where previous_report_id = %s", (rid,)).fetchone()
-    return {
-        **_report_json(row),
-        # Provenance kept structurally separate - never merged into one value.
-        # A resident-origin report has no test record.
-        "test": {"method": test[0], "dropdown_selection": test[1], "human_observation": test[2],
-                 "machine_suggestion": test[3], "computed_risk_level": test[4], "performed_by": test[5],
-                 "rule_assessment": test[6], "photo": test[7], "readings": test[10],
-                 "dip_started_at": test[8].isoformat() if test[8] else None,
-                 "read_at": test[9].isoformat() if test[9] else None} if test else None,
-        "lab_referrals": [{"lab_referral_id": l[0], "lab_name": l[1], "verification_status": l[2],
-                           "re_report_requested": l[3], "result_file": l[4], "verified_by": l[5],
-                           "verified_at": l[6].isoformat() if l[6] else None, "sent_at": l[7].isoformat()} for l in labs],
-        "photos": [{"photo_id": p[0], "photo": p[1], "process_stage": p[2], "inspection_level": p[3],
-                    "uploaded_at": p[4].isoformat()} for p in photos],
-        "linked_complaints": [{"complaint_id": c[0], "reference_number": c[1], "complaint_type": c[2],
-                               "status": c[3]} for c in complaints],
-        "re_report": {"report_id": child[0], "status": child[1]} if child else None,
-    }
+    return report_details(conn, [row])[0]
 
 
 class TransitionRequest(BaseModel):
@@ -406,6 +565,47 @@ def add_photo(report_id: str, body: PhotoRequest, staff: Staff = Depends(require
     return {"photo_id": str(photo_id), "photo": url, "process_stage": body.process_stage, "inspection_level": level}
 
 
+RECENT_PHOTOS_SQL = """
+select * from (
+  select 'complaint' as kind, c.id::text as record_id, c.linked_report_id::text as report_id, c.source_id::text,
+         coalesce(ws.name, 'No source named') as source_name, u.url as photo, u.n::int as position, c.submitted_at as at,
+         c.reference_number || ' · ' || replace(c.complaint_type, '_', ' ') as title,
+         c.details->>'description' as detail, c.status
+    from public.complaints c left join public.water_sources ws on ws.id = c.source_id
+    cross join lateral unnest(array[c.photo_url] || c.extra_photo_urls) with ordinality as u(url, n)
+   where %(sup)s and u.url is not null and (c.source_id is null or ws.team_id = %(team)s)
+  union all
+  select 'screening', t.id::text, (select r.id::text from public.reports r where r.test_record_id = t.id limit 1),
+         t.source_id::text, ws.name, u.url, u.n::int, t.created_at,
+         'Screening · ' || coalesce(t.computed_risk_level, 'recorded') || ' risk', null, t.computed_risk_level
+    from public.test_records t join public.water_sources ws on ws.id = t.source_id
+    cross join lateral unnest(array[t.photo_url] || t.extra_photo_urls) with ordinality as u(url, n)
+   where u.url is not null and ws.team_id = %(team)s
+  union all
+  select 'field', p.id::text, p.report_id::text, p.source_id::text, ws.name, p.photo_url, 1, p.uploaded_at,
+         replace(p.process_stage, '_', ' ') || ' photo', coalesce(p.inspection_level, 'field') || ' inspection', null
+    from public.process_photos p left join public.reports r on r.id = p.report_id
+    join public.water_sources ws on ws.id = coalesce(r.source_id, p.source_id)
+   where ws.team_id = %(team)s and p.photo_url is not null
+) x order by at desc, position limit %(limit)s"""
+
+
+def _photo_json(r: Any) -> dict[str, Any]:
+    at = r[7] if isinstance(r[7], str) else r[7].isoformat()
+    return {"kind": r[0], "record_id": r[1], "report_id": r[2], "source_id": r[3], "source_name": r[4],
+            "blob_id": r[5][5:] if r[5].startswith("blob:") else None, "position": r[6], "at": at,
+            "title": r[8], "detail": r[9], "status": r[10]}
+
+
+@router.get("/photos/recent")
+def recent_photos(limit: int = Query(60, ge=1, le=200), staff: Staff = Depends(require_staff),
+                  conn: Any = Depends(pg)) -> dict[str, Any]:
+    """Newest photos across the team, one cheap query: the supervisor board polls this every few seconds.
+    Complaint photos only for supervisors, like GET /blobs."""
+    rows = conn.execute(RECENT_PHOTOS_SQL, {"sup": staff.role == "supervisor", "team": staff.team_id, "limit": limit}).fetchall()
+    return {"items": [_photo_json(r) for r in rows]}
+
+
 @router.get("/blobs/{blob_id}")
 def get_blob(blob_id: str, staff: Staff = Depends(require_staff), conn: Any = Depends(pg)) -> Response:
     bid = _id(blob_id, "File")
@@ -418,9 +618,9 @@ def get_blob(blob_id: str, staff: Staff = Depends(require_staff), conn: Any = De
         " or exists (select 1 from public.lab_referrals l join public.reports r on r.id = l.report_id"
         "   join public.water_sources ws on ws.id = r.source_id where l.result_file_url = %(url)s and ws.team_id = %(team)s)"
         " or exists (select 1 from public.test_records t join public.water_sources ws on ws.id = t.source_id"
-        "   where t.photo_url = %(url)s and ws.team_id = %(team)s)"
+        "   where (t.photo_url = %(url)s or %(url)s = any(t.extra_photo_urls)) and ws.team_id = %(team)s)"
         " or (%(sup)s and exists (select 1 from public.complaints c left join public.water_sources ws on ws.id = c.source_id"
-        "   where c.photo_url = %(url)s and (c.source_id is null or ws.team_id = %(team)s))))",
+        "   where (c.photo_url = %(url)s or %(url)s = any(c.extra_photo_urls)) and (c.source_id is null or ws.team_id = %(team)s))))",
         {"id": bid, "url": url, "team": staff.team_id, "sup": staff.role == "supervisor"}).fetchone()
     if row is None:
         raise ApiError("NOT_FOUND", "File not found.")
@@ -437,7 +637,8 @@ def list_complaints(status: Literal["new", "linked", "resolved"] | None = Query(
                     staff: Staff = Depends(supervisor), conn: Any = Depends(pg)) -> dict[str, Any]:
     rows = conn.execute(
         "select c.id::text, c.reference_number, c.complaint_type, c.status, c.resolution, c.source_id::text, ws.name,"
-        " c.details->>'description', c.photo_url, c.linked_report_id::text, c.submitted_at, c.linked_at, c.version"
+        " c.details->>'description', c.photo_url, c.linked_report_id::text, c.submitted_at, c.linked_at, c.version,"
+        " coalesce(c.details->'also', '[]'::jsonb), c.extra_photo_urls"
         " from public.complaints c left join public.water_sources ws on ws.id = c.source_id"
         " where (c.source_id is null or ws.team_id = %s) and (%s::text is null or c.status = %s)"
         " order by (c.status = 'new') desc, (c.complaint_type = 'illness') desc, c.submitted_at desc limit 200",
@@ -445,6 +646,7 @@ def list_complaints(status: Literal["new", "linked", "resolved"] | None = Query(
     return {"items": [{
         "complaint_id": r[0], "reference_number": r[1], "complaint_type": r[2], "status": r[3], "resolution": r[4],
         "source_id": r[5], "source_name": r[6], "description": r[7], "photo": r[8], "linked_report_id": r[9],
+        "also": r[13], "extra_photos": list(r[14] or []),
         "submitted_at": r[10].isoformat(), "linked_at": r[11].isoformat() if r[11] else None,
         "version": r[12]} for r in rows]}
 

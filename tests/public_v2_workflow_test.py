@@ -20,7 +20,6 @@ from tests.public_v2_postgres_test import URL, connect, new_resident, psycopg
 EAST_SUP = "b1dd56bc-fe96-5352-99e6-0f1b5ff5d2ca"
 EAST_WORKER = "2d9cf24d-1775-5653-93bb-6bda813c9741"
 NORTH_SUP = "da8334ff-a77a-5e9a-9083-4354340dbe97"
-EAST_PUMP = "b6e646c2-45e0-504e-9f12-44c1ac18bb15"      # East Plains, no reports in the demo data
 CHLORINE_KIT = "6ecff65c-ff32-5141-83dd-9b51f9953ba2"
 JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
 
@@ -29,6 +28,12 @@ JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
 class WorkflowTests(unittest.TestCase):
     def setUp(self) -> None:
         self.c = connect()
+        # A fresh East Plains source per test (rolled back): live data on the demo
+        # pumps cannot change what these rules produce.
+        self.pump = str(self.c.execute(
+            "insert into water_sources (name, source_type, location, location_source, location_accuracy_m, team_id)"
+            " values ('Workflow Test Pump', 'hand_pump', st_setsrid(st_makepoint(76.05, 22.73), 4326)::geography,"
+            " 'gps_auto', 4, '6fa4a23b-18d6-52ec-a072-13cb9fce5d50') returning id").fetchone()[0])
 
     def tearDown(self) -> None:
         self.c.rollback()
@@ -45,7 +50,8 @@ class WorkflowTests(unittest.TestCase):
             self.c.execute(sql, args)
         self.c.execute("rollback to savepoint s")
 
-    def add_test_record(self, risk: str, source: str = EAST_PUMP) -> str:
+    def add_test_record(self, risk: str, source: str | None = None) -> str:
+        source = source or self.pump
         return str(self.q(
             "insert into test_records (source_id, performed_by, kit_id, method, raw_input, computed_risk_level,"
             " local_record_id, synced_at) values (%s, %s, %s, 'manual', '{\"observed_color\": \"x\"}', %s, %s, now())"
@@ -72,7 +78,7 @@ class WorkflowTests(unittest.TestCase):
         self.c.execute("select verify_lab_referral(%s, %s, 'verified', false)", (referral, EAST_SUP))
         self.c.execute("select transition_report(%s, %s, %s, 'action_taken')", (report, EAST_SUP, self.version(report)))
         self.c.execute("insert into process_photos (report_id, source_id, photo_url, process_stage, inspection_level)"
-                       " values (%s, %s, %s, 'corrective_action', 'supervisor')", (report, EAST_PUMP, self.blob()))
+                       " values (%s, %s, %s, 'corrective_action', 'supervisor')", (report, self.pump, self.blob()))
         return report
 
     def close(self, report: str, reason: str = "Chlorinated and resampled; lab confirmed.") -> int:
@@ -86,17 +92,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual((version, status), (1, "open"))
         self.assertEqual(str(self.q("select created_by from reports where id = %s", report)[0]), EAST_WORKER)
         self.assertEqual(self.q("select current_risk_level, current_public_status from water_sources where id = %s",
-                                EAST_PUMP), ("high", "under_review"))
+                                self.pump), ("high", "under_review"))
         self.report_for(self.add_test_record("medium"))
         low = self.add_test_record("low")
         self.assertIsNone(self.q("select 1 from reports where test_record_id = %s", low))
-        self.assertEqual(self.q("select current_risk_level from water_sources where id = %s", EAST_PUMP)[0], "low")
+        self.assertEqual(self.q("select current_risk_level from water_sources where id = %s", self.pump)[0], "low")
 
     def test_second_original_report_for_one_test_is_refused(self) -> None:
         high = self.add_test_record("high")
         with self.assertRaises(psycopg.errors.UniqueViolation):
             self.c.execute("insert into reports (source_id, test_record_id, risk_level) values (%s, %s, 'high')",
-                           (EAST_PUMP, high))
+                           (self.pump, high))
 
     def test_every_update_bumps_the_version(self) -> None:
         report, v1, _ = self.report_for(self.add_test_record("high"))
@@ -168,11 +174,12 @@ class WorkflowTests(unittest.TestCase):
         self.refused("action_evidence_missing", "select close_report(%s, %s, %s, 'long enough reason')",
                      report, EAST_SUP, self.version(report))
         self.c.execute("insert into process_photos (report_id, source_id, photo_url, process_stage)"
-                       " values (%s, %s, %s, 'closure')", (report, EAST_PUMP, self.blob()))
+                       " values (%s, %s, %s, 'closure')", (report, self.pump, self.blob()))
         self.refused("re_report_open", "select close_report(%s, %s, %s, 'long enough reason')",
                      report, EAST_SUP, self.version(report))
 
-    def complaint(self, resident: str, source: str | None = EAST_PUMP) -> str:
+    def complaint(self, resident: str, source: str | None = "pump") -> str:
+        source = self.pump if source == "pump" else source
         return str(self.q("insert into complaints (resident_id, source_id, complaint_type) values (%s, %s, 'smell')"
                           " returning id", resident, source)[0])
 
@@ -189,7 +196,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(self.version(report), before + 1)   # linking changes the case
         self.assertEqual(self.q("select linked_by, linked_at is not null from complaints where id = %s", complaint),
                          (uuid.UUID(EAST_SUP), True))
-        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", EAST_PUMP)[0],
+        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", self.pump)[0],
                          "action_pending")
 
         self.close(report)
@@ -204,18 +211,18 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("safe", sms[-1][3].lower())
         self.assertIsNotNone(self.q("select 1 from notifications where related_report_id = %s and channel = 'push'"
                                     " and user_id = %s", report, EAST_WORKER))
-        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", EAST_PUMP)[0],
+        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", self.pump)[0],
                          "no_open_issues")
         self.assertEqual(self.q("select action from audit_log where entity_id = %s order by id desc limit 1", report)[0],
                          "closed")
 
-        self.c.execute("select mark_source_lab_verified(%s, %s)", (EAST_PUMP, EAST_SUP))
-        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", EAST_PUMP)[0],
+        self.c.execute("select mark_source_lab_verified(%s, %s)", (self.pump, EAST_SUP))
+        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", self.pump)[0],
                          "lab_verified_safe")
         self.add_test_record("high")   # a new issue clears the lab-verified mark
-        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", EAST_PUMP)[0],
+        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", self.pump)[0],
                          "under_review")
-        self.refused("source_has_open_reports", "select mark_source_lab_verified(%s, %s)", EAST_PUMP, EAST_SUP)
+        self.refused("source_has_open_reports", "select mark_source_lab_verified(%s, %s)", self.pump, EAST_SUP)
 
     def test_stale_version_loses_to_a_concurrent_supervisor(self) -> None:
         report, v, _ = self.report_for(self.add_test_record("high"))
@@ -242,7 +249,7 @@ class WorkflowTests(unittest.TestCase):
         self.refused("risk_level_invalid", self.REVIEW, complaint, EAST_SUP, "open_report", None, None, "severe")
 
         other_source = self.q("select id from water_sources where team_id = '6fa4a23b-18d6-52ec-a072-13cb9fce5d50'"
-                              " and id <> %s limit 1", EAST_PUMP)[0]
+                              " and id <> %s limit 1", self.pump)[0]
         other_report, other_version, _ = self.report_for(self.add_test_record("high", str(other_source)))
         self.refused("source_mismatch", self.REVIEW, complaint, EAST_SUP, "link", other_report, other_version, None)
 
@@ -261,10 +268,10 @@ class WorkflowTests(unittest.TestCase):
         report = self.q("select linked_report_id from complaints where id = %s", complaint)[0]
         self.assertEqual(self.q("select origin, test_record_id, risk_level, status, created_by from reports where id = %s",
                                 report), ("resident", None, "medium", "open", uuid.UUID(EAST_SUP)))
-        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", EAST_PUMP)[0],
+        self.assertEqual(self.q("select current_public_status from water_sources where id = %s", self.pump)[0],
                          "under_review")
         with self.assertRaises(psycopg.errors.CheckViolation):   # a screening report needs its test record
-            self.c.execute("insert into reports (source_id, risk_level, origin) values (%s, 'low', 'screening')", (EAST_PUMP,))
+            self.c.execute("insert into reports (source_id, risk_level, origin) values (%s, 'low', 'screening')", (self.pump,))
         self.c.rollback()
 
     def test_a_resident_origin_report_keeps_its_origin_through_a_re_report(self) -> None:

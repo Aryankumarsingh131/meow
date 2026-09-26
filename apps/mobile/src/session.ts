@@ -44,7 +44,6 @@ export const DEMO_USERNAMES = ['worker', 'supervisor'] as const;
  *  DEMO ONLY: remove before any real use. */
 export const DEMO_LOGINS = [
   { label: 'Field worker', email: '1@demo.org', password: '1234' },
-  { label: 'Supervisor', email: '2@demo.org', password: '1234' },
   { label: 'Resident', email: '3@demo.org', password: '1234' },
 ] as const;
 
@@ -70,7 +69,7 @@ export interface PublicVisitor {
 export interface StaffV2Session {
   kind: 'staff_v2';
   email: string;
-  role: 'supervisor' | 'field_worker';
+  role: 'field_worker';
   token: string;
 }
 
@@ -82,13 +81,16 @@ export interface ResidentSession {
 
 export type AppSession = Session | StaffV2Session | ResidentSession | PublicVisitor | null;
 
-/** Route a hosted sign-in by the role the server returned. */
+/** Route a hosted sign-in by the role the server returned. Supervisors work
+ *  in the supervisor dashboard, not on the phone: no surface here. */
 export function hostedSession(email: string, role: string, token: string): StaffV2Session | ResidentSession | null {
   const e = email.trim().toLowerCase();
   if (role === 'resident') return { kind: 'resident', email: e, token };
-  if (role === 'supervisor' || role === 'field_worker') return { kind: 'staff_v2', email: e, role, token };
+  if (role === 'field_worker') return { kind: 'staff_v2', email: e, role, token };
   return null;
 }
+
+export const SUPERVISOR_ON_PHONE = 'Supervisors use the JalSakshi supervisor dashboard, not the phone app.';
 
 export type SignInFailure = 'empty_username' | 'empty_password' | 'unknown_account' | 'offline' | 'server_error';
 

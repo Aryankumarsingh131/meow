@@ -6,27 +6,44 @@
  */
 
 import { API_BASE, request, type ApiOutcome } from './api.ts';
+
+/** The laptop running the API (tools/dev_tunnel.sh), used when ngrok cannot be
+ *  reached - no internet, or the tunnel down. 10.0.2.2 is the host machine as
+ *  seen from the Android emulator; a phone on the same Wi-Fi needs the laptop's
+ *  address in EXPO_PUBLIC_LOCAL_API_BASE. */
+export const LOCAL_API_BASE = process.env.EXPO_PUBLIC_LOCAL_API_BASE || 'http://10.0.2.2:8000';
+/** Where this session's API calls go: set at sign-in. */
+let base = API_BASE;
+export const activeBase = (): string => base;
 import { demo, demoLogin, isDemoToken } from './demoBackend.ts';
-import type { Kit } from './pluccyModel.ts';
+import type { Criterion, Judgement, Kit } from './pluccyModel.ts';
 
 /** The resident web portal: the link staff share and residents open. */
 export const PORTAL_URL = `${API_BASE}/portal`;
 
 export interface LoginResult {
   token: string;
-  role: 'supervisor' | 'field_worker' | 'resident';
+  role: 'supervisor' | 'field_worker' | 'resident';   // supervisors are refused on the phone
   expires_at: number;
 }
 
-/** Server sign-in. If the server cannot be reached or fails (no internet,
- *  captive portal, database down), a demo account signs in to the offline
- *  demo instead (demoBackend.ts) so the app still works end to end. A wrong
- *  password on a reachable server is never turned into a demo session. */
+/** Sign-in, in order: the API through ngrok; this laptop's API directly (it
+ *  serves from its internal database when Supabase is unreachable, so the
+ *  dashboard sees the same data); and last, the on-phone offline demo for the
+ *  demo accounts. A wrong password on a reachable server never falls through. */
 export async function login(email: string, password: string): Promise<ApiOutcome<LoginResult>> {
-  const r = await request<LoginResult>(API_BASE, '/v1/auth/login',
-    { method: 'POST', body: { email: email.trim(), password }, timeoutMs: 12_000 });
-  const unreachable = r.kind === 'offline' || (r.kind === 'failed' && r.status >= 500);
-  const offline = unreachable ? demoLogin(email, password) : null;
+  const body = { email: email.trim(), password };
+  const unreachable = (o: ApiOutcome<unknown>) => o.kind === 'offline' || (o.kind === 'failed' && o.status >= 500);
+  let r = await request<LoginResult>(base, '/v1/auth/login', { method: 'POST', body, timeoutMs: 12_000 });
+  base = API_BASE;
+  if (unreachable(r) && LOCAL_API_BASE !== API_BASE) {
+    const local = await request<LoginResult>(LOCAL_API_BASE, '/v1/auth/login', { method: 'POST', body, timeoutMs: 8_000 });
+    if (!unreachable(local)) {
+      r = local;
+      base = LOCAL_API_BASE;
+    }
+  }
+  const offline = unreachable(r) ? demoLogin(email, password) : null;
   return offline ? { kind: 'ok', value: offline } : r;
 }
 
@@ -41,11 +58,18 @@ export interface Points {
   rule: string;
 }
 
-export const staffMe = (token: string) => isDemoToken(token) ? Promise.resolve(demo.staffMe(token)) :
-  request<{ role: 'supervisor' | 'field_worker'; team_id: string | null; points: Points }>(API_BASE, '/v1/staff/me', { token });
+export const staffMe = (token: string) => isDemoToken(token) ? Promise.resolve(demo.staffMe()) :
+  request<{ role: 'supervisor' | 'field_worker'; team_id: string | null; points: Points }>(base, '/v1/staff/me', { token });
 
 export const fetchKits = (token: string) => isDemoToken(token) ? Promise.resolve(demo.kits()) :
-  request<{ items: Kit[]; points_rule: string; notice: string }>(API_BASE, '/v1/staff/kits', { token });
+  request<KitsResponse>(base, '/v1/staff/kits', { token });
+
+export interface KitsResponse {
+  items: Kit[];
+  inspection_criteria: Criterion[];
+  points_rule: string;
+  notice: string;
+}
 
 export interface StaffSource {
   source_id: string;
@@ -56,7 +80,26 @@ export interface StaffSource {
 }
 
 export const staffSources = (token: string) => isDemoToken(token) ? Promise.resolve(demo.sources()) :
-  request<{ items: StaffSource[] }>(API_BASE, '/v1/staff/sources', { token });
+  request<{ items: StaffSource[] }>(base, '/v1/staff/sources', { token });
+
+export const SOURCE_TYPES = [
+  ['hand_pump', 'Hand pump'], ['tap', 'Tap'], ['well', 'Well'], ['tank', 'Tank'], ['pond', 'Pond'], ['river', 'River'], ['other', 'Other'],
+] as const;
+
+export interface NewSource {
+  name: string;
+  source_type: (typeof SOURCE_TYPES)[number][0];
+  latitude: number;
+  longitude: number;
+  location_source: 'gps_auto';
+  location_accuracy_m: number;
+  village?: string;
+  landmark?: string;
+}
+
+/** A field worker adds a source where they stand: GPS only (a hand-placed pin needs a supervisor). */
+export const createSource = (token: string, body: NewSource) => isDemoToken(token) ? Promise.resolve(demo.createSource(body)) :
+  request<{ source_id: string }>(base, '/v1/staff/sources', { method: 'POST', token, body, timeoutMs: 20_000 });
 
 export interface Photo {
   content_type: 'image/jpeg';
@@ -72,6 +115,10 @@ export interface ScreeningRequest {
   dip_started_at: string;
   read_at: string;
   photo?: Photo;
+  /** Up to 3 more photos after the first (011). */
+  extra_photos?: Photo[];
+  /** Judgement answers, key -> yes/no (inspection_criteria keys). */
+  inspection?: Record<string, boolean>;
 }
 
 export interface ScreeningResult {
@@ -79,7 +126,8 @@ export interface ScreeningResult {
   outcome: 'accepted' | 'duplicate';
   report_id: string | null;
   risk_level: 'unknown' | 'low' | 'medium' | 'high';
-  assessment: { risk_level: string; findings: Array<{ parameter: string; value: number; level: 'low' | 'medium' | 'high' }> } | null;
+  assessment: { risk_level: string; readings_risk?: string; inspection?: Judgement | null;
+    findings: Array<{ parameter: string; value: number; level: 'low' | 'medium' | 'high' }> } | null;
   points_awarded: number;
   points: Points;
 }
@@ -87,45 +135,7 @@ export interface ScreeningResult {
 /** Retry with the same local_record_id: the server is idempotent on it, so nothing is recorded twice. */
 export const submitScreening = (token: string, body: ScreeningRequest) =>
   isDemoToken(token) ? Promise.resolve(demo.submitScreening(token, body)) :
-  request<ScreeningResult>(API_BASE, '/v1/staff/test-records', { method: 'POST', token, body, timeoutMs: 30_000 });
-
-export interface StaffComplaint {
-  complaint_id: string;
-  reference_number: string;
-  complaint_type: string;
-  status: 'new' | 'linked' | 'resolved';
-  source_id: string | null;
-  source_name: string | null;
-  description: string | null;
-  photo: string | null;
-  submitted_at: string;
-}
-
-export const staffComplaints = (token: string) => isDemoToken(token) ? Promise.resolve(demo.staffComplaints()) :
-  request<{ items: StaffComplaint[] }>(API_BASE, '/v1/staff/complaints?status=new', { token });
-
-export interface StaffReport {
-  report_id: string;
-  source_id: string;
-  source_name: string;
-  status: string;
-  version: number;
-  risk_level: string;
-  origin: 'screening' | 'resident';
-  created_at: string;
-}
-
-export const staffReports = (token: string) => isDemoToken(token) ? Promise.resolve(demo.staffReports()) : request<{ items: StaffReport[] }>(API_BASE, '/v1/staff/reports', { token });
-
-export type Review =
-  | { action: 'link'; report_id: string; version: number }
-  | { action: 'open_report'; risk_level: 'low' | 'medium' | 'high' }
-  | { action: 'dismiss' };
-
-export const reviewComplaint = (token: string, complaintId: string, body: Review) =>
-  isDemoToken(token) ? Promise.resolve(demo.reviewComplaint(token, complaintId, body)) :
-  request<{ status: string; report_id: string | null }>(API_BASE, `/v1/staff/complaints/${complaintId}/review`,
-    { method: 'POST', token, body });
+  request<ScreeningResult>(base, '/v1/staff/test-records', { method: 'POST', token, body, timeoutMs: 30_000 });
 
 // --- residents ----------------------------------------------------------------
 
@@ -149,25 +159,72 @@ export interface MyComplaint {
   source_name: string | null;
   submitted_at: string;
   description: string | null;
+  /** Further problems noticed besides complaint_type (011). */
+  also?: ComplaintType[];
 }
 
-export const myComplaints = (token: string) => isDemoToken(token) ? Promise.resolve(demo.myComplaints()) : request<{ items: MyComplaint[] }>(API_BASE, '/v1/public/complaints', { token });
+export const myComplaints = (token: string) => isDemoToken(token) ? Promise.resolve(demo.myComplaints()) : request<{ items: MyComplaint[] }>(base, '/v1/public/complaints', { token });
 
-export const fileComplaint = (token: string, body: { complaint_type: ComplaintType; source_id?: string; description?: string; photo?: Photo }) =>
+export interface ComplaintBody {
+  complaint_type: ComplaintType;
+  also?: ComplaintType[];
+  source_id?: string;
+  description?: string;
+  photo?: Photo;
+  extra_photos?: Photo[];
+}
+
+export const fileComplaint = (token: string, body: ComplaintBody) =>
   isDemoToken(token) ? Promise.resolve(demo.fileComplaint(body)) :
-  request<{ reference_number: string; status_label: string; notice: string }>(API_BASE, '/v1/public/complaints',
+  request<{ reference_number: string; status_label: string; notice: string }>(base, '/v1/public/complaints',
     { method: 'POST', token, body, timeoutMs: 30_000 });
 
 export interface MapSource {
   source_id: string;
   name: string;
   source_type: string;
+  status: string;
   status_label: string;
+  latitude: number | null;
+  longitude: number | null;
   location_precision: string;
+  last_updated: string;
+  village: string | null;
+  ward: string | null;
+  last_screened_at: string | null;
+  screenings_30d: number;
+  open_issues: number;
+  lab_verified_at: string | null;
 }
 
 export const publicMap = (token?: string) => isDemoToken(token) ? Promise.resolve(demo.publicMap()) :
-  request<{ items: MapSource[]; disclaimer: string }>(API_BASE, '/v1/public/map');
+  request<{ items: MapSource[]; disclaimer: string }>(base, '/v1/public/map');
+
+export interface Leaderboard {
+  field_workers: Array<{ rank: number; display_name: string; area: string | null; points: number; on_time_screenings: number; screenings: number }>;
+  areas: Array<{ rank: number; area: string; sources: number; screenings_30d: number; open_issues: number }>;
+  disclaimer: string;
+}
+
+export interface PublicStats {
+  weeks: Array<{ week_start: string; screenings: number; flagged: number; reports_opened: number; reports_closed: number; complaints: number }>;
+  risk_30d: Record<'low' | 'medium' | 'high' | 'unknown', number>;
+  sources_by_type: Record<string, number>;
+  sources_by_status: Record<string, number>;
+  complaints_by_type: Record<string, number>;
+  totals: { sources: number; screenings: number; reports: number; open_reports: number; escalated_to_authority: number; complaints: number };
+  disclaimer: string;
+}
+
+export const publicStats = (token?: string) => isDemoToken(token) ? Promise.resolve(demo.stats()) :
+  request<PublicStats>(base, '/v1/public/stats');
+
+/** A new resident account; the server signs it in straight away. */
+export const registerResident = (body: { email: string; password: string; full_name?: string; phone?: string }) =>
+  request<LoginResult>(base, '/v1/public/accounts', { method: 'POST', body, timeoutMs: 20_000 });
+
+export const publicLeaderboard = (token?: string) => isDemoToken(token) ? Promise.resolve(demo.leaderboard()) :
+  request<Leaderboard>(base, '/v1/public/leaderboard');
 
 /** What to tell a person when a call did not succeed. */
 export function problemText(outcome: Exclude<ApiOutcome<unknown>, { kind: 'ok' }>): string {
@@ -175,9 +232,10 @@ export function problemText(outcome: Exclude<ApiOutcome<unknown>, { kind: 'ok' }
   if (outcome.kind === 'auth_required') return 'Your sign-in has expired. Sign in again.';
   switch (outcome.code) {
     case 'CASE_VERSION_CONFLICT': return 'Someone else changed that report. The list has been reloaded; try again.';
-    case 'COMPLAINT_ALREADY_REVIEWED': return 'Another supervisor already handled this complaint.';
     case 'RATE_LIMITED': return 'Too many requests. Wait a while and try again.';
     case 'VALIDATION_FAILED': return 'Something in the form was not accepted. Check it and try again.';
+    case 'EMAIL_ALREADY_REGISTERED': return 'This email already has an account. Sign in instead.';
+    case 'PHONE_ALREADY_REGISTERED': return 'This phone number already has an account.';
     case 'NOT_FOUND': return 'Not found. It may belong to another team.';
     default: return 'The server could not do that. Try again shortly.';
   }

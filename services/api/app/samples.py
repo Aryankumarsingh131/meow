@@ -28,7 +28,7 @@ class SampleRejected(Exception):
 
 
 def sql(statement: str, connection: Any) -> str:
-    return statement.replace("?", "%s") if "psycopg" in type(connection).__module__ else statement
+    return statement.replace("?", "%s") if any("psycopg" in c.__module__ for c in type(connection).__mro__) else statement
 
 
 def sample_exists(connection: Any, tenant_id: str, sample_id: str) -> bool:

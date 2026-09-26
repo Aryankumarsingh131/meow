@@ -1,0 +1,42 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build --config vite.build.config.ts",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "start": "node server/index.ts",
+    "test": "node --test server/auth.test.ts server/supervisor.test.ts",
+    "test:database": "node --env-file=.env scripts/test-database.ts",
+    "test:workflow": "node --env-file=.env scripts/test-workflow.ts",
+    "db:migrate": "node --env-file=.env scripts/migrate.ts",
+    "demo:seed": "node --env-file=.env scripts/seed-demo.ts",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "supabase:status": "supabase status"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.47.0",
+    "pg": "^8.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "oxlint": "^1.81.0",
+    "supabase": "^2.117.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
+  }
+}

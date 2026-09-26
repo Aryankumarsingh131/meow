@@ -239,7 +239,7 @@ def _adapt(statement: str, connection: Any) -> str:
     `'accepted'`. If that ever changes, this must become a real tokeniser
     rather than a substitution.
     """
-    if "psycopg" in type(connection).__module__:
+    if any("psycopg" in c.__module__ for c in type(connection).__mro__):
         return statement.replace("?", "%s")
     return statement
 

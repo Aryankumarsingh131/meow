@@ -2,21 +2,23 @@
  * Sign-in: one email + password form against the API behind ngrok. The
  * server's role picks the staff app or the resident app (session.ts).
  *
- * DEMO: a dropdown fills in one of the demo accounts (1/2/3@demo.org,
- * password 1234) so a tester never types credentials. Remove it with the
+ * DEMO: a dropdown fills in a demo account (1@demo.org field worker,
+ * 3@demo.org resident; password 1234) so a tester never types credentials. Remove it with the
  * accounts (007) before any real use.
  */
 
 import React, { useState } from 'react';
 import {
-  Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
+  Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 
+import { ResidentLogin } from './residentLogin';
 import { colors, radius, spacing, type } from './theme';
 import {
-  DEMO_LOGINS, SIGN_IN_ERROR, checkSignInInput, continueAsPublic, hostedSession, signInFailureFor, type AppSession,
+  DEMO_LOGINS, SIGN_IN_ERROR, SUPERVISOR_ON_PHONE, checkSignInInput, continueAsPublic, hostedSession, signInFailureFor,
+  type AppSession,
 } from './session';
-import { PORTAL_URL, login } from './v2';
+import { login } from './v2';
 
 const NAVY = '#0B2545';
 
@@ -32,6 +34,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
   const [picked, setPicked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resident, setResident] = useState<'signin' | 'register' | null>(null);
 
   const submit = async () => {
     if (busy) return;
@@ -41,6 +44,7 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
     const r = await login(email, password);
     setBusy(false);
     if (r.kind !== 'ok') return setError(SIGN_IN_ERROR[signInFailureFor(r.kind)]);
+    if (r.value.role === 'supervisor') return setError(SUPERVISOR_ON_PHONE);
     const next = hostedSession(email, r.value.role, r.value.token);
     if (!next) return setError(SIGN_IN_ERROR.unknown_account);
     setError(null);
@@ -54,6 +58,8 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
     setMenuOpen(false);
     setError(null);
   };
+
+  if (resident) return <ResidentLogin initialMode={resident} onSession={onSession} onBack={() => setResident(null)} />;
 
   return (
     <KeyboardAvoidingView style={s.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -126,7 +132,14 @@ export function LoginScreen({ onSession }: LoginScreenProps): React.JSX.Element 
             <Text style={s.tiny}>Use your assigned district account. Contact your administrator if you need access.</Text>
           </View>
 
-          <Pressable onPress={() => void Linking.openURL(PORTAL_URL)} accessibilityRole="link" testID="login-register">
+          <Pressable style={s.residentCard} onPress={() => setResident('signin')} accessibilityRole="button" testID="login-resident">
+            <Image source={require('../assets/ui/family.jpg')} style={s.residentImage} resizeMode="cover" />
+            <View style={{ flex: 1 }}>
+              <Text style={s.residentTitle}>I'm a resident →</Text>
+              <Text style={s.small}>Report a water problem and track it.</Text>
+            </View>
+          </Pressable>
+          <Pressable onPress={() => setResident('register')} accessibilityRole="button" testID="login-register">
             <Text style={s.link}>New resident? Create an account →</Text>
           </Pressable>
           <Pressable onPress={() => onSession(continueAsPublic())} accessibilityRole="button" testID="login-public">
@@ -182,4 +195,8 @@ const s = StyleSheet.create({
   signInText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   dim: { opacity: 0.6 },
   link: { color: colors.primary, fontWeight: '700', fontSize: 14, paddingVertical: spacing.xs },
+  residentCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: '#E6F4F1', borderRadius: radius.lg,
+                  padding: spacing.sm, borderWidth: 1, borderColor: '#CCEDE6' },
+  residentImage: { width: 64, height: 64, borderRadius: radius.md },
+  residentTitle: { fontSize: 17, fontWeight: '800', color: '#0F766E' },
 });

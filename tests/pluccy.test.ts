@@ -8,7 +8,8 @@
 import assert from 'node:assert/strict';
 
 import {
-  BAND_TEXT, bandFor, formatCountdown, milestoneReached, parseReading, readPhase, type KitParameter,
+  ADVICE, BAND_TEXT, bandFor, formatCountdown, judgeLocally, mergedProtocol, milestoneReached, nextSteps, parseReading,
+  readPhase, type Criterion, type Kit, type KitParameter,
 } from '../apps/mobile/src/pluccyModel.ts';
 import { BANNED_WORDS } from '../apps/mobile/src/statusLabel.ts';
 
@@ -75,6 +76,41 @@ test('a milestone is reported once, when it is crossed', () => {
   assert.equal(milestoneReached(10, 11, m), null);
   assert.equal(milestoneReached(49, 50, m), 50);
   assert.equal(milestoneReached(0, 0, m), null);
+});
+
+const CRITERIA: Criterion[] = [
+  ...['latrine_nearby', 'animal_waste', 'standing_water', 'damaged_platform', 'drainage_broken', 'open_or_loose', 'garbage_nearby', 'recent_flooding']
+    .map((key) => ({ key, category: 'sanitary' as const, question: key, tip: '' })),
+  ...['colour_change', 'odour', 'illness_reports'].map((key) => ({ key, category: 'observation' as const, question: key, tip: '' })),
+];
+
+test('judgement preview matches the server rules', () => {
+  const yes = (...keys: string[]) => Object.fromEntries(keys.map((k) => [k, true]));
+  assert.equal(judgeLocally(CRITERIA, {}).sanitary_level, 'low');
+  assert.equal(judgeLocally(CRITERIA, yes('latrine_nearby', 'animal_waste')).sanitary_level, 'low');
+  assert.equal(judgeLocally(CRITERIA, yes('latrine_nearby', 'animal_waste', 'standing_water')).sanitary_level, 'medium');
+  const five = judgeLocally(CRITERIA, yes('latrine_nearby', 'animal_waste', 'standing_water', 'damaged_platform', 'garbage_nearby'));
+  assert.deepEqual([five.sanitary_score, five.sanitary_total, five.sanitary_level], [5, 8, 'high']);
+  assert.equal(judgeLocally(CRITERIA, yes('odour')).observation_level, 'medium');
+  assert.equal(judgeLocally(CRITERIA, yes('illness_reports')).observation_level, 'high');
+  assert.equal(judgeLocally(CRITERIA, { latrine_nearby: false }).sanitary_score, 0);
+});
+
+test('protocols of several kits merge without repeating shared steps', () => {
+  const kit = (name: string, titles: string[]): Kit => ({ kit_id: name, name, strip_type: name, dip_instruction: null, wait_seconds: 10,
+    read_grace_seconds: 60, parameters: [], protocol: titles.map((title) => ({ title, detail: '' })) });
+  const steps = mergedProtocol([kit('a', ['Wear gloves', 'Flush', 'Pads']), kit('b', ['Wear gloves', 'Flush', 'Calibrate'])]);
+  assert.deepEqual(steps.map((s) => s.title), ['Wear gloves', 'Flush', 'Pads', 'Calibrate']);
+});
+
+test('advice never gives a water verdict or treatment instruction', () => {
+  const all = [...Object.values(ADVICE).flat(), ...nextSteps('high', judgeLocally(CRITERIA, { illness_reports: true, latrine_nearby: true })),
+    ...nextSteps('low', null)];
+  for (const line of all) {
+    for (const w of BANNED_WORDS) assert.ok(!new RegExp(`\\b${w}\\b`, 'i').test(line), `${line} uses "${w}"`);
+    assert.ok(!/boil|chlorinate your/i.test(line), line);
+  }
+  assert.ok(nextSteps('high', null)[0].includes('supervisor'));
 });
 
 let failed = 0;

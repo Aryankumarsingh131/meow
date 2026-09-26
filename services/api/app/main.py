@@ -14,6 +14,8 @@ v1 contract routes. Generating it from here would add `/health/*` and the
 synthetic demo paths to the frozen document. See `contracts_app.py`.
 """
 
+import asyncio
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -40,6 +42,10 @@ SYNTHETIC_DEV = settings.environment == "development" and settings.tenant_data_m
 #: oidc_issuer and oidc_audience.
 HOSTED = settings.environment != "development" and bool(settings.database_url and settings.oidc_issuer)
 
+#: The internal fallback database (local_store.py) serves the v2 routes when the
+#: cloud Postgres is unreachable. JALSAKSHI_LOCAL_FALLBACK=0 turns it off.
+FALLBACK_ENABLED = settings.database_url.startswith("postgres") and os.environ.get("JALSAKSHI_LOCAL_FALLBACK", "1") != "0"
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -49,16 +55,49 @@ async def lifespan(app: FastAPI):
     if SYNTHETIC_DEV or HOSTED:
         from . import db, dev_seed
 
-        conn = app.state.connect()
         try:
-            db.migrate(conn)
-            # The synthetic catalogue only ever goes into a synthetic tenant
-            # (production refuses synthetic mode in config.py).
-            if settings.tenant_data_mode == "synthetic":
-                dev_seed.seed(conn)
-        finally:
-            conn.close()
+            conn = app.state.connect()
+        except Exception:
+            # Cloud database unreachable at startup: with the internal fallback
+            # (LocalFallback below) the API still starts and serves the v2 routes.
+            if not FALLBACK_ENABLED:
+                raise
+            import logging
+
+            logging.getLogger("jalsakshi").warning("database unreachable at startup; serving from the internal database")
+            conn = None
+        if conn is not None:
+            try:
+                db.migrate(conn)
+                # The synthetic catalogue only ever goes into a synthetic tenant
+                # (production refuses synthetic mode in config.py).
+                if settings.tenant_data_mode == "synthetic":
+                    dev_seed.seed(conn)
+            finally:
+                conn.close()
+    escalator = asyncio.create_task(_escalation_loop(app)) if HOSTED and ESCALATION_INTERVAL_S > 0 else None
     yield
+    if escalator is not None:
+        escalator.cancel()
+
+
+#: Seconds between escalation runs (010); 0 turns the worker off.
+ESCALATION_INTERVAL_S = settings.escalation_interval_s
+
+
+async def _escalation_loop(app: FastAPI) -> None:
+    """Email the responsible authority about reports left open too long (app/escalation.py)."""
+    import logging
+
+    from . import escalation
+
+    await asyncio.sleep(20)
+    while True:
+        try:
+            await asyncio.to_thread(escalation.run_once, app.state.connect, settings)
+        except Exception as exc:  # noqa: BLE001 - a bad run must not stop the loop (cloud down, SMTP down)
+            logging.getLogger("jalsakshi").warning("escalation run failed: %s", exc.__class__.__name__)
+        await asyncio.sleep(ESCALATION_INTERVAL_S)
 
 
 app = FastAPI(title="JalSakshi API", version="0.1.0", lifespan=lifespan)
@@ -184,6 +223,52 @@ if HOSTED:
     # publishable key only; the password is never checked by this service.
     if settings.supabase_url and settings.supabase_publishable_key:
         app.state.supabase_auth = (settings.supabase_url, settings.supabase_publishable_key)
+
+
+class LocalFallback:
+    """Serve the v2 routes from the internal database (local_store.py) when the
+    cloud Postgres is unreachable, or when the caller holds an internal-database
+    token. The phone and the dashboard both talk to this API, so they keep
+    sharing data while offline. Set JALSAKSHI_LOCAL_FALLBACK=0 to turn it off."""
+
+    PREFIXES = ("/v1/auth/login", "/v1/staff/", "/v1/public/")
+
+    def __init__(self, app) -> None:
+        self.app = app
+        self.local = None
+        self.checked, self.up = 0.0, True
+
+    async def cloud_up(self) -> bool:
+        import time
+
+        from anyio import to_thread
+
+        if time.monotonic() - self.checked > 15:
+            def probe() -> bool:
+                import psycopg
+
+                try:
+                    psycopg.connect(settings.database_url, connect_timeout=3).close()
+                    return True
+                except Exception:  # noqa: BLE001 - any failure means "use the internal database"
+                    return False
+            self.up, self.checked = await to_thread.run_sync(probe), time.monotonic()
+        return self.up
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http" and scope["path"].startswith(self.PREFIXES):
+            auth = dict(scope.get("headers") or []).get(b"authorization", b"")
+            if auth.startswith(b"Bearer local1.") or not await self.cloud_up():
+                if self.local is None:
+                    from .local_store import build_local_app
+
+                    self.local = build_local_app()
+                return await self.local(scope, receive, send)
+        await self.app(scope, receive, send)
+
+
+if FALLBACK_ENABLED:
+    app.add_middleware(LocalFallback)
 
 
 @app.api_route("/", methods=["GET", "HEAD"])

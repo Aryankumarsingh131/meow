@@ -11,6 +11,7 @@ import {
   SIGN_IN_ERROR,
   checkSignInInput,
   continueAsPublic,
+  DEMO_LOGINS,
   hostedSession,
   signInFailureFor,
   staffSession,
@@ -81,6 +82,10 @@ test('the synthetic issuer has no resident user', () => {
   assert.ok(!(DEMO_USERNAMES as readonly string[]).includes('resident'));
 });
 
+test('the demo dropdown offers no supervisor', () => {
+  assert.deepEqual(DEMO_LOGINS.map((d) => d.email), ['1@demo.org', '3@demo.org']);
+});
+
 test('a hosted sign-in routes by the role the server returned', () => {
   const resident = hostedSession(' A@Example.org ', 'resident', 't');
   assert.deepEqual(resident, { kind: 'resident', email: 'a@example.org', token: 't' });
@@ -88,7 +93,7 @@ test('a hosted sign-in routes by the role the server returned', () => {
   const worker = hostedSession('w@example.org', 'field_worker', 't');
   assert.equal(surfaceFor(worker), 'staff');
   assert.equal(worker?.kind === 'staff_v2' && worker.role, 'field_worker');
-  assert.equal(surfaceFor(hostedSession('s@example.org', 'supervisor', 't')), 'staff');
+  assert.equal(hostedSession('s@example.org', 'supervisor', 't'), null);   // supervisors use the dashboard
   assert.equal(hostedSession('x@example.org', 'admin', 't'), null);   // unknown role: no surface
 });
 

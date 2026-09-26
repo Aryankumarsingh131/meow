@@ -3,7 +3,7 @@ import type { ExpoConfig } from "expo/config";
 const config: ExpoConfig = {
   name: "JalSakshi",
   slug: "mobile",
-  version: "2.2.0",
+  version: "3.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
   userInterfaceStyle: "light",
@@ -17,7 +17,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: "org.jalsakshi.mobile",
-    versionCode: 4,
+    versionCode: 5,
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/android-icon-foreground.png",
@@ -42,6 +42,13 @@ const config: ExpoConfig = {
       },
     ],
     "expo-sqlite",
+    [
+      "expo-location",
+      {
+        locationWhenInUsePermission:
+          "Allow JalSakshi to record where a new water source is.",
+      },
+    ],
     [
       "expo-camera",
       {

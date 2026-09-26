@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>JalSakshi — First Review — Hack the Future 3.0</title>
+<style>
+@page { size: 297mm 210mm; margin: 0; }
+:root{
+  --ink:#0F2942; --muted:#5A7387; --faint:#8AA2B4; --blue:#1D6FD0; --deep:#14507D; --bar:#1D5FB0;
+  --soft:#F0F7FF; --soft2:#E3F0FB; --line:#DCE9F5; --line2:#C3DCEF; --red:#B42318; --redsoft:#FDECEA;
+  --green:#0E7A55; --greensoft:#E6F6F0; --amber:#9A5B00; --ambersoft:#FFF4E0; --violet:#5B3FA8; --violetsoft:#EFEBFA;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);font-size:10.2pt;line-height:1.38;counter-reset:pg;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:297mm;height:210mm;padding:11mm 14mm 11mm;position:relative;overflow:hidden;page-break-after:always;break-after:page;counter-increment:pg;background:#fff}
+.page::after{content:"JalSakshi · First review · Hack the Future 3.0 · 25 September 2026";position:absolute;left:14mm;bottom:5mm;font-size:7.5pt;color:var(--faint)}
+.page::before{content:counter(pg);position:absolute;right:14mm;bottom:5mm;font-size:7.5pt;color:var(--faint)}
+.kick{font-size:8pt;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);font-weight:700;margin:0 0 1.2mm}
+h1{font-size:30pt;line-height:1.08;margin:0}
+h2{font-size:18.5pt;line-height:1.15;margin:0 0 1.6mm;font-weight:700;letter-spacing:-.01em;max-width:250mm}
+.dek{font-size:10.5pt;color:var(--muted);margin:0 0 4mm;max-width:245mm}
+h3{font-size:11pt;margin:0 0 1.5mm}
+h4{font-size:9.6pt;margin:0 0 1mm;color:var(--deep)}
+p{margin:0 0 2mm}
+ul{margin:0 0 2mm;padding-left:4.5mm} li{margin:0 0 .9mm}
+.small{font-size:8.6pt;line-height:1.32}
+.tiny{font-size:7.6pt;line-height:1.3;color:var(--muted)}
+.muted{color:var(--muted)}
+.cite{font-size:6.8pt;color:var(--blue);font-weight:600;margin-left:.5pt}
+b,strong{font-weight:650}
+.grid{display:grid;gap:4.5mm}
+.g2{grid-template-columns:1fr 1fr} .g3{grid-template-columns:repeat(3,1fr)} .g4{grid-template-columns:repeat(4,1fr)}
+.g21{grid-template-columns:1.35fr 1fr} .g12{grid-template-columns:1fr 1.35fr} .g31{grid-template-columns:2.1fr 1fr}
+.card{border:1px solid var(--line);border-radius:3mm;padding:3.2mm 3.6mm;background:#fff}
+.card.soft{background:var(--soft);border-color:var(--line)}
+.card.warn{background:var(--ambersoft);border-color:#F2D7A6}
+.card.red{background:var(--redsoft);border-color:#F4C7C1}
+.card.deep{background:var(--deep);color:#fff;border:none}
+.card.deep h3,.card.deep h4{color:#fff}
+.stat{font-size:22pt;font-weight:750;line-height:1;color:var(--deep);letter-spacing:-.02em}
+.stat small{font-size:10pt;font-weight:600;color:var(--muted);letter-spacing:0}
+.statlab{font-size:8.8pt;margin-top:1.2mm}
+.st{display:inline-block;font-size:7pt;font-weight:700;padding:.4mm 1.6mm;border-radius:2mm;white-space:nowrap;letter-spacing:.02em;border:1px solid}
+.st.v{background:var(--greensoft);color:var(--green);border-color:#A8DCC6}
+.st.p{background:var(--ambersoft);color:var(--amber);border-color:#F2D7A6}
+.st.h{background:var(--soft2);color:var(--deep);border-color:var(--line2)}
+.st.r{background:#F1F3F5;color:#4A5561;border-color:#D6DBE0}
+.st.x{background:var(--violetsoft);color:var(--violet);border-color:#D3C9F1}
+.lab{display:inline-block;font-size:6.8pt;font-weight:800;padding:.2mm 1.2mm;border-radius:1.5mm;letter-spacing:.05em}
+.lab.obs{background:var(--deep);color:#fff} .lab.ext{background:#6B7B8A;color:#fff} .lab.tgt{background:var(--violet);color:#fff} .lab.asm{background:#fff;color:var(--ink);border:1px solid var(--ink)}
+table.t{width:100%;border-collapse:collapse}
+table.t th{text-align:left;font-size:7.8pt;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:1.5px solid var(--ink);padding:1.2mm 1.4mm;vertical-align:bottom}
+table.t td{border-bottom:1px solid var(--line);padding:1.1mm 1.4mm;vertical-align:top}
+table.t td.num,table.t th.num{text-align:right;white-space:nowrap}
+table.t tr.b td{font-weight:700}
+table.t tr.sec td{background:var(--soft);font-weight:700;color:var(--deep);font-size:8.2pt}
+table.fin td{padding:.55mm 1.4mm;font-size:8.2pt}
+table.fm td{font-size:7.4pt;padding:.6mm 1.2mm;line-height:1.25} table.fm th{font-size:7pt}
+.cmp td{font-size:8.3pt} table.pt td{font-size:7.9pt;padding:.7mm 1.3mm} .cmp td.c{text-align:center;font-size:10pt} .cmp th.c{text-align:center}
+.cmp tr.us td{background:var(--soft);font-weight:600}
+.flow{display:flex;align-items:stretch;gap:0}
+.flow .step{flex:1;border:1px solid var(--line2);border-radius:2.5mm;padding:2.4mm 2.6mm;background:#fff;position:relative}
+.flow .arrow{width:6mm;display:flex;align-items:center;justify-content:center;color:var(--blue);font-size:14pt;font-weight:700}
+.fail{margin-top:2mm;border-left:3px solid var(--red);background:var(--redsoft);padding:1.4mm 2mm;border-radius:0 2mm 2mm 0;font-size:8.2pt}
+.fail b{color:var(--red)}
+.num-badge{display:inline-flex;width:5.2mm;height:5.2mm;border-radius:50%;background:var(--blue);color:#fff;font-size:8pt;font-weight:700;align-items:center;justify-content:center;margin-right:1.2mm}
+.chain{display:flex;flex-wrap:wrap;gap:1.4mm;align-items:center}
+.chain span.n{border:1px solid var(--line2);background:#fff;border-radius:2mm;padding:1.2mm 2.2mm;font-size:8.6pt;font-weight:600}
+.chain span.n.k{background:var(--deep);color:#fff;border-color:var(--deep)}
+.chain span.a{color:var(--blue);font-weight:700}
+.shots{display:grid;grid-template-columns:repeat(6,1fr);gap:3mm}
+.shot img{width:100%;height:auto;border:1px solid var(--line2);border-radius:2mm;display:block}
+.shot .cap{font-size:7.8pt;line-height:1.28;margin-top:1.2mm}
+.shot .cap b{display:block;font-size:8.2pt}
+.quote{border-left:3px solid var(--blue);padding:1mm 0 1mm 3mm;font-size:10pt;color:var(--deep);font-style:italic}
+.caseh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1mm}
+.tag{font-size:7pt;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.kv{display:grid;grid-template-columns:15mm 1fr;gap:.6mm 2mm;font-size:8.1pt}
+.kv dt{color:var(--muted);font-weight:600} .kv dd{margin:0}
+.fc{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding:1.2mm 0}
+.fc b{font-size:14pt;color:var(--deep)}
+.chart{width:100%;height:auto;display:block}
+.refs{font-size:7.4pt;line-height:1.28;padding-left:5mm;columns:2;column-gap:8mm} .refs li{margin-bottom:1.3mm;break-inside:avoid}
+.refs a{color:var(--blue);word-break:break-all;text-decoration:none}
+.qa{font-size:8.5pt} .qa h4{margin-top:0;font-size:9pt}
+.qa .card{padding:2.4mm 3mm}
+.legend-line{display:flex;gap:2.5mm;flex-wrap:wrap;align-items:center;font-size:7.8pt;color:var(--muted)}
+/* cover */
+.cover{background:linear-gradient(135deg,#0F2942 0%,#14507D 55%,#1D6FD0 100%);color:#fff;padding:16mm 18mm}
+.cover::after,.cover::before{color:rgba(255,255,255,.5)}
+.cover .kick{color:#9CC7F5}
+.cover h1{font-size:44pt;letter-spacing:-.02em}
+.cover .tagline{font-size:12pt;color:#BFD9F6;margin-top:1mm}
+.cover .head{font-size:25pt;line-height:1.16;font-weight:700;margin:14mm 0 5mm;max-width:215mm}
+.cover .sub{font-size:12.2pt;line-height:1.45;max-width:215mm;color:#E4F0FC}
+.cover .strip{position:absolute;left:18mm;right:18mm;bottom:16mm;display:grid;grid-template-columns:repeat(4,1fr);gap:4mm}
+.cover .strip div{border-top:1px solid rgba(255,255,255,.35);padding-top:2.4mm;font-size:8.8pt;color:#D8E8F8}
+.cover .strip b{display:block;color:#fff;font-size:10pt;margin-bottom:.6mm}
+.drop{font-size:9.2pt}
+.arch svg{width:100%;height:auto}
+.bigq{font-size:15pt;line-height:1.3;font-weight:650;color:var(--deep)}
+</style>
+</head>
+<body>
+
+<!-- =============================== 1 COVER =============================== -->
+<section class="page cover">
+  <div class="kick">Hack the Future 3.0 · Tulas University · Theme: Project to Product · First review · 25 September 2026</div>
+  <h1>JalSakshi</h1>
+  <div class="tagline">Clear water. Accountable tomorrow.</div>
+  <div class="head">A worrying water test should end in a verified fix and a told resident, not in a notebook.</div>
+  <div class="sub">India's community water testing finds problems, but official audits show the follow-up routinely breaks down between the test, the lab, the repair and the people drinking the water. JalSakshi is an offline-first field app and case system that turns each flagged screening result into one owned case, which cannot close until there is a verified lab result, a recorded fix, a same-source retest and a resident update.</div>
+  <div class="strip">
+    <div><b>What exists today</b>Android app (v2.2 APK) + API on hosted staging. Works end to end on synthetic data.</div>
+    <div><b>What is not claimed</b>No real kit, lab partner, pilot or customer yet. Not a potability test.</div>
+    <div><b>What we show at this review</b>Offline capture that survives a crash; a closure the server refuses without evidence.</div>
+    <div><b>Team</b>Three builders: product, ML/native, backend/operations.</div>
+  </div>
+</section>
+
+<!-- =============================== 2 EXEC =============================== -->
+<section class="page">
+  <div class="kick">Executive case</div>
+  <h2>The follow-up after a bad test is where accountability is weakest, and that is the one step JalSakshi puts in charge</h2>
+  <div class="grid g3" style="margin-top:3mm">
+    <div class="card"><h4>The problem</h4><p class="small">States reported <b>93.84 lakh</b> water samples tested with field kits in 2024-25{{c:PIB-FTK}}. Official policy says an adverse kit result must go to a lab and trigger corrective action. In audited states that often did not happen. Karnataka retested <b>18%</b> of kit-contaminated samples in 2023-24 and <b>none</b> in the two years before{{c:CAG-KA}}. In Kerala, district labs <i>"did not communicate the test results"</i> to panchayats for remedial action{{c:CAG-KL}}.</p></div>
+    <div class="card"><h4>Who is affected</h4><p class="small">Residents drinking the water, most of all children and patients: only <b>72.8%</b> of tap samples at schools, anganwadis and health centres passed microbiological tests (2024){{c:FA-2024}}. Also the testers, whose work goes unanswered, and the operators who are answerable when an outbreak follows.</p></div>
+    <div class="card"><h4>The failure in the current process</h4><p class="small">A flagged result has no single owner, deadline or closure rule. It moves on paper, phone calls and portals. Lab reports arrive after <b>9 to 106 days</b> against a 1–2 day norm{{c:CAG-KA}}. Repairs are not recorded against the result, and residents are often never told.</p></div>
+    <div class="card soft"><h4>What JalSakshi changes</h4><p class="small">Each flagged screening becomes <b>exactly one case</b> with an owner and a due date. A lab result counts only after a <b>different person verifies it</b>. The server <b>refuses closure</b> until there is a verified report, a recorded corrective action, a later retest of the same source and a resident communication. Field capture works offline and survives crashes.</p></div>
+    <div class="card soft"><h4>Most defensible differentiator</h4><p class="small">Not offline forms (mWater and ODK already do that well) and not phone colour-reading (prior art exists). The difference is <b>evidence rules enforced by default</b> across the whole chain, from screening to resident update. They are tested in code, and the app refuses false certainty. This is a combination claim from a dated desk review, not a claim to be first.</p></div>
+    <div class="card soft"><h4>Build status, honestly</h4><p class="small"><span class="st v">Verified (synthetic)</span> offline capture, idempotent sync, guarded case workflow, resident complaint API, hosted staging, CI. <span class="st p">Partial</span> physical-phone runs, real kit, supervisor board UI, resident app screens. <b>Not production-cleared</b>: 10 named blockers{{c:REPO}}.</p></div>
+  </div>
+  <div class="card deep" style="margin-top:4.5mm;display:flex;gap:8mm;align-items:center">
+    <div style="flex:1"><h4>The next proof point</h4><p style="margin:0">Live at this review: a record captured in airplane mode survives a forced restart and syncs once. Then the server refuses to close its case until the evidence exists. Next: two cold runs on a physical Android phone, a real kit protocol reviewed by a domain expert, and a 50–100 record shadow pilot with one campus operator.</p></div>
+    <div style="width:62mm;border-left:1px solid rgba(255,255,255,.3);padding-left:6mm"><div class="stat" style="color:#fff">8 / 8</div><div class="statlab" style="color:#CFE3F7">steps of the recorded end-to-end journey test pass on synthetic data (team record, 25 Sep 2026)</div></div>
+  </div>
+</section>
+
+<!-- =============================== 3 PROBLEM =============================== -->
+<section class="page">
+  <div class="kick">What exactly is the problem?</div>
+  <h2>Testing finds contamination. The handoffs after the test are where it gets lost.</h2>
+  <p class="dek">Under Jal Jeevan Mission, trained village volunteers (mostly women) test water with field test kits (FTKs). Those results are indicative screening only: an adverse result must go to a lab for confirmation and then to corrective measures{{c:PIB-FTK}}. Each arrow below is a handoff between different people. The red notes are documented breaks.</p>
+  <div class="flow">
+    <div class="step"><span class="num-badge">1</span><b>Screen</b><div class="small">Volunteer tests a tap, tank or handpump with a kit and notes the result.</div>
+      <div class="fail"><b>Breaks:</b> paper notes, no kit lot, expiry or read time. Kerala audit found kits dumped unused in a panchayat office, reagents expired{{c:CAG-KL}}.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num-badge">2</span><b>Refer</b><div class="small">Adverse result: a sample must be collected and sent to the nearest lab.</div>
+      <div class="fail"><b>Breaks:</b> nobody owns the referral. Karnataka retested 0 of 12,449 kit-contaminated samples in 2021-23{{c:CAG-KA}}.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num-badge">3</span><b>Confirm</b><div class="small">Lab tests the sample and issues a report.</div>
+      <div class="fail"><b>Breaks:</b> 9–106 day turnaround vs 1–2 days{{c:CAG-KA}}. Kerala district labs did not send results to panchayats{{c:CAG-KL}}.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num-badge">4</span><b>Fix</b><div class="small">Disinfection, repair, alternate source or treatment.</div>
+      <div class="fail"><b>Breaks:</b> no remedial action for 52% of contaminated samples (Karnataka IMIS){{c:CAG-KA}}. "Remedial action taken" was not available in WQMIS formats (Kerala){{c:CAG-KL}}.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="num-badge">5</span><b>Retest &amp; tell</b><div class="small">Re-check the same source, then inform the people who drink from it.</div>
+      <div class="fail"><b>Breaks:</b> panchayats "left unaware"; no way to warn communities against using contaminated sources{{c:CAG-KL}}.</div></div>
+  </div>
+  <div class="grid g3" style="margin-top:4mm">
+    <div class="card"><h4>Underlying problem (not ours to solve alone)</h4><p class="small">Water gets contaminated through leaking pipes next to sewers, unclean tanks, failed chlorination and weak treatment. Fixing that takes engineers, money and labs. <b>Software cannot make water safe.</b></p></div>
+    <div class="card soft"><h4>Operational problem JalSakshi addresses</h4><p class="small">Making sure a warning signal <b>cannot quietly disappear</b>. Every flagged result gets an owner, a lab confirmation, a recorded fix, a retest and a resident update, or stays visibly overdue.</p></div>
+    <div class="card"><h4>Why it persists</h4><p class="small">Responsibility is split across the village committee, the engineering department, the lab and the health department. Portals record that a test happened, not that someone closed the loop. There is no rule that stops a problem being marked "done" without proof, and lab and staff capacity is thin.</p></div>
+  </div>
+</section>
+
+<!-- =============================== 4 AUDIT EVIDENCE =============================== -->
+<section class="page">
+  <div class="kick">Evidence the handoff fails: official audits</div>
+  <h2>Two 2025 CAG audits document the same break: results that are not re-checked, not reported and not acted on</h2>
+  <p class="dek">These are state findings (Karnataka and Kerala, JJM 2019-24), not national estimates. They are the most rigorous public evidence we found on what happens <i>after</i> a test, and both were tabled in early 2026.</p>
+  <div class="grid g2">
+    <div class="card"><h3>Karnataka: almost no kit-flagged samples were re-checked</h3>{{chart_retest}}
+      <p class="tiny" style="margin-top:1.5mm">JJM guidelines prescribe retesting <i>all</i> contaminated samples. In the seven audited districts, 549 of 910 (60%) were retested in 2023-24. That is a different denominator, and we do not mix the two.{{c:CAG-KA}}</p></div>
+    <div class="card"><h3>Lab confirmation takes weeks, not the 1–2 days the framework sets</h3>{{chart_tat}}</div>
+  </div>
+  <div class="grid g3" style="margin-top:4mm">
+    <div class="card soft"><div class="quote">"Audit however observed that the district laboratories did not communicate the test results to DP or GP for remedial action. This led to the GPs being left unaware of the status of water quality in their jurisdictional area."</div><div class="tiny" style="margin-top:1.5mm">CAG Kerala, Report 10 of 2025, para 5.1.2{{c:CAG-KL}}. The State replied that results were on WQMIS; audit noted WQMIS lacked sampling date, report date, location and remedial action taken.</div></div>
+    <div class="card"><div class="stat">2 <small>of 28</small></div><div class="statlab">test-checked Karnataka villages where the audit's own lab tests met the drinking-water standard{{c:CAG-KA}}</div><p class="tiny" style="margin-top:2mm">Small purposive sample, so not a prevalence estimate. In five villages the source was clean but household taps were not, which points to contamination during distribution.</p></div>
+    <div class="card"><h4>What this means for JalSakshi</h4><p class="small">The gap is <b>not a lack of testing apps</b>. It is the absence of an owned, time-bound, evidence-checked path from a flag to a fix. That is a workflow and accountability problem, and software <i>can</i> make it visible, assignable and impossible to close falsely. It cannot add lab capacity.</p></div>
+  </div>
+</section>
+
+<!-- =============================== 5 CASES =============================== -->
+<section class="page">
+  <div class="kick">Real cases where damage occurred</div>
+  <h2>When warnings do not become owned action, people fall ill, and some die</h2>
+  <p class="dek">Four documented incidents across a city ward, an apartment complex, a village and a medical-college hostel. We separate confirmed findings from allegations. The last row of each card is <b>our analytical assessment</b>, not a claim that JalSakshi would have prevented the harm.</p>
+  <div class="grid g4" style="gap:3.5mm">
+    <div class="card"><div class="caseh"><h3>Bhagirathpura, Indore</h3></div><div class="tag">Dec 2025 – Feb 2026 · municipal supply</div>
+      <dl class="kv" style="margin-top:2mm">
+      <dt>What</dt><dd>Sewage entered a Narmada drinking-water line; a leak was found where a toilet had been built over the pipe{{c:PROBE-INDORE}}.</dd>
+      <dt>Confirmed</dt><dd>36 deaths reported 26 Dec – 25 Feb. A High Court judicial commission (set up 27 Jan 2026{{c:AIR-INDORE}}) reportedly linked <b>24</b> to contaminated supply and held six officials responsible. The report is confidential{{c:DC-INDORE}}.</dd>
+      <dt>Alleged</dt><dd>Residents' complaints to the municipal helpline went unattended for days from 25 Dec{{c:PROBE-INDORE}}.</dd>
+      <dt>Failure</dt><dd>Delayed pipeline replacement; complaints not converted into an owned investigation{{c:DC-INDORE}}.</dd>
+      <dt>Relevance</dt><dd>Complaint intake with a reference number, and illness reports that alert a named supervisor, would make the warning visible and dated. The pipe still needed replacing.</dd></dl></div>
+    <div class="card"><div class="caseh"><h3>DLF flats, Kakkanad, Kochi</h3></div><div class="tag">May – Jun 2024 · private apartment complex</div>
+      <dl class="kv" style="margin-top:2mm">
+      <dt>What</dt><dd>Diarrhoea outbreak after mixed-source water (KWA, borewells, rainwater, tankers) was pumped to towers{{c:OM-DLF2}}.</dd>
+      <dt>Confirmed</dt><dd>Health department identified <b>441</b> ill in two weeks, 5 hospitalised; E. coli confirmed in samples from the complex's tank{{c:OM-DLF2}}.</dd>
+      <dt>Alleged</dt><dd>A lab report dated <b>29 May</b> showed E. coli but was not shared with residents or officials until <b>13 June</b>{{c:OM-DLF1}}.</dd>
+      <dt>Failure</dt><dd>A positive result did not trigger action or disclosure.</dd>
+      <dt>Relevance</dt><dd>An adverse lab result attached to an open case, with closure blocked until residents are informed, targets exactly this gap. It depends on the operator using the system.</dd></dl></div>
+    <div class="card"><div class="caseh"><h3>Kavadigarahatti, Chitradurga</h3></div><div class="tag">Jul – Aug 2023 · village overhead tank</div>
+      <dl class="kv" style="margin-top:2mm">
+      <dt>What</dt><dd>Residents fell ill after drinking from the only overhead tank, which served about 220 houses{{c:TNM-CTA}}.</dd>
+      <dt>Confirmed</dt><dd>4 of 5 samples unfit; <i>Vibrio cholerae</i> found in tank and tap water{{c:DH-CTA}}{{c:TNM-CTA}}. Five to six deaths reported; officials suspended.</dd>
+      <dt>Disputed</dt><dd>Cause: neglected tank cleaning vs. alleged deliberate contamination; officials rejected the latter{{c:TNM-CTA}}.</dd>
+      <dt>Failure</dt><dd>Routine tank sanitation and source checking were not evidenced.</dd>
+      <dt>Relevance</dt><dd>Source history and scheduled same-source retests make a missed check visible. They cannot prevent deliberate tampering.</dd></dl></div>
+    <div class="card"><div class="caseh"><h3>Gandhi Medical College hostels, Hyderabad</h3></div><div class="tag">Apr 2026 · campus</div>
+      <dl class="kv" style="margin-top:2mm">
+      <dt>What</dt><dd>Students reported worms in the hostel drinking-water tank{{c:MD-GMC}}.</dd>
+      <dt>Confirmed</dt><dd>30+ of ~300 undergraduate students with diarrhoea treated; one hepatitis case; samples sent to the Institute of Preventive Medicine{{c:MD-GMC}}.</dd>
+      <dt>Alleged</dt><dd>Students say they raised the issue earlier and cleaning began only once illness was severe{{c:MD-GMC}}.</dd>
+      <dt>Failure</dt><dd>A known concern with no dated owner or deadline.</dd>
+      <dt>Relevance</dt><dd>This is our first target segment: campus operators answerable for their own tanks. A dated complaint and an overdue case are hard to ignore.</dd></dl></div>
+  </div>
+  <p class="tiny" style="margin-top:3mm">We name these places to show what is at stake, not to assign blame beyond the cited findings. Death counts differ between official and resident accounts; we report the figures attributed to the cited sources.</p>
+</section>
+
+<!-- =============================== 6 SCALE =============================== -->
+<section class="page">
+  <div class="kick">Scale and urgency</div>
+  <h2>The exposure is national, the testing workforce already exists, and people cannot tell unsafe water by looking</h2>
+  <p class="dek">All figures below come from the Ministry of Jal Shakti's own data. The functionality assessment is an independent national survey: 19,401 villages and 2,32,691 households, fieldwork July–October 2024 (monsoon), villages already declared "Har Ghar Jal" only{{c:FA-2024}}.</p>
+  <div class="grid g4">
+    <div class="card"><div class="stat">76.0%</div><div class="statlab">of household tap samples passed microbiological tests. About <b>1 in 4 did not</b>{{c:FA-2024}}</div></div>
+    <div class="card"><div class="stat">72.8%</div><div class="statlab">passed at <b>schools, anganwadis and health centres</b>{{c:FA-2024}}</div></div>
+    <div class="card"><div class="stat">92.4%</div><div class="statlab">of households said they were <b>satisfied</b> with water quality. Perception is not a safety test{{c:FA-2024}}</div></div>
+    <div class="card"><div class="stat">27.2%</div><div class="statlab">of villages had a field test kit available on survey day; 55.2% had a water committee{{c:FA-2024}}</div></div>
+  </div>
+  <div class="grid g4" style="margin-top:4mm">
+    <div class="card soft"><div class="stat">93.84 <small>lakh</small></div><div class="statlab">FTK tests in 2024-25 (47.59 lakh in 2025-26 to 12 March; a partial year, not a decline){{c:PIB-FTK}}</div></div>
+    <div class="card soft"><div class="stat">24.80 <small>lakh</small></div><div class="statlab">women trained to test with FTKs (cumulative, as of 12 Mar 2026){{c:PIB-FTK}}</div></div>
+    <div class="card soft"><div class="stat">2,870</div><div class="statlab">water-quality labs reported by states (4 Feb 2026). Results are shown to citizens on the JJM dashboard{{c:PIB-LABS}}</div></div>
+    <div class="card soft"><div class="stat">9–106 <small>days</small></div><div class="statlab">lab turnaround observed in Karnataka vs a 24–48 hour norm{{c:CAG-KA}}</div></div>
+  </div>
+  <div class="grid g3" style="margin-top:4mm">
+    <div class="card"><h4>What these numbers mean for us</h4><p class="small">Contaminated water reaches people even where taps exist, and residents cannot see it. So <b>each flagged test matters</b>, and a flag that nobody follows up is a missed warning. We do not extrapolate state audit percentages to India.</p></div>
+    <div class="card"><h4>Why now</h4><p class="small">The workforce, kits and labs exist, and tests run at crore scale each year. Audits tabled in <b>Feb–Mar 2026</b> name the weak step precisely. Low-cost Android phones can now store evidence offline and run small models locally: our 896-byte model runs in 1.7 ms on an emulator.</p></div>
+    <div class="card"><h4>Why it is practical</h4><p class="small">JalSakshi does not need new infrastructure. It wraps the kit test and lab report that already happen, and the most expensive step (lab confirmation) is already funded by the system. What it adds is ownership, deadlines and proof.</p></div>
+  </div>
+</section>
+
+<!-- =============================== 7 ALTERNATIVES =============================== -->
+<section class="page">
+  <div class="kick">Why existing approaches leave a gap</div>
+  <h2>Good tools exist for recording tests. Few enforce, by default, that a flagged result ends in verified action.</h2>
+  <p class="dek">Scope: desk review of official product pages and documentation, 21–25 Sep 2026. No hands-on trial of these tools yet. "?" means <b>not verified</b>, not "absent". ● built in · ◐ possible by configuration or partial · ○ not provided.</p>
+  <table class="t cmp">
+    <thead><tr><th style="width:17%">Alternative</th><th>Type</th><th class="c">Works offline in the field</th><th class="c">Kit protocol: lot, expiry, read window</th><th class="c">Flag opens an owned case with due date</th><th class="c">Lab result verified by a second person</th><th class="c">Closure blocked without lab + fix + retest + resident update</th><th class="c">Resident complaint → same case</th><th>Cost to operator</th></tr></thead>
+    <tbody>
+      <tr><td><b>Paper / WhatsApp + lab</b></td><td>Current manual process</td><td class="c">●</td><td class="c">◐</td><td class="c">○</td><td class="c">◐</td><td class="c">○</td><td class="c">○</td><td>Low cash, high chasing time</td></tr>
+      <tr><td><b>JJM-WQMIS</b> portal + app{{c:WQMIS}}{{c:PIB-LABS}}</td><td>Government system; integration partner</td><td class="c">?</td><td class="c">?</td><td class="c">?</td><td class="c">?</td><td class="c">?</td><td class="c">◐ results shown publicly</td><td>Free (government)</td></tr>
+      <tr><td><b>mWater</b> Surveyor + Workflows{{c:MWATER}}</td><td>Direct / adjacent competitor</td><td class="c">●</td><td class="c">◐</td><td class="c">◐ assign, steps, overdue alerts</td><td class="c">◐</td><td class="c">◐</td><td class="c">?</td><td>Platform free; paid services</td></tr>
+      <tr><td><b>ODK</b> Collect/Central + Entities{{c:ODK}}</td><td>Adjacent; configurable foundation</td><td class="c">● (2024.3+)</td><td class="c">◐</td><td class="c">◐ case management</td><td class="c">◐</td><td class="c">◐</td><td class="c">?</td><td>Self-host, or Cloud from USD 199/mo</td></tr>
+      <tr><td><b>Akvo Caddisfly</b>{{c:AKVO}}</td><td>Adjacent: phone kit reading</td><td class="c">?</td><td class="c">●</td><td class="c">?</td><td class="c">?</td><td class="c">?</td><td class="c">?</td><td>Open source (GPL-3.0)</td></tr>
+      <tr class="us"><td><b>JalSakshi</b></td><td>Our product</td><td class="c">● <span class="st v">verified</span></td><td class="c">● <span class="st p">synthetic kit</span></td><td class="c">● <span class="st v">verified</span></td><td class="c">● <span class="st v">verified</span></td><td class="c">● <span class="st v">verified</span></td><td class="c">◐ <span class="st p">API only</span></td><td>Proposed {{ess_month}}/mo per campus</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g3" style="margin-top:4mm">
+    <div class="card"><h4>Where others are strong</h4><p class="small">mWater and ODK are mature, offline-first and free or cheap, and either can be <i>configured</i> into much of this loop. Phone-based colour reading is prior art (Akvo Caddisfly; peer-reviewed work including fully on-device systems{{c:P15}}{{c:P07}}). WQMIS is the official record and the right integration target.</p></div>
+    <div class="card soft"><h4>The underserved need</h4><p class="small">Operators who are <b>answerable for a set of sources</b> (campuses, hostels, programmes) but lack a data team to design workflows need a loop that is <b>correct out of the box</b>: evidence rules they cannot skip, screening kept separate from lab confirmation, and residents inside the same record.</p></div>
+    <div class="card"><h4>How we will test this claim</h4><p class="small">Before building further we will run a time-boxed mWater/ODK sandbox trial against the same pilot workflow (team gate T02). If configuration covers it, JalSakshi becomes a capture-and-evidence companion that integrates, rather than a replacement.</p></div>
+  </div>
+</section>
+
+<!-- =============================== 8 SOLUTION =============================== -->
+<section class="page">
+  <div class="kick">How JalSakshi solves the problem</div>
+  <h2>JalSakshi turns a flagged result into one owned case that can only close on evidence</h2>
+  <div class="chain" style="margin:1mm 0 3.5mm">
+    <span class="n">Source (QR / list)</span><span class="a">→</span><span class="n">Kit protocol + read window</span><span class="a">→</span><span class="n">Indicative result or honest "uncertain"</span><span class="a">→</span><span class="n k">One case · owner · due date</span><span class="a">→</span><span class="n">Lab referral</span><span class="a">→</span><span class="n k">Report verified by a 2nd person</span><span class="a">→</span><span class="n">Corrective action</span><span class="a">→</span><span class="n">Same-source retest</span><span class="a">→</span><span class="n">Resident update</span><span class="a">→</span><span class="n k">Evidence-checked closure</span>
+  </div>
+  <div class="grid g31">
+    <table class="t small">
+      <thead><tr><th>Problem (from p.3)</th><th>Capability</th><th>User action</th><th>Expected operational benefit</th><th>Validation method</th></tr></thead>
+      <tbody>
+        <tr><td>1 · Results on paper, no kit lot or timing</td><td>Protocol-bound capture; lot/expiry check; two-clock read timer; offline receipt</td><td>Worker scans source, follows timer, records reading or marks uncertain</td><td>Complete, dated, attributable records even without signal</td><td>Record completeness in pilot vs paper baseline</td></tr>
+        <tr><td>2 · Referral has no owner</td><td>Flagged sample opens exactly one case; owner and due date</td><td>Supervisor assigns and refers to lab</td><td>No unowned flags; overdue visible</td><td>% flags owned within 24 h; median flag → referral</td></tr>
+        <tr><td>3 · Lab result slow, unshared or unverified</td><td>Lab report recorded; verification by a different person; supersession</td><td>Supervisor records; lab reviewer verifies</td><td>Only checked results drive decisions; delay is measured</td><td>Referral → verified-report days, per lab</td></tr>
+        <tr><td>4 · Fix not recorded</td><td>Corrective-action record with completion evidence</td><td>Operator logs chlorination, repair or alternate source</td><td>"Done" means something specific</td><td>% cases with action evidence</td></tr>
+        <tr><td>5 · No retest; residents not told</td><td>Same-source later retest; communication record; closure guard; complaint intake</td><td>Worker retests; supervisor records the notice; residents report and track by reference</td><td>No silent closures; residents have a route in</td><td>0 closures without evidence; complaint → case linkage</td></tr>
+      </tbody>
+    </table>
+    <div>
+      <div class="card soft" style="margin-bottom:3mm"><h4>Who uses it</h4><p class="small"><b>Field worker / volunteer</b>: Android app, offline. <b>Supervisor</b>: triage, referral, verification, closure. <b>Lab reviewer</b>: verifies reports. <b>Operator</b>: records fixes. <b>Resident</b>: complaints, status, notices.</p></div>
+      <div class="card" style="margin-bottom:3mm"><h4>What triggers it</h4><p class="small">A scheduled source test, a kit reading needing review, or a resident's complaint (including an illness report).</p></div>
+      <div class="card warn"><h4>Where our responsibility ends</h4><p class="small">JalSakshi does not treat water or certify it potable, and it does not replace lab testing. It will never show "safe to drink". It cannot force staff to act. It makes inaction <b>visible, dated and attributable</b>, and the operator stays accountable.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== 9 JOURNEY =============================== -->
+<section class="page">
+  <div class="kick">How simply it works</div>
+  <h2>Seven steps from a doubtful reading to a closed case, with real screens from the working build</h2>
+  <p class="dek"><b>Illustrative scenario, not a real event:</b> a hostel caretaker tests a rooftop tank on the monthly round, with no signal on the roof. All screens below are genuine Android-emulator captures of JalSakshi v2 using the <b>synthetic</b> test card SYN-COLOR-001. They are not mock-ups, and they are not real water results.</p>
+  <div class="shots">
+    <div class="shot"><img src="assets/t15-03-timer-in-window.png" alt="Protocol step with read window"><div class="cap"><b>1 · Source &amp; protocol</b>Kit lot and expiry are checked. The two-clock timer allows a reading only inside the read window. An unverified lot means manual-only.</div></div>
+    <div class="shot"><img src="assets/t15-05-photo-roi.png" alt="Photo capture and region marking"><div class="cap"><b>2 · Capture</b>Photo of strip and reference card. When the card is not found, the worker retakes or marks the region by hand.</div></div>
+    <div class="shot"><img src="assets/t15-06-review.png" alt="Review screen showing screening result only"><div class="cap"><b>3 · Review</b>"Screening result only." The quality gate failed, so no automatic reading: the worker enters it with a reason.</div></div>
+    <div class="shot"><img src="assets/t15-07-saved-offline.png" alt="Saved on this phone receipt"><div class="cap"><b>4 · Saved offline</b>Receipt with record ID and fingerprint. It survives a forced restart in airplane mode.</div></div>
+    <div class="shot"><img src="assets/t15-10-reconnected-queue.png" alt="Accepted by server after reconnecting"><div class="cap"><b>5 · Synced once</b>On reconnect the server accepts it. A re-sent copy is recorded as a duplicate, never a second case.</div></div>
+    <div class="shot" style="display:flex;flex-direction:column"><div class="card soft" style="flex:1;padding:2.4mm"><div class="tag">Server side · no UI in this app</div>
+      <p class="small" style="margin:1.5mm 0"><b>6 · Case &amp; lab.</b> One case opens with an owner. The lab report counts only after a <i>different</i> reviewer verifies it (the recorder gets 403).</p>
+      <p class="small" style="margin:0 0 1.5mm"><b>7 · Close.</b> The first close attempt is <b style="color:var(--red)">refused</b> and the checklist names the missing resident communication. After a same-source retest and a recorded notice, it closes.</p>
+      <p class="tiny" style="margin:0">Evidence: <code>tests/e2e/field-case.spec.ts</code>, 8/8 real HTTP steps, team record 25 Sep 2026. The supervisor board is a separate web app.</p></div></div>
+  </div>
+  <div class="grid g3" style="margin-top:3mm">
+    <div class="card"><h4>Decisions and handoffs</h4><p class="small">The worker decides the reading. The supervisor owns triage, referral and closure. A separate lab reviewer verifies, and the operator records the fix. Each step carries a name and timestamp.</p></div>
+    <div class="card"><h4>Completion or escalation</h4><p class="small">A case closes only on complete evidence. Otherwise it stays open with its due date, and overdue cases are listed for the supervisor and the programme lead.</p></div>
+    <div class="card"><h4>What the resident sees</h4><p class="small">A complaint reference number and status (API built). The public view shows only lab-verified values with lab name and date, never a screening result or "safe to drink".</p></div>
+  </div>
+</section>
+
+<!-- =============================== 10 FAILURE PATHS + COVERAGE =============================== -->
+<section class="page">
+  <div class="kick">When things go wrong · feature coverage</div>
+  <h2>The system is designed to refuse, queue or fall back to a human, never to guess</h2>
+  <div class="grid g31">
+    <table class="t small">
+      <thead><tr><th>Situation</th><th>What JalSakshi does</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>No network in the field</td><td>Saves locally with a receipt; queues; syncs on reopen. Multi-person decisions wait for the server.</td><td><span class="st v">Verified (synthetic)</span></td></tr>
+        <tr><td>Phone killed mid-save</td><td>Record is either whole or absent, never half-written.</td><td><span class="st v">Verified (synthetic)</span></td></tr>
+        <tr><td>Response lost, request re-sent</td><td>Same content → "duplicate"; changed content → conflict. Never a second case.</td><td><span class="st v">Verified (synthetic)</span></td></tr>
+        <tr><td>Bad photo, missing reference card</td><td>Quality gate refuses an automatic reading; retake or manual entry with a reason.</td><td><span class="st v">Verified (synthetic)</span></td></tr>
+        <tr><td>Expired lot, reading outside window, clock tampered</td><td>Assisted reading blocked; manual path stays open; timing marked indeterminate.</td><td><span class="st p">Partial: synthetic kit</span></td></tr>
+        <tr><td>Model unsure or wrong</td><td>Model is research-only. It abstains, never shows confidence as "safety", and can be disabled remotely (kill switch).</td><td><span class="st p">Partial: research</span></td></tr>
+        <tr><td>Offline lease expired or phone clock rolled back</td><td>Access locks; saved records are kept (5 h rollback test: 0 lost).</td><td><span class="st v">Verified (synthetic)</span></td></tr>
+        <tr><td>Someone approves their own lab report</td><td>Refused at the API and the database.</td><td><span class="st v">Verified (synthetic)</span></td></tr>
+        <tr><td>Premature closure; two supervisors edit at once</td><td>Refused with the missing items named; stale edit gets a version conflict.</td><td><span class="st v">Verified (synthetic)</span></td></tr>
+        <tr><td>Server asleep (free hosting cold start ~1 min)</td><td>App survives cold start; field records wait in the queue. Always-on hosting is required before a pilot.</td><td><span class="st p">Partial</span></td></tr>
+        <tr><td>Resident has no smartphone; SMS alert needed</td><td>Alerts are <b>queued, not delivered</b>: no SMS, push or IVR provider yet. Printed or notice-board communication is recorded instead.</td><td><span class="st r">Roadmap</span></td></tr>
+      </tbody>
+    </table>
+    <div>
+      <div class="card soft"><h4>Feature inventory at a glance</h4>{{feature_counts}}<p class="tiny" style="margin-top:2mm">Counted from the full matrix in Appendix B (area → feature → user → problem → status → evidence). "Verified (synthetic)" means code exists and passes automated tests and/or emulator runs on synthetic data. Most still owe an independent review.</p></div>
+      <div class="card" style="margin-top:3mm"><h4>Not yet safe for real data</h4><p class="small">Ten production blockers are open, including database row-level security (the API uses the table owner), no phone encryption at rest, secrets to rotate, no licence, and an unsigned closure policy{{c:REPO}}. The team's own release review lists them.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== 11 FIT =============================== -->
+<section class="page">
+  <div class="kick">Why this approach is a strong fit</div>
+  <h2>Built around field constraints: no signal, cheap phones, thin lab capacity and skeptical auditors</h2>
+  <table class="t small">
+    <thead><tr><th style="width:15%">Criterion</th><th style="width:44%">Design choice</th><th>Trade-off we accept</th></tr></thead>
+    <tbody>
+      <tr><td><b>Fit with existing work</b></td><td>Wraps the kit test and lab report that already happen. Nothing replaces the lab. In a pilot the old process remains the record of decision (shadow mode).</td><td>Double entry during the pilot; value must show within weeks</td></tr>
+      <tr><td><b>Operating constraints</b></td><td>Android first, offline after provisioning; tiny on-device model (68 parameters, 896 bytes) with no per-image cloud fee; foreground sync instead of unreliable background jobs.</td><td>iOS later; multi-person decisions need connectivity</td></tr>
+      <tr><td><b>Reliability</b></td><td>Crash-safe local store, idempotent sync with content hashes, ordered change feed, rehearsed backup/restore and rollback.</td><td>Engineering effort spent on durability, not on dashboards</td></tr>
+      <tr><td><b>Accountability</b></td><td>Evidence rules live in the server's state machine and database constraints, not in the UI. Every decision has a name, a time and a version.</td><td>Stricter than some operators want: the closure policy needs domain sign-off</td></tr>
+      <tr><td><b>Honesty</b></td><td>Screening is always labelled "indicative". Confidence numbers are never shown. Public status never says "safe". Synthetic data is watermarked.</td><td>Less "impressive" output than a model claiming accuracy</td></tr>
+      <tr><td><b>Interoperability</b></td><td>Versioned OpenAPI contract with a generated client; safe CSV export. No claimed WQMIS integration until permission and an API exist.</td><td>Manual export to official portals for now</td></tr>
+      <tr><td><b>Cost &amp; scale</b></td><td>One modular FastAPI service + PostgreSQL; pilot infrastructure estimated at USD 59–100/month{{c:PRICES}}. Measured locally: 10 req/s at p95 50 ms, no lost or doubled records at 50 req/s{{c:REPO}}.</td><td>PostgreSQL throughput not yet load-tested</td></tr>
+      <tr><td><b>Maintenance</b></td><td>No LLM, vector store or microservices. Deterministic rules come first, and the model only where it beats them. CI on every push.</td><td>Fewer buzzwords</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g3" style="margin-top:4mm">
+    <div class="card"><h4>When a simpler tool is enough</h4><p class="small">A site with three taps and one diligent manager can use a register and a lab. JalSakshi earns its place when there are <b>many sources, several people and residents who need proof</b>.</p></div>
+    <div class="card"><h4>Advantage we have now</h4><p class="small">A tested evidence engine with offline durability, which is the part most teams skip. The code itself can be copied, so it is not a moat on its own.</p></div>
+    <div class="card"><h4>Advantage that could develop</h4><p class="small">Validated kit-and-device data, a library of reviewed protocols, operator relationships and a track record that auditors trust. None exists yet. They are earned through pilots.</p></div>
+  </div>
+</section>
+
+<!-- =============================== 12 ARCHITECTURE =============================== -->
+<section class="page">
+  <div class="kick">Architecture and technical feasibility</div>
+  <h2>One offline-first app, one guarded API, one database: small enough to run, strict where it matters</h2>
+  <div class="grid" style="grid-template-columns:1.65fr 1fr">
+    <div class="card arch" style="padding:2mm">
+<svg viewBox="0 0 640 330" font-family="Segoe UI, Arial" font-size="10.5">
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1D6FD0"/></marker></defs>
+  <!-- phone -->
+  <rect x="8" y="10" width="190" height="228" rx="10" fill="#F0F7FF" stroke="#C3DCEF"/>
+  <text x="18" y="28" font-weight="700" fill="#0F2942">Android app (Expo / React Native)</text>
+  <text x="18" y="46" fill="#0F2942">• Source catalogue, QR allow-list</text>
+  <text x="18" y="62" fill="#0F2942">• Protocol, lot check, 2-clock timer</text>
+  <text x="18" y="78" fill="#0F2942">• Camera + Kotlin quality module</text>
+  <text x="18" y="94" fill="#0F2942">• ONNX model (research, 896 B)</text>
+  <text x="18" y="110" fill="#0F2942">• Manual review + provenance</text>
+  <text x="18" y="126" fill="#0F2942">• SQLite store + outbox</text>
+  <text x="18" y="142" fill="#0F2942">• Offline lease, clock checks</text>
+  <rect x="18" y="156" width="170" height="72" rx="6" fill="#fff" stroke="#DCE9F5"/>
+  <text x="26" y="172" font-weight="700" fill="#14507D">Resident surface</text>
+  <text x="26" y="188" fill="#0F2942">Public portal screen (demo</text>
+  <text x="26" y="202" fill="#0F2942">fixtures); complaint/points</text>
+  <text x="26" y="216" fill="#0F2942">APIs not yet wired in app</text>
+  <!-- API -->
+  <rect x="250" y="10" width="200" height="228" rx="10" fill="#fff" stroke="#1D6FD0" stroke-width="1.5"/>
+  <text x="260" y="28" font-weight="700" fill="#0F2942">FastAPI service (Render staging)</text>
+  <text x="260" y="46" fill="#0F2942">/v1 idempotent push, ordered pull</text>
+  <text x="260" y="62" fill="#0F2942">Case state machine + guards</text>
+  <text x="260" y="78" fill="#0F2942">Lab report record / verify</text>
+  <text x="260" y="94" fill="#0F2942">Actions, retest, communications</text>
+  <text x="260" y="110" fill="#0F2942">Private evidence upload (quarantine)</text>
+  <text x="260" y="126" fill="#0F2942">Metrics + safe CSV export</text>
+  <text x="260" y="142" fill="#0F2942">/v1/public residents · /v1/staff</text>
+  <text x="260" y="158" fill="#0F2942">Tenant + role checks on every route</text>
+  <text x="260" y="174" fill="#0F2942">Redacted logs, request tracing</text>
+  <text x="260" y="190" fill="#0F2942">Model kill switch (/models/disabled)</text>
+  <text x="260" y="214" font-size="9.5" fill="#5A7387">health/ready 200 · 25 Sep 2026</text>
+  <!-- DB -->
+  <rect x="500" y="10" width="132" height="150" rx="10" fill="#F0F7FF" stroke="#C3DCEF"/>
+  <text x="510" y="28" font-weight="700" fill="#0F2942">PostgreSQL 17</text>
+  <text x="510" y="42" fill="#0F2942">(Supabase)</text>
+  <text x="510" y="60" fill="#0F2942">jalsakshi schema:</text>
+  <text x="510" y="74" fill="#0F2942">samples, cases,</text>
+  <text x="510" y="88" fill="#0F2942">evidence, changefeed</text>
+  <text x="510" y="106" fill="#0F2942">public (v2): reports,</text>
+  <text x="510" y="120" fill="#0F2942">complaints, points;</text>
+  <text x="510" y="134" fill="#0F2942">RLS deny-by-default;</text>
+  <text x="510" y="148" fill="#0F2942">pg_cron retention</text>
+  <rect x="500" y="172" width="132" height="66" rx="10" fill="#fff" stroke="#C3DCEF"/>
+  <text x="510" y="190" font-weight="700" fill="#0F2942">Supabase Auth</text>
+  <text x="510" y="206" fill="#0F2942">ES256 JWT, verified</text>
+  <text x="510" y="220" fill="#0F2942">against published keys</text>
+  <!-- arrows -->
+  <line x1="198" y1="90" x2="248" y2="90" stroke="#1D6FD0" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="248" y1="110" x2="200" y2="110" stroke="#1D6FD0" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="203" y="84" font-size="9" fill="#5A7387">push</text><text x="206" y="124" font-size="9" fill="#5A7387">pull</text>
+  <line x1="450" y1="80" x2="498" y2="80" stroke="#1D6FD0" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="450" y1="200" x2="498" y2="200" stroke="#1D6FD0" stroke-width="2" marker-end="url(#ar)"/>
+  <!-- external -->
+  <rect x="250" y="258" width="200" height="62" rx="10" fill="#fff" stroke="#8AA2B4" stroke-dasharray="5 4"/>
+  <text x="260" y="276" font-weight="700" fill="#0F2942">Supervisor web board</text>
+  <text x="260" y="292" fill="#0F2942">Separate app; uses board API</text>
+  <text x="260" y="306" fill="#0F2942">via CORS allow-list</text>
+  <line x1="350" y1="256" x2="350" y2="240" stroke="#1D6FD0" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="8" y="258" width="190" height="62" rx="10" fill="#fff" stroke="#8AA2B4" stroke-dasharray="5 4"/>
+  <text x="18" y="276" font-weight="700" fill="#5A7387">Planned / not built</text>
+  <text x="18" y="292" fill="#5A7387">SMS · push · IVR providers</text>
+  <text x="18" y="306" fill="#5A7387">object storage · malware scan</text>
+  <rect x="500" y="258" width="132" height="62" rx="10" fill="#fff" stroke="#8AA2B4" stroke-dasharray="5 4"/>
+  <text x="510" y="276" font-weight="700" fill="#5A7387">Official systems</text>
+  <text x="510" y="292" fill="#5A7387">WQMIS: CSV export</text>
+  <text x="510" y="306" fill="#5A7387">only; no integration</text>
+</svg>
+    </div>
+    <div>
+      <div class="card soft" style="margin-bottom:3mm"><h4>Where the AI actually sits, precisely</h4><p class="small">A 3→8→4 neural network (68 parameters) runs <b>offline on the phone</b>. From the median colour of the marked strip region it suggests one of four bins. It is calibrated, with abstention and a range guard. <b>Status: research only.</b> It was trained on 640 synthetic captures from 128 preparations; on emulator it matches the desktop build on 29/29 checks at 1.7 ms. It is only "not worse" than a nearest-colour baseline (160/160 vs 159/160), and a perfect score on 32 preparations only bounds accuracy above ~89%. <b>In the live flow it never suggests yet</b>, because there is no reference-card locator. Every reading today is human, and a human always decides.{{c:REPO}}</p></div>
+      <div class="card"><h4>Controls: implemented vs planned</h4><p class="small"><span class="st v">Implemented</span> tenant isolation on all /v1 routes; role separation; self-review block in DB; version conflicts; secret redaction in logs; upload allow-list + PDF quarantine; public views RLS-locked with 0 anon grants; retention purge with deletion ledger; backup/restore and rollback rehearsed; CI.</p>
+      <p class="small" style="margin:0"><span class="st r">Planned</span> non-owner DB role + RLS for the API; phone encryption at rest (SQLCipher / Keystore); independent security review; photo object storage with backup; always-on hosting; alert paging.</p></div>
+    </div>
+  </div>
+  <p class="tiny" style="margin-top:2.5mm"><b>Known gap:</b> the mobile sync cases (<code>jalsakshi</code> schema) and the resident-layer reports (<code>public</code> schema) are two case models that are not yet bridged. We recommend unifying them before any pilot. Data flow: phone → push (idempotent) → case engine → change feed → phones and board. Evidence photos stay on the phone unless separately authorised.</p>
+</section>
+
+<!-- =============================== 13 BUILD PLAN =============================== -->
+<section class="page">
+  <div class="kick">Build plan and execution readiness</div>
+  <h2>The hard, invisible parts are built. What remains is real-world proof, and it needs partners, not just code.</h2>
+  <table class="t small">
+    <thead><tr><th style="width:12%">Phase</th><th style="width:30%">Deliverable</th><th>Dependency</th><th style="width:25%">Success criterion</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td><span class="st v">Complete</span></td><td>Offline field slice (M1), evidence-to-action case loop API (M2), resident layer API (P1–P13, four items still partial), staging, CI, backup/rollback rehearsal</td><td>—</td><td>Emulator airplane-mode journey; 8/8 journey test; staging smoke 7/7</td><td>Team (roles A/B/C)</td></tr>
+      <tr><td><span class="st h">This hackathon</span></td><td>5-minute live story: offline capture → forced restart → sync once → refused closure → evidenced closure</td><td>Emulator or phone; staging awake</td><td>Every step shown live, or a labelled recording as backup</td><td>A (product)</td></tr>
+      <tr><td><span class="st x">Before next review (our suggestion)</span></td><td>Two cold runs on a physical Android phone; a minimal resident-complaint screen wired to the existing API; case timeline on the board</td><td>A phone + USB; board app access</td><td>Recorded runs with build hash; complaint appears as a case</td><td>A / C</td></tr>
+      <tr><td><span class="st r">Before a pilot</span></td><td>Real kit + protocol with a domain reviewer; signed closure policy; RLS + non-owner role; phone encryption; secret rotation; Hindi; licence; always-on hosting; one case model</td><td>Lab or domain partner; owner decisions</td><td>All 10 blockers in the release review closed with evidence</td><td>A + C; domain partner</td></tr>
+      <tr><td><span class="st r">Pilot</span></td><td>Shadow pilot: 50–100 records, one operator, 8–12 weeks</td><td>Operator agreement, consent, data ownership</td><td>Thresholds on p.14 met; buyer conversation recorded</td><td>A</td></tr>
+      <tr><td><span class="st r">Production</span></td><td>Release checklist: backup running, restore rehearsed on production, alerts watched 24 h</td><td>Pilot outcome</td><td>Owner approval recorded; production smoke passes</td><td>C</td></tr>
+      <tr><td><span class="st r">Expansion</span></td><td>Second kit/parameter, validated model on real preparations, SMS/IVR, official export</td><td>Real data, providers, permissions</td><td>Per-kit evaluation report; leave-phone-out results</td><td>B</td></tr>
+    </tbody>
+  </table>
+  <div class="grid g3" style="margin-top:4mm">
+    <div class="card red"><h4>Risk 1 · No domain or lab partner</h4><p class="small">Without one we cannot validate a kit or sign a closure policy. <b>Reduce:</b> approach a district PHED lab or university chemistry/microbiology department now. Pick one parameter first. Keep the model research-only until real preparations exist.</p></div>
+    <div class="card red"><h4>Risk 2 · Staff do not act on cases</h4><p class="small">Software makes delay visible; it does not create capacity. <b>Reduce:</b> pilot only with an operator who names an owner for follow-up. Measure time to referral and overdue cases, and design escalation with them.</p></div>
+    <div class="card red"><h4>Risk 3 · A free, configurable tool is "good enough"</h4><p class="small">mWater and ODK may cover the workflow. <b>Reduce:</b> run the configure-versus-build trial on the same pilot workflow before more feature work. If configuration wins, pivot to a companion or integration.</p></div>
+  </div>
+</section>
+
+<!-- =============================== 14 IMPACT =============================== -->
+<section class="page">
+  <div class="kick">Estimated impact and how we will measure it</div>
+  <h2>We claim what the product can count: owned cases and completed follow-ups. Health effects need independent evaluation.</h2>
+  <div class="grid g2">
+    <div>
+      <div class="chain" style="margin-bottom:3mm"><span class="n">Screening record</span><span class="a">→</span><span class="n">Flagged</span><span class="a">→</span><span class="n k">Owned case</span><span class="a">→</span><span class="n">Verified lab result</span><span class="a">→</span><span class="n">Recorded fix</span><span class="a">→</span><span class="n">Retest</span><span class="a">→</span><span class="n">Resident told</span></div>
+      <div class="grid g3" style="gap:2.5mm;margin-bottom:3mm">
+        <div class="card soft"><h4>1 · Outputs</h4><p class="tiny" style="color:var(--ink)">Records, flags, cases opened, referrals, verified reports, closures. <b>Measured directly by JalSakshi.</b></p></div>
+        <div class="card soft"><h4>2 · Operational outcomes</h4><p class="tiny" style="color:var(--ink)">Time to referral, overdue cases, evidence-complete closures, residents informed. <b>Measured directly</b>; needs a baseline.</p></div>
+        <div class="card"><h4>3 · Public health</h4><p class="tiny" style="color:var(--ink)">Fewer exposures and illnesses. <b>Not claimed.</b> Needs external evaluation with health data.</p></div>
+      </div>
+      {{impact_table}}
+      <p class="tiny" style="margin-top:1.5mm">Formula: records = Σ customers × sources × tests/year; flagged = records × 5%; follow-ups = flagged × follow-through rate. The 18% benchmark is Karnataka's 2023-24 retest rate{{c:CAG-KA}}, a different context. <b>Our real baseline must be measured</b> in the pilot's shadow period.</p>
+    </div>
+    <div>
+      <div class="card">{{chart_impact}}</div>
+      <div class="card soft" style="margin-top:3mm"><h4>Pilot measurement plan</h4>
+        <table class="t small"><tbody>
+          <tr><td><b>Baseline</b></td><td>4 weeks of shadow logging of the current process at the same sources: flags, referral dates, report dates, actions, notices</td></tr>
+          <tr><td><b>Period</b></td><td>8–12 weeks, 50–100 records, one operator, sources they already test</td></tr>
+          <tr><td><b>Metrics</b></td><td>% flags owned ≤24 h · median flag → referral (days) · referral → verified report (days, per lab) · % flagged with verified report + retest ≤30 days · closures without evidence · records needing correction</td></tr>
+          <tr><td><b>Thresholds</b> <span class="lab tgt">TGT</span></td><td>≥95% owned ≤24 h · referral ≤2 days median · ≥75% follow-through · 0 evidence-less closures · &lt;5% corrections</td></tr>
+          <tr><td><b>Reported with</b></td><td>Missing data, season, worker experience, kit lot; no causal claim from an uncontrolled before/after</td></tr>
+        </tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== 15 BUSINESS =============================== -->
+<section class="page">
+  <div class="kick">SaaS business opportunity</div>
+  <h2>SaaS fits because the value recurs every month: sources are tested, flags arise and evidence accumulates</h2>
+  <div class="grid g2">
+    <div>
+      <table class="t small"><thead><tr><th>Segment</th><th>Need</th><th>Willing to pay</th><th>Ability to adopt</th><th>Sales cycle</th><th>Setup burden</th><th>Rank</th></tr></thead><tbody>
+        <tr><td><b>Residential campuses</b> (universities, hostels, residential schools)</td><td>High: own tanks, answerable to students and parents</td><td>Medium: facilities budget</td><td>High: one decision-maker</td><td>1–3 months</td><td>Low</td><td><b>1</b></td></tr>
+        <tr><td><b>NGO / implementation partners</b> running village surveillance</td><td>High: donor reporting</td><td>Medium: programme or CSR budgets</td><td>Medium: field training</td><td>3–6 months</td><td>Medium</td><td>2</td></tr>
+        <tr><td><b>Private testing labs</b></td><td>Medium: client portal</td><td>Medium</td><td>High</td><td>1–3 months</td><td>Low</td><td>3 (channel)</td></tr>
+        <tr><td><b>Housing societies / RWAs</b></td><td>Medium–high after incidents</td><td>Low: fragmented</td><td>Medium</td><td>Variable</td><td>Low</td><td>4</td></tr>
+        <tr><td><b>State PHED / district missions</b></td><td>High</td><td>High but slow</td><td>Low: WQMIS exists</td><td>12+ months, tender</td><td>High</td><td>Later: integrate, don't compete</td></tr>
+      </tbody></table>
+      <p class="tiny" style="margin-top:1.5mm">Rankings are our judgement from the evidence, not buyer interviews. No buyer, customer or willingness-to-pay figure exists yet.</p>
+      <div class="card soft" style="margin-top:3mm"><h4>Who is who (campus segment)</h4><p class="small"><b>End users:</b> caretakers, estates staff, supervisors. <b>Beneficiaries:</b> students, staff, residents. <b>Paying customer:</b> the institution. <b>Budget owner:</b> estates / facilities or the hostel warden's office. <b>Procurement:</b> registrar or purchase committee, often under a threshold for annual software. Residents never pay, and we never sell data.</p></div>
+    </div>
+    <div>
+      <div class="card"><h4>Why a campus would pay rather than keep a register</h4><p class="small">It gets <b>proof</b> for parents, regulators and accreditation visits that every flagged tank was followed up. It gets fewer hours spent chasing labs and contractors, a resident channel that surfaces problems early, and a dated record if something goes wrong. The incidents on p.5 show the reputational and human cost of a known problem left unowned.</p>
+      <h4 style="margin-top:2mm">What could stop adoption</h4><p class="small">Free alternatives; extra work for caretakers; fear of creating a written record of problems; no lab contract in place; data-protection review.</p>
+      <h4 style="margin-top:2mm">How we validate willingness to pay</h4><p class="small">Ask 10 campus facilities heads for their current annual water-testing spend and staff time. Offer the pilot free, then quote a paid annual plan and record yes/no/why. Success = 2 signed letters of intent at the quoted price.</p></div>
+      <div class="card warn" style="margin-top:3mm"><h4>Charging unit: per site (and source band), not per user</h4><p class="small">Value and cost scale with the number of <b>water sources monitored</b>, not with users. Per-user pricing would penalise adding residents and volunteers, which is exactly who we want in the system.</p></div>
+          <div class="card" style="margin-top:3mm"><h4>Bottom-up reachable market (campus segment only; illustrative)</h4><p class="tiny" style="color:var(--ink)">{{mk_colleges}} colleges registered (AISHE 2021-22){{c:AISHE}} × 30% residential with their own storage <span class="lab asm">ASM</span> = {{mk_serv}} × 10% reachable in 2–3 states in three years <span class="lab asm">ASM</span> = <b>{{mk_reach}} campuses</b>. At the Essentials price that is a {{mk_value}} a year ceiling, not a forecast. The base Year-3 campus count is {{mk_share}} of it. NGO programmes, labs and schools are not added, because their counts are unverified.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== 16 PRICING & SCENARIOS =============================== -->
+<section class="page">
+  <div class="kick">Pricing, revenue and profitability scenarios</div>
+  <h2>Pricing is a hypothesis. At these prices, break-even needs about {{be_base}} customers: the number to validate.</h2>
+  {{pricing_table}}
+  <p class="tiny" style="margin:1mm 0 2mm">Anchors: ODK Cloud Standard USD 199/mo ≈ {{odk_inr}}{{c:ODK}}{{c:FX}} (Essentials = {{ess_vs_odk}} of it); mWater is free with paid services{{c:MWATER}}. <b>Outside subscription:</b> setup (one-time), training ₹15,000/day, integration (quoted), SMS/tags at cost (not modelled). Grants and prizes are <b>never counted as revenue</b>.</p>
+  <div class="grid g21">
+    <div>{{scenario_table}}</div>
+    <div>
+      <div class="card">{{chart_revenue}}</div>
+      <div class="card soft" style="margin-top:3mm"><h4>Reading the numbers</h4><p class="tiny" style="color:var(--ink)">Year-1 revenue ({{rev_base1}} base) is far below year-end ARR ({{arr_base1}}), because customers start mid-year. Year 1 looks small only because <b>founders are unpaid</b>; paying each of three founders ₹5 L would make the base result {{op_base1_paid}}. In Year 3 the base case earns {{rev_base3}} at {{gm_base3}} gross margin, and its operating result is still {{op_base3}}. It needs about {{be_base}} customers at the Year-3 mix and costs (it has {{n_base3}}). Each extra base-mix customer adds about {{contrib_base}} a year of contribution.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== 17 GTM + DEMO =============================== -->
+<section class="page">
+  <div class="kick">Go-to-market, pilot and judge readiness</div>
+  <h2>Start with one campus that owns its tanks, prove the follow-through, then sell the evidence</h2>
+  <div class="grid g3">
+    <div class="card"><h4>First pilot</h4><p class="small"><b>Ideal customer:</b> a residential university or hostel group with 15–40 tanks, taps and filters, and an estates office that already pays for lab tests. <b>Scope:</b> one parameter, one kit, 8–12 weeks in shadow mode. <b>Decision-maker:</b> estates head or registrar. <b>Onboarding:</b> source QR tagging, a half-day training, a named follow-up owner. <b>Conversion:</b> the baseline-versus-pilot report, then an annual Essentials quote. <b>Expansion:</b> more blocks, then Plus; sister campuses.</p></div>
+    <div class="card"><h4>Channels and partners to pursue (none confirmed)</h4><p class="small">University estates and facilities networks; district or private NABL labs (as referral partners and channel); NGOs working with Pani Samitis under JJM; campus incubators. Hackathon incubation support would be a grant, not revenue.</p>
+      <h4 style="margin-top:2mm">Procurement friction</h4><p class="small">Annual software approvals, data-protection review, and reluctance to create written records of problems. Mitigations: a low annual price under common purchase thresholds, a data-ownership clause and an export-anytime guarantee.</p></div>
+    <div class="card"><h4>Demonstration at this review</h4><p class="small"><b>Show now:</b> sign in against the hosted API; airplane-mode capture; kill and reopen; sync once (duplicate refused); bad capture → manual reading; server refuses closure, naming the missing evidence; evidenced closure. <b>Judges should notice:</b> the refusal, the single record after a retry, and the "screening only" wording. <b>If a dependency fails:</b> offline steps need no network; server steps fall back to a labelled recording of the 8-step journey. Never a fabricated result.</p>
+      <p class="small" style="margin:0"><b>Not interface-only:</b> real persistence, real server guards, real sign-in and CI tests, all verifiable in the repository.</p></div>
+  </div>
+  <table class="t small" style="margin-top:4mm">
+    <thead><tr><th style="width:15%">Official criterion{{c:HTF}}</th><th>Where this document answers it</th><th>Strongest evidence</th><th>Honest limit</th></tr></thead>
+    <tbody>
+      <tr><td><b>Innovation</b></td><td>p.7, p.8, p.11</td><td>Evidence-enforced closure + protocol-bound, uncertainty-aware capture + resident channel, in one tested system</td><td>Combination claim; ingredients have prior art</td></tr>
+      <tr><td><b>Technical execution</b></td><td>p.9, p.10, p.12</td><td>Crash-safe offline store, idempotent sync, guarded state machine, on-device model, hosted staging, CI</td><td>Emulator only; independent review owed</td></tr>
+      <tr><td><b>Feasibility</b></td><td>p.11, p.13, p.16</td><td>Small stack, estimated USD 59–100/month pilot infrastructure; named blockers with owners</td><td>No kit, lab or operator partner yet</td></tr>
+      <tr><td><b>Impact</b></td><td>p.3–6, p.14</td><td>Government audits and survey data; measurable pilot metrics</td><td>No field data; no health claim</td></tr>
+      <tr><td><b>Presentation</b> (theme: Project to Product)</td><td>p.15–17</td><td>Buyer, pricing unit, break-even and pilot path</td><td>Pricing and willingness to pay unvalidated</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- =============================== 18 CLOSING =============================== -->
+<section class="page" style="background:var(--soft)">
+  <div class="kick">Closing</div>
+  <h2 style="max-width:230mm">Every year, crores of water tests generate warnings. The ones that matter most are the ones nobody owns.</h2>
+  <div class="grid g2" style="margin-top:6mm">
+    <div>
+      <div class="card" style="margin-bottom:4mm"><h4>The cost of leaving the gap open</h4><p>In audited Karnataka, most kit-flagged samples were never re-checked. In Kerala, panchayats were never told. In Indore, Kochi, Chitradurga and a Hyderabad hostel, warnings came before the illness. Each unowned flag is a warning that someone saw and nobody acted on.</p></div>
+      <div class="card"><h4>The change JalSakshi aims for</h4><p>A flagged result that <b>cannot disappear</b>. It has an owner and a date. It closes only on a verified lab result, a recorded fix, a retest and a told resident, or it stays visibly overdue. Honest about uncertainty, and working without a signal.</p></div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:4mm"><h4>Why it deserves validation</h4><p>The weakest link is documented by the state's own auditors. The workforce, kits and labs already exist. The hard engineering (durability, sync, evidence rules) is built and tested. What is missing is real-world proof, and a pilot can supply it cheaply.</p></div>
+      <div class="card deep"><h4>What we will demonstrate next</h4><ul style="margin:0"><li>Two cold end-to-end runs on a physical Android phone, recorded with build hashes</li><li>A real kit protocol reviewed by a lab or domain expert</li><li>A shadow pilot with one campus operator: baseline vs JalSakshi on time-to-referral and evidence-complete closure</li><li>A priced conversation with a real buyer, recorded as quotes, not projections</li></ul></div>
+    </div>
+  </div>
+  <p class="bigq" style="margin-top:7mm">JalSakshi: the witness (<i>sakshi</i>) that makes sure a warning about water is followed through.</p>
+</section>
+
+<!-- =============================== APPENDIX A: Q&A =============================== -->
+<section class="page">
+  <div class="kick">Appendix A · Difficult judge questions</div>
+  <h2>Ten questions we expect, with honest answers</h2>
+  <div class="grid g2 qa" style="gap:3mm">
+    <div class="card"><h4>1 · Why does this need to exist?</h4>Two state audits show kit-flagged contamination is rarely re-checked, reported or fixed on record{{c:CAG-KA}}{{c:CAG-KL}}. Documented outbreaks follow the same pattern: an unanswered warning. Tools record tests; few enforce the loop.</div>
+    <div class="card"><h4>2 · Why are existing systems insufficient?</h4>WQMIS is the official record, but the Kerala audit found remedial action was not captured in its formats. mWater and ODK can be configured, but that needs expertise, and they do not enforce evidence rules by default. We have not trialled them hands-on yet; that is our next gate.</div>
+    <div class="card"><h4>3 · What is actually unique?</h4>Not offline forms and not phone colour-reading. It is the combination: capture that refuses false certainty, plus a server that will not close a case without a verified report, action, same-source retest and resident communication, plus residents in the same record. This is scoped to our dated desk review.</div>
+    <div class="card"><h4>4 · What works today?</h4>On synthetic data, on an emulator and on hosted staging: offline capture surviving crashes, sync without duplicates, the full guarded case loop (8/8 journey test), and the resident complaint and points APIs. Not yet: a physical phone, a real kit, the board UI in this repo, or resident app screens.</div>
+    <div class="card"><h4>5 · How will users adopt it?</h4>Through a shadow pilot. Workers keep their kit and lab. The app adds structure, not steps they do not already owe: a half-day of training, QR-tagged sources and a named follow-up owner. Hindi is still to come.</div>
+    <div class="card"><h4>6 · What happens when it is wrong or unavailable?</h4>Records save offline and queue. The manual reading is always available. The model is research-only, abstains, and has a remote kill switch. Lab results need a second person. During the pilot the existing process remains the record of decision.</div>
+    <div class="card"><h4>7 · Who pays, and why?</h4>Residential campuses first, from the estates or facilities budget, for proof of follow-up and less chasing time. Then NGO programmes. Residents never pay, and we never sell data. Willingness to pay is unvalidated. The first test is 10 buyer conversations and 2 letters of intent.</div>
+    <div class="card"><h4>8 · How will impact be verified?</h4>With pilot metrics against a 4-week shadow baseline: ownership within 24 h, days to referral, follow-through within 30 days, and evidence-less closures. We make no health-outcome claims. Those would need independent evaluation.</div>
+    <div class="card"><h4>9 · What is the biggest weakness?</h4>No real kit, lab partner, user or buyer yet: everything is synthetic, and ten production blockers are open. A free configurable tool may be "good enough" for some buyers.</div>
+    <div class="card"><h4>10 · What will you prove next?</h4>Physical-phone cold runs, a real kit protocol reviewed by a domain expert, a one-campus shadow pilot with baseline data, and a priced buyer conversation.</div>
+  </div>
+</section>
+
+<!-- =============================== APPENDIX B: FEATURES =============================== -->
+<section class="page">
+  <div class="kick">Appendix B · Complete feature inventory (1 of 2)</div>
+  <h2 style="font-size:14pt">Field app and case workflow</h2>
+  <div class="legend-line" style="margin-bottom:1.5mm"><span class="st v">Verified (synthetic)</span> code exists and passes automated tests or emulator runs on synthetic data <span class="st p">Partial</span> built with a named gap <span class="st h">Hackathon</span> planned for this event <span class="st r">Roadmap</span> future team scope <span class="st x">Proposed</span> suggestion, not a team commitment</div>
+  {{feature_matrix_1}}
+</section>
+<section class="page">
+  <div class="kick">Appendix B · Complete feature inventory (2 of 2)</div>
+  <h2 style="font-size:14pt">Resident layer, platform, roadmap and proposals</h2>
+  {{feature_matrix_2}}
+  <p class="tiny" style="margin-top:2mm">Source for every row: the team repository as of 25 Sep 2026 (current-state record, release evidence index, handoffs, tests){{c:REPO}}. Test counts are the team's recorded results; the author of this document did not re-run suites that write to the live database.</p>
+</section>
+
+<!-- =============================== APPENDIX C: ASSUMPTIONS =============================== -->
+<section class="page">
+  <div class="kick">Appendix C · Model assumptions</div>
+  <h2 style="font-size:14pt">Every commercial and impact input, labelled <span class="lab obs">OBS</span> observed · <span class="lab ext">EXT</span> external benchmark · <span class="lab tgt">TGT</span> team target · <span class="lab asm">ASM</span> illustrative assumption</h2>
+  {{assumptions_table}}
+  <div style="margin-top:2.5mm">
+    <div class="card soft"><h4>Definitions used</h4><p class="tiny" style="color:var(--ink)">MRR = monthly recurring subscription revenue. ARR = MRR at a stated date × 12. Recognised revenue = subscription earned in the year (month-by-month in Year 1; linear build between start and end counts in Year 3) + setup fees. Gross profit = revenue − direct delivery costs (infrastructure, per-customer hosting, onboarding, customer success). Operating result = gross profit − operating expenses. Break-even = (opex + fixed infrastructure) ÷ annual contribution per customer at the Year-3 mix.</p></div>
+
+  </div>
+</section>
+
+<!-- =============================== APPENDIX D: LEDGER =============================== -->
+<section class="page">
+  <div class="kick">Appendix D · Research ledger (condensed)</div>
+  <h2 style="font-size:14pt">What each key number is, where it comes from, and its limits</h2>
+  {{ledger_table}}
+  <p class="tiny" style="margin-top:1.5mm">The full ledger, with publisher, publication date and data period in separate columns, is delivered as <i>jalsakshi-source-and-assumptions-ledger.md</i>. IndiaSpend's Feb 2026 analysis repeats the FA-2024 figures, so it is not cited as independent corroboration.</p>
+</section>
+
+<!-- =============================== APPENDIX E: REFERENCES =============================== -->
+<section class="page">
+  <div class="kick">Appendix E · References</div>
+  <h2 style="font-size:14pt">Sources (accessed 21–25 September 2026)</h2>
+  {{refs}}
+</section>
+
+</body>
+</html>

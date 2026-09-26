@@ -19,7 +19,7 @@ import unittest
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from tests.public_v2_http_test import ENABLED, EMAIL_PREFIX, _client_key, _Req, main, purge_residents
+from tests.public_v2_http_test import ENABLED, EMAIL_PREFIX, main, purge_residents
 from tests.public_v2_postgres_test import connect, psycopg
 
 EAST_SUP = "b1dd56bc-fe96-5352-99e6-0f1b5ff5d2ca"
@@ -40,8 +40,10 @@ def purge_source(c, src: str) -> None:
         "select photo_url from public.process_photos where report_id = any(%s::uuid[]) or source_id = %s"
         " union select result_file_url from public.lab_referrals where report_id = any(%s::uuid[])"
         " union select photo_url from public.complaints where id = any(%s::uuid[])"
-        " union select photo_url from public.test_records where source_id = %s",
-        reports, src, reports, complaints, src) if b != "None"]
+        " union select unnest(extra_photo_urls) from public.complaints where id = any(%s::uuid[])"
+        " union select photo_url from public.test_records where source_id = %s"
+        " union select unnest(extra_photo_urls) from public.test_records where source_id = %s",
+        reports, src, reports, complaints, complaints, src, src) if b != "None"]
     c.execute("delete from public.notifications where related_report_id = any(%s::uuid[])", (reports,))
     c.execute("delete from public.notifications where message like any(select '%%' || reference_number || '%%'"
               " from public.complaints where id = any(%s::uuid[]))", (complaints,))
@@ -85,8 +87,6 @@ class StaffHttpTests(unittest.TestCase):
         for src in self.sources:
             purge_source(c, src)
         purge_residents(c, self.email)
-        c.execute("delete from public.complaint_rate_limits where bucket_key like %s",
-                  (f"%:{_client_key(_Req(self.ip))}",))
         c.commit()
         c.close()
 
@@ -387,6 +387,83 @@ class StaffHttpTests(unittest.TestCase):
         child = self.report(verdict["re_report_id"])
         self.assertEqual((child["is_re_report"], child["previous_report_id"], child["status"]), (True, report_id, "open"))
         self.assertEqual(self.report(report_id)["re_report"]["report_id"], verdict["re_report_id"])
+
+    def test_supervisor_board_routes(self) -> None:
+        """008 + the dashboard routes: team, notes, resident messages, re-report, source edit."""
+        source = self.new_source()
+        report = self.ok(self.screen(source, {"chlorine": 6}), 201)["report_id"]
+        team = self.ok(self.http.get("/v1/staff/team", headers=self.staff(EAST_SUP)))["items"]
+        worker = next(m for m in team if m["profile_id"] == EAST_WORKER)
+        self.assertGreaterEqual(worker["tests"], 1)
+        self.assertEqual(self.http.get("/v1/staff/team", headers=self.staff(EAST_WORKER)).status_code, 403)
+
+        self.ok(self.http.post(f"/v1/staff/reports/{report}/notes", headers=self.staff(EAST_SUP),
+                               json={"text": "Called the ward office."}), 201)
+        self.assertEqual(self.http.post(f"/v1/staff/reports/{report}/notes", headers=self.staff(NORTH_SUP),
+                                        json={"text": "x"}).status_code, 404)
+        self.assertEqual(self.http.post(f"/v1/staff/reports/{report}/communications", headers=self.staff(EAST_SUP),
+                                        json={"channel": "sms", "message": "Testing", "delivery_status": "sent"}).status_code, 422)
+        self.ok(self.http.post(f"/v1/staff/reports/{report}/communications", headers=self.staff(EAST_SUP),
+                               json={"channel": "sms", "message": "Testing underway", "delivery_status": "sent",
+                                     "sent_at": datetime.now(timezone.utc).isoformat()}), 201)
+
+        version = self.report(report)["version"]
+        self.assertEqual(self.code(self.http.post(f"/v1/staff/reports/{report}/re-report", headers=self.staff(EAST_SUP),
+                                                  json={"version": version - 1})), (409, "CASE_VERSION_CONFLICT"))
+        child = self.ok(self.http.post(f"/v1/staff/reports/{report}/re-report", headers=self.staff(EAST_SUP),
+                                       json={"version": version}), 201)["re_report_id"]
+        self.assertEqual(self.code(self.http.post(f"/v1/staff/reports/{report}/re-report", headers=self.staff(EAST_SUP),
+                                                  json={"version": version + 1})), (409, "CASE_TRANSITION_ILLEGAL"))
+        detail = self.report(report)
+        self.assertEqual(detail["re_report"]["report_id"], child)
+        self.assertEqual([c["message"] for c in detail["communications"]], ["Testing underway"])
+        self.assertTrue({"note", "communication_logged", "re_report_requested"} <= {h["action"] for h in detail["history"]})
+
+        self.ok(self.http.patch(f"/v1/staff/sources/{source}", headers=self.staff(EAST_SUP), json={"name": "Renamed Test Pump"}))
+        self.assertEqual(self.http.patch(f"/v1/staff/sources/{source}", headers=self.staff(EAST_WORKER),
+                                         json={"name": "x"}).status_code, 403)
+        self.assertIn("Renamed Test Pump", [s["name"] for s in self.ok(self.http.get("/v1/staff/sources", headers=self.staff(EAST_SUP)))["items"]])
+
+        # The board's batch route returns exactly what the per-report route does, team-scoped.
+        batch = {d["report_id"]: d for d in self.ok(self.http.get("/v1/staff/reports/details", headers=self.staff(EAST_SUP)))["items"]}
+        listed = [r["report_id"] for r in self.ok(self.http.get("/v1/staff/reports", headers=self.staff(EAST_SUP)))["items"]]
+        self.assertEqual(sorted(batch), sorted(listed))
+        for rid in (report, child, *listed[:3]):
+            self.assertEqual(batch[rid], self.report(rid))
+        north = self.ok(self.http.get("/v1/staff/reports/details", headers=self.staff(NORTH_SUP)))["items"]
+        self.assertFalse({d["report_id"] for d in north} & set(batch))
+
+    def test_several_photos_and_problem_types(self) -> None:
+        """011: a screening and a complaint carry up to 4 photos; a complaint several problem types."""
+        source = self.new_source()
+        read = datetime.now(timezone.utc)
+        body = {"source_id": source, "local_record_id": str(uuid.uuid4()), "kit_id": CHLORINE_KIT, "method": "manual",
+                "readings": {"chlorine": 6}, "dip_started_at": (read - timedelta(seconds=45)).isoformat(),
+                "read_at": read.isoformat(), "photo": jpeg(), "extra_photos": [jpeg(), jpeg()]}
+        report_id = self.ok(self.http.post("/v1/staff/test-records", headers=self.staff(EAST_WORKER), json=body), 201)["report_id"]
+        extra = self.report(report_id)["test"]["extra_photos"]
+        self.assertEqual(len(extra), 2)
+        for url in extra:   # the supervisor can open every one; another team cannot
+            self.assertEqual(self.http.get(f"/v1/staff/blobs/{url[5:]}", headers=self.staff(EAST_SUP)).status_code, 200)
+            self.assertEqual(self.http.get(f"/v1/staff/blobs/{url[5:]}", headers=self.staff(NORTH_SUP)).status_code, 404)
+        too_many = {**body, "local_record_id": str(uuid.uuid4()), "extra_photos": [jpeg()] * 4}
+        self.assertEqual(self.http.post("/v1/staff/test-records", headers=self.staff(EAST_WORKER), json=too_many).status_code, 422)
+        no_first = {**body, "local_record_id": str(uuid.uuid4()), "photo": None}
+        self.assertEqual(self.http.post("/v1/staff/test-records", headers=self.staff(EAST_WORKER), json=no_first).status_code, 422)
+
+        resident = self.resident()
+        filed = self.ok(self.http.post("/v1/public/complaints", headers=resident, json={
+            "complaint_type": "smell", "also": ["taste", "smell", "sediment"], "source_id": source,
+            "photo": jpeg(), "extra_photos": [jpeg(), jpeg(), jpeg()]}), 201)
+        self.assertEqual(filed["photos_attached"], 4)
+        mine = next(c for c in self.ok(self.http.get("/v1/public/complaints", headers=resident))["items"]
+                    if c["reference_number"] == filed["reference_number"])
+        self.assertEqual(mine["also"], ["taste", "sediment"])   # the main type and repeats dropped
+        staff_view = next(c for c in self.ok(self.http.get("/v1/staff/complaints", headers=self.staff(EAST_SUP)))["items"]
+                          if c["reference_number"] == filed["reference_number"])
+        self.assertEqual((staff_view["also"], len(staff_view["extra_photos"])), (["taste", "sediment"], 3))
+        self.assertEqual(self.http.get(f"/v1/staff/blobs/{staff_view['extra_photos'][0][5:]}",
+                                       headers=self.staff(EAST_SUP)).status_code, 200)
 
     def test_staff_routes_refuse_bad_identities(self) -> None:
         self.assertEqual(self.http.get("/v1/staff/me").status_code, 401)

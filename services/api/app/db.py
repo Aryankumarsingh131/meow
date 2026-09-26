@@ -30,13 +30,60 @@ STATEMENT_TIMEOUT_MS = 3000
 Connector = Callable[[], Any]
 
 
+#: Idle PostgreSQL connections kept for reuse; one to the hosted database costs ~1.5 s to open.
+POOL_SIZE = 10
+#: A connection idle longer than this is pinged before reuse (the server may have dropped it).
+POOL_PING_AFTER_S = 20.0
+
+
 def connector(database_url: str, sqlite_path: Path) -> Connector:
-    """Return a zero-argument function that opens one connection."""
+    """Return a zero-argument function that opens one connection.
+
+    PostgreSQL connections are pooled: close() rolls back whatever the request
+    left open (transaction-local settings such as `set local role` go with it)
+    and keeps the connection for the next caller. Session settings are only the
+    two SETs below, identical for every request."""
     if database_url.startswith(("postgres://", "postgresql://")):
+        import queue
+        import time
+
         import psycopg
 
+        idle: queue.LifoQueue = queue.LifoQueue(maxsize=POOL_SIZE)
+
+        class PooledConnection(psycopg.Connection):
+            released_at = 0.0
+            in_pool = False
+
+            def close(self) -> None:
+                if self.in_pool:   # a second close() must not pool it twice
+                    return
+                if not self.closed and not self.broken:
+                    try:
+                        self.rollback()
+                        self.released_at, self.in_pool = time.monotonic(), True
+                        idle.put_nowait(self)
+                        return
+                    except (psycopg.Error, queue.Full):
+                        self.in_pool = False
+                super().close()
+
         def connect_pg() -> Any:
-            conn = psycopg.connect(database_url, connect_timeout=5)
+            while True:
+                try:
+                    conn = idle.get_nowait()
+                except queue.Empty:
+                    break
+                conn.in_pool = False
+                if time.monotonic() - conn.released_at < POOL_PING_AFTER_S:
+                    return conn
+                try:
+                    conn.execute("select 1")
+                    conn.rollback()
+                    return conn
+                except psycopg.Error:
+                    psycopg.Connection.close(conn)
+            conn = PooledConnection.connect(database_url, connect_timeout=5)
             conn.execute(f"SET search_path TO {SCHEMA}")
             conn.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
             # Keep session settings outside domain transactions: otherwise a

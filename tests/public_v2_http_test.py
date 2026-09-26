@@ -3,8 +3,7 @@
 Requires the synthetic dev stack (.env: development + synthetic + a PostgreSQL
 JALSAKSHI_DATABASE_URL); the dev issuer mints the tokens. Creates throwaway
 residents (emails test.http.<n>.*@example.org) and removes them, their auth
-users and everything they filed in tearDown. Each test uses its own client
-address, so rate limits never leak between tests.
+users and everything they filed in tearDown.
 
     python -m unittest tests.public_v2_http_test -v
 """
@@ -26,7 +25,6 @@ try:
     from fastapi.testclient import TestClient
 
     from services.api.app import main
-    from services.api.app.public_v2 import _client_key
 
     ENABLED = bool(URL) and main.SYNTHETIC_DEV and main.settings.database_url.startswith("postgres")
 except Exception:  # pragma: no cover - import failure means skip, not error
@@ -36,26 +34,16 @@ except Exception:  # pragma: no cover - import failure means skip, not error
 def purge_residents(c, email_like: str) -> None:
     """Delete throwaway residents, everything they filed, and their auth users."""
     residents = [str(r[0]) for r in c.execute("select id from public.residents where email like %s", (email_like,)).fetchall()]
-    complaints = c.execute("select id, reference_number, photo_url from public.complaints where resident_id = any(%s::uuid[])",
-                           (residents,)).fetchall()
+    complaints = c.execute("select id, reference_number, photo_url, extra_photo_urls from public.complaints"
+                           " where resident_id = any(%s::uuid[])", (residents,)).fetchall()
     ids = [str(r[0]) for r in complaints]
     c.execute("delete from public.notifications where message like any(%s)", ([f"%{r[1]}%" for r in complaints],))
     c.execute("delete from public.audit_log where entity_id = any(%s::uuid[])", (ids,))
     c.execute("delete from public.complaints where id = any(%s::uuid[])", (ids,))
-    c.execute("delete from public.photo_blobs where 'blob:' || id = any(%s::text[])", ([r[2] for r in complaints if r[2]],))
-    c.execute("delete from public.complaint_rate_limits where bucket_key = any(%s)",
-              ([f"complaint:{r}" for r in residents]
-               + ["login_email:" + hashlib.sha256(e.encode()).hexdigest()[:32] for (e,) in c.execute(
-                   "select email from public.residents where email like %s", (email_like,)).fetchall()],))
+    c.execute("delete from public.photo_blobs where 'blob:' || id = any(%s::text[])",
+              ([r[2] for r in complaints if r[2]] + [u for r in complaints for u in r[3]],))
     c.execute("delete from auth.users where id in (select auth_user_id from public.residents where email like %s)",
               (email_like,))   # cascades to the identity and the residents row
-
-
-class _Req:
-    """Just enough of a Request for _client_key()."""
-
-    def __init__(self, ip: str) -> None:
-        self.client = type("C", (), {"host": ip})()
 
 
 @unittest.skipUnless(psycopg is not None and ENABLED, "needs the synthetic dev stack on PostgreSQL")
@@ -70,9 +58,6 @@ class ResidentHttpTests(unittest.TestCase):
         c = self.db
         c.rollback()
         purge_residents(c, f"{EMAIL_PREFIX}{self.n}.%")
-        c.execute("delete from public.complaint_rate_limits where bucket_key like %s or bucket_key = %s",
-                  (f"%:{_client_key(_Req(self.ip))}",
-                   "login_email:" + hashlib.sha256(STAFF_EMAIL.encode()).hexdigest()[:32]))
         c.commit()
         c.close()
 
@@ -168,27 +153,26 @@ class ResidentHttpTests(unittest.TestCase):
         self.assertEqual(a_list[0]["source_name"], self.db.execute(
             "select name from public.water_sources where id = %s", (SOURCE_EAST_PUMP,)).fetchone()[0])
         self.assertEqual(set(a_list[0]), {"reference_number", "complaint_type", "status", "status_label",
-                                          "resolution_label", "source_name", "submitted_at", "linked_at", "description"})
+                                          "resolution_label", "source_name", "submitted_at", "linked_at", "description", "also"})
         self.assertEqual(self.http.get("/v1/public/complaints", headers=self.auth(b)).json()["items"], [])
 
     def test_symptom_report_queues_a_supervisor_notification(self) -> None:
         token = self.register(1)["token"]
         body = self.file(token, complaint_type="illness", source_id=SOURCE_EAST_PUMP)
-        self.assertEqual(body["supervisors_notified"], 1)
+        east_sups = self.db.execute("select count(*) from public.profiles where role = 'supervisor' and active"
+                                    " and team_id = '6fa4a23b-18d6-52ec-a072-13cb9fce5d50'").fetchone()[0]
+        self.assertEqual(body["supervisors_notified"], east_sups)
         rows = self.db.execute(
             "select p.role, p.team_id::text, n.channel, n.delivery_status from public.notifications n"
             " join public.profiles p on p.id = n.user_id where n.message like %s",
             (f"%{body['reference_number']}%",)).fetchall()
-        self.assertEqual(rows, [("supervisor", "6fa4a23b-18d6-52ec-a072-13cb9fce5d50", "in_app", "queued")])
+        self.assertEqual(rows, [("supervisor", "6fa4a23b-18d6-52ec-a072-13cb9fce5d50", "in_app", "queued")] * east_sups)
 
-    def test_complaints_need_a_resident_and_are_rate_limited(self) -> None:
+    def test_complaints_need_a_resident_and_are_not_rate_limited(self) -> None:
         self.assertEqual(self.http.post("/v1/public/complaints", json={"complaint_type": "taste"}).status_code, 401)
         token = self.register(1)["token"]
-        for _ in range(5):
+        for _ in range(7):   # past the old limit of 5 an hour
             self.file(token)
-        sixth = self.http.post("/v1/public/complaints", headers=self.auth(token), json={"complaint_type": "taste"})
-        self.assertEqual(self.code(sixth), (429, "RATE_LIMITED"))
-        self.assertEqual(sixth.json()["retry_after_seconds"], 3600)
 
     def test_complaint_validation(self) -> None:
         token = self.register(1)["token"]
@@ -216,10 +200,21 @@ class ResidentHttpTests(unittest.TestCase):
 
     def test_removed_routes_are_gone(self) -> None:
         for method, path in (("post", "/v1/public/session"), ("post", "/v1/public/password"),
-                             ("get", "/v1/public/leaderboard"), ("get", "/v1/public/rewards"),
+                             ("get", "/v1/public/rewards"),
                              ("get", "/v1/public/complaints/JS-0000000000"), ("get", "/v1/staff/redemptions")):
             with self.subTest(path=path):
                 self.assertIn(getattr(self.http, method)(path).status_code, (404, 405))
+
+    def test_public_leaderboard_is_workers_only_and_anonymised(self) -> None:
+        # 009: the leaderboard is back, but for field workers' on-time screening, not residents.
+        r = self.http.get("/v1/public/leaderboard")
+        self.assertEqual(r.status_code, 200)
+        body = r.json()
+        self.assertIn("say nothing about whether", body["disclaimer"])
+        for w in body["field_workers"]:
+            self.assertEqual(set(w), {"rank", "display_name", "area", "points", "on_time_screenings", "screenings"})
+            self.assertRegex(w["display_name"], r"^\S+( \S\.)?$")   # first name + initial only
+            self.assertNotIn("@", w["display_name"])
 
     def test_portal_page_is_served(self) -> None:
         r = self.http.get("/portal")
@@ -252,9 +247,6 @@ class SupabaseLoginTests(unittest.TestCase):
     def tearDown(self) -> None:
         c = connect()
         purge_residents(c, self.email)
-        c.execute("delete from public.complaint_rate_limits where bucket_key like %s or bucket_key = %s",
-                  (f"%:{_client_key(_Req(self.ip))}",
-                   "login_email:" + hashlib.sha256(STAFF_EMAIL.encode()).hexdigest()[:32]))
         c.commit()
         c.close()
 

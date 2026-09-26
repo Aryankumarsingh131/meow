@@ -20,10 +20,8 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import hmac
 import json
 import re
-import secrets
 import sqlite3
 import time
 import urllib.error
@@ -36,7 +34,7 @@ from typing import Any, Iterator, Literal
 
 import psycopg
 from fastapi import APIRouter, Depends, Header, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, model_validator
 
 from . import upload_validation
@@ -71,20 +69,6 @@ SOURCE_STATUS_LABELS = {
     "lab_verified_safe": "Lab-verified at last test",
 }
 
-# (limit, window seconds). ponytail: fixed windows in Postgres; a burst across a
-# window edge can reach 2x the limit. Sliding windows if that ever matters.
-LIMITS = {
-    "register": (5, 3600),
-    "login": (20, 600),
-    "login_email": (10, 900),
-    "complaint": (5, 3600),
-}
-
-# Keys rate-limit buckets by a hash of the caller's address, never the address.
-# ponytail: per-process pepper; buckets reset on restart and split per worker.
-_PEPPER = secrets.token_bytes(32)
-
-
 # --- plumbing ------------------------------------------------------------------
 
 def pg(request: Request) -> Iterator[Any]:
@@ -98,25 +82,6 @@ def pg(request: Request) -> Iterator[Any]:
         yield conn
     finally:
         conn.close()
-
-
-def _client_key(request: Request) -> str:
-    host = request.client.host if request.client else "unknown"
-    return hmac.new(_PEPPER, host.encode(), hashlib.sha256).hexdigest()[:32]
-
-
-def _rate_limit(conn: Any, kind: str, subject: str) -> None:
-    limit, window = LIMITS[kind]
-    hits = conn.execute(
-        "insert into public.complaint_rate_limits (bucket_key, window_start, hits)"
-        " values (%s, to_timestamp(floor(extract(epoch from now()) / %s) * %s), 1)"
-        " on conflict (bucket_key, window_start)"
-        " do update set hits = public.complaint_rate_limits.hits + 1 returning hits",
-        (f"{kind}:{subject}", window, window)).fetchone()[0]
-    conn.commit()   # the hit counts even when this request is refused
-    if hits > limit:
-        raise ApiError("RATE_LIMITED", f"Too many requests. Try again within {window // 60} minutes.",
-                       extra={"retry_after_seconds": window})
 
 
 def canonical_phone(raw: str) -> str:
@@ -192,6 +157,8 @@ class TestPayload(BaseModel):
     readings: dict[str, float] | None = Field(default=None, max_length=16)
     dip_started_at: datetime | None = None
     read_at: datetime | None = None
+    # 009: the field worker's judgement at the source - inspection_criteria key -> yes/no.
+    inspection: dict[str, bool] | None = Field(default=None, max_length=40)
 
     @model_validator(mode="after")
     def provenance_matches_method(self) -> "TestPayload":
@@ -213,6 +180,36 @@ class TestPayload(BaseModel):
             if self.read_at > datetime.now(timezone.utc) + timedelta(minutes=5):
                 raise ValueError("read_at is in the future")
         return self
+
+
+RANK = {"unknown": 0, "low": 1, "medium": 2, "high": 3}
+
+
+def judge(criteria: list[tuple[str, str]], answers: dict[str, bool]) -> dict[str, Any]:
+    """Score a field inspection. criteria: (key, category) rows of inspection_criteria.
+    Sanitary: count of risks found, 0-2 low, 3-4 medium, 5+ high (a WHO-style
+    sanitary inspection score). Observations: any is medium; reported illness is high."""
+    known = dict(criteria)
+    unknown = sorted(set(answers) - set(known))
+    if unknown:
+        raise ApiError("VALIDATION_FAILED", "Unknown inspection question.",
+                       field_errors={f"inspection.{k}": "not a known question" for k in unknown})
+    flagged = sorted(k for k, yes in answers.items() if yes)
+    score = sum(1 for k in flagged if known[k] == "sanitary")
+    observed = [k for k in flagged if known[k] == "observation"]
+    return {"sanitary_score": score, "sanitary_total": sum(1 for c in known.values() if c == "sanitary"),
+            "sanitary_level": "high" if score >= 5 else "medium" if score >= 3 else "low",
+            "observation_level": "high" if "illness_reports" in observed else "medium" if observed else "low",
+            "flagged": flagged}
+
+
+def combine(assessment: dict[str, Any] | None, base_risk: str, inspection: dict[str, Any] | None) -> tuple[str, dict[str, Any] | None]:
+    """The screening's risk: the worst of the readings, the sanitary score and the observations."""
+    if inspection is None:
+        return base_risk, assessment
+    levels = [base_risk, inspection["sanitary_level"], inspection["observation_level"]]
+    risk = max(levels, key=RANK.__getitem__)
+    return risk, {**(assessment or {"findings": []}), "risk_level": risk, "readings_risk": base_risk, "inspection": inspection}
 
 
 def _checked_readings(conn: Any, kit_id: str, readings: dict[str, float]) -> dict[str, Any]:
@@ -237,7 +234,7 @@ def _checked_readings(conn: Any, kit_id: str, readings: dict[str, float]) -> dic
 
 
 def insert_test_record(conn: Any, payload: TestPayload, source_id: str, performed_by: str,
-                       photo: Upload | None = None) -> tuple[str, str]:
+                       photo: Upload | None = None, extra_photos: list[Upload] | None = None) -> tuple[str, str]:
     """Idempotent on local_record_id: ('accepted'|'duplicate', id). The same id
     with a different payload is refused, never overwritten. The caller commits;
     points (006) are decided at that commit."""
@@ -245,35 +242,40 @@ def insert_test_record(conn: Any, payload: TestPayload, source_id: str, performe
         raise ApiError("VALIDATION_FAILED", "Unknown or retired test kit.", field_errors={"kit_id": "not found"})
     assessment = _checked_readings(conn, str(payload.kit_id), payload.readings) if payload.readings is not None else None
     risk = assessment["risk_level"] if assessment else payload.computed_risk_level
+    inspection = judge(conn.execute("select key, category from public.inspection_criteria").fetchall(),
+                       payload.inspection) if payload.inspection is not None else None
+    risk, assessment = combine(assessment, risk, inspection)
     fields = (source_id, performed_by, str(payload.kit_id), payload.method, payload.dropdown_selection,
               json.dumps(payload.raw_input) if payload.raw_input is not None else None,
               json.dumps(payload.autofill_calculation) if payload.autofill_calculation is not None else None,
               risk)
     row = conn.execute(
         "insert into public.test_records (source_id, performed_by, kit_id, method, dropdown_selection, raw_input,"
-        " autofill_calculation, computed_risk_level, local_record_id, synced_at, dip_started_at, read_at, rule_assessment)"
-        " values (%s, %s, %s, %s, %s, %s, %s, %s, %s, now(), %s, %s, %s)"
+        " autofill_calculation, computed_risk_level, local_record_id, synced_at, dip_started_at, read_at, rule_assessment,"
+        " inspection) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, now(), %s, %s, %s, %s)"
         " on conflict (local_record_id) do nothing returning id",
         (*fields, str(payload.local_record_id), payload.dip_started_at, payload.read_at,
-         json.dumps(assessment) if assessment else None)).fetchone()
+         json.dumps(assessment) if assessment else None,
+         json.dumps(payload.inspection) if payload.inspection is not None else None)).fetchone()
     if row is not None:
         record_id = str(row[0])
         if photo is not None:
             url = store_upload(conn, photo, performed_by, images_only=True)
-            conn.execute("update public.test_records set photo_url = %s where id = %s", (url, record_id))
+            extra = [store_upload(conn, p, performed_by, images_only=True) for p in extra_photos or []]
+            conn.execute("update public.test_records set photo_url = %s, extra_photo_urls = %s where id = %s", (url, extra, record_id))
         for key, value in (payload.readings or {}).items():
             conn.execute("insert into public.test_readings (test_record_id, parameter, value) values (%s, %s, %s)",
                          (record_id, key, value))
         return "accepted", record_id
     existing = conn.execute(
         "select id, source_id::text, performed_by::text, kit_id::text, method, dropdown_selection, raw_input,"
-        " autofill_calculation, computed_risk_level from public.test_records where local_record_id = %s",
+        " autofill_calculation, computed_risk_level, inspection from public.test_records where local_record_id = %s",
         (str(payload.local_record_id),)).fetchone()
     stored = {k: float(v) for k, v in conn.execute(
         "select parameter, value from public.test_readings where test_record_id = %s", (existing[0],)).fetchall()}
     same = (existing[1:6] == fields[:5] and existing[6] == payload.raw_input
             and existing[7] == payload.autofill_calculation and existing[8] == risk
-            and stored == {k: float(v) for k, v in (payload.readings or {}).items()})
+            and stored == {k: float(v) for k, v in (payload.readings or {}).items()} and existing[9] == payload.inspection)
     if not same:
         raise ApiError("IDEMPOTENCY_MISMATCH", "This local_record_id was already used for a different test.")
     return "duplicate", str(existing[0])
@@ -339,8 +341,6 @@ def email_login(body: EmailLogin, request: Request, conn: Any = Depends(pg)) -> 
     and residents (role resident). Unknown email and wrong password look
     identical."""
     email = canonical_email(body.email)
-    _rate_limit(conn, "login", _client_key(request))
-    _rate_limit(conn, "login_email", hashlib.sha256(email.encode()).hexdigest()[:32])
     row = conn.execute(
         "select auth_user_id::text, role from public.profiles where email = %s and active"
         " union all select auth_user_id::text, 'resident' from public.residents where email = %s and active",
@@ -395,7 +395,6 @@ def register(body: RegisterRequest, request: Request, conn: Any = Depends(pg)) -
     phone = canonical_phone(body.phone) if body.phone else None
     if body.password.lower() in ("12345678", "password", "jalsakshi"):
         raise ApiError("VALIDATION_FAILED", "Choose a less common password.", field_errors={"password": "too common"})
-    _rate_limit(conn, "register", _client_key(request))
     try:
         auth_user_id = str(conn.execute("select public.create_resident_login(%s, %s, %s, %s)",
                                         (email, body.password, body.full_name, phone)).fetchone()[0])
@@ -424,17 +423,28 @@ def me(resident: Resident = Depends(require_resident), conn: Any = Depends(pg)) 
             "phone": phone[:3] + "*" * (len(phone) - 6) + phone[-3:] if phone else None}
 
 
+ComplaintKind = Literal["discoloration", "smell", "taste", "sediment", "illness", "other"]
+
+
 class ComplaintRequest(BaseModel):
-    complaint_type: Literal["discoloration", "smell", "taste", "sediment", "illness", "other"]
+    complaint_type: ComplaintKind                                   # the main problem
+    also: list[ComplaintKind] = Field(default_factory=list, max_length=5)   # further problems noticed (011)
     source_id: str | None = None
     description: str | None = Field(default=None, max_length=1000)
     photo: Upload | None = None
+    extra_photos: list[Upload] = Field(default_factory=list, max_length=3)
+
+    @model_validator(mode="after")
+    def photos_start_with_photo(self) -> "ComplaintRequest":
+        if self.extra_photos and self.photo is None:
+            raise ValueError("send the first photo as 'photo'")
+        self.also = [k for k in dict.fromkeys(self.also) if k != self.complaint_type]
+        return self
 
 
 @router.post("/complaints", status_code=201)
 def submit_complaint(body: ComplaintRequest, resident: Resident = Depends(require_resident),
                      conn: Any = Depends(pg)) -> dict[str, Any]:
-    _rate_limit(conn, "complaint", resident.resident_id)
     source = None
     if body.source_id is not None:
         try:
@@ -446,15 +456,16 @@ def submit_complaint(body: ComplaintRequest, resident: Resident = Depends(requir
         if not source:
             raise ApiError("VALIDATION_FAILED", "Unknown water source.", field_errors={"source_id": "not found"})
     photo_url = store_upload(conn, body.photo, None, images_only=True) if body.photo else None
-    details = {"description": body.description} if body.description else None
+    extra = [store_upload(conn, p, None, images_only=True) for p in body.extra_photos]
+    details = {k: v for k, v in (("description", body.description), ("also", body.also)) if v} or None
     complaint_id, reference, status = conn.execute(
-        "insert into public.complaints (resident_id, source_id, complaint_type, details, photo_url)"
-        " values (%s, %s, %s, %s, %s) returning id, reference_number, status",
+        "insert into public.complaints (resident_id, source_id, complaint_type, details, photo_url, extra_photo_urls)"
+        " values (%s, %s, %s, %s, %s, %s) returning id, reference_number, status",
         (resident.resident_id, source[0] if source else None, body.complaint_type,
-         json.dumps(details) if details else None, photo_url)).fetchone()
+         json.dumps(details) if details else None, photo_url, extra)).fetchone()
 
     notified = 0
-    if body.complaint_type == "illness":
+    if "illness" in (body.complaint_type, *body.also):
         # A symptom report must reach a person, not just set a flag: queue an
         # in-app notification to the source's team supervisors (every active
         # supervisor when the source is unknown). Delivery beyond the queue
@@ -477,6 +488,7 @@ def submit_complaint(body: ComplaintRequest, resident: Resident = Depends(requir
         "status_label": COMPLAINT_STATUS_LABELS[status],
         "supervisors_notified": notified,
         "photo_attached": photo_url is not None,
+        "photos_attached": len(extra) + (photo_url is not None),
         "notice": "You can follow this complaint under My complaints. A complaint is not a test result.",
     }
 
@@ -488,15 +500,16 @@ def my_complaints(resident: Resident = Depends(require_resident), conn: Any = De
     with resident_scope(conn, resident):
         rows = conn.execute(
             "select reference_number, complaint_type, status, resolution, source_id::text, submitted_at, linked_at,"
-            " details->>'description' from public.complaints order by submitted_at desc limit 100").fetchall()
+            " details->>'description', coalesce(details->'also', '[]'::jsonb) from public.complaints"
+            " order by submitted_at desc limit 100").fetchall()
     names = dict(conn.execute("select source_id::text, name from public.public_map_view where source_id = any(%s::uuid[])",
                               ([r[4] for r in rows if r[4]],)).fetchall())
     return {"items": [{
         "reference_number": ref, "complaint_type": ctype, "status": status,
         "status_label": COMPLAINT_STATUS_LABELS[status], "resolution_label": RESOLUTION_LABELS.get(resolution),
         "source_name": names.get(sid), "submitted_at": submitted.isoformat(),
-        "linked_at": linked.isoformat() if linked else None, "description": description,
-    } for ref, ctype, status, resolution, sid, submitted, linked, description in rows]}
+        "linked_at": linked.isoformat() if linked else None, "description": description, "also": also,
+    } for ref, ctype, status, resolution, sid, submitted, linked, description, also in rows]}
 
 
 # --- map and portal ------------------------------------------------------------------
@@ -504,19 +517,116 @@ def my_complaints(resident: Resident = Depends(require_resident), conn: Any = De
 @router.get("/map")
 def public_map(conn: Any = Depends(pg)) -> dict[str, Any]:
     rows = conn.execute(
-        "select source_id, name, source_type, status_label, last_updated,"
-        " public.st_y(public_location::public.geometry), public.st_x(public_location::public.geometry)"
-        " from public.public_map_view order by name").fetchall()
+        "select v.source_id, v.name, v.source_type, v.status_label, v.last_updated,"
+        " public.st_y(v.public_location::public.geometry), public.st_x(v.public_location::public.geometry), ws.village, ws.ward,"
+        " (select max(coalesce(t.read_at, t.created_at)) from public.test_records t where t.source_id = ws.id),"
+        " (select count(*) from public.test_records t where t.source_id = ws.id and t.created_at > now() - interval '30 days'),"
+        " (select count(*) from public.reports r where r.source_id = ws.id and r.status <> 'closed'),"
+        " (select max(l.verified_at) from public.lab_referrals l join public.reports r on r.id = l.report_id"
+        "   where r.source_id = ws.id and l.verification_status = 'verified')"
+        " from public.public_map_view v join public.water_sources ws on ws.id = v.source_id order by v.name").fetchall()
     return {
         "items": [{
             "source_id": str(sid), "name": name, "source_type": stype, "status": status,
             "status_label": SOURCE_STATUS_LABELS.get(status, "Not yet tested"),
             "latitude": lat, "longitude": lon,
             "location_precision": "exact" if status == "lab_verified_safe" else "approximate (about 500 m)",
-            "last_updated": updated.isoformat(),
-        } for sid, name, stype, status, updated, lat, lon in rows],
+            "last_updated": updated.isoformat(), "village": village, "ward": ward,
+            "last_screened_at": screened.isoformat() if screened else None, "screenings_30d": recent,
+            "open_issues": open_issues, "lab_verified_at": verified.isoformat() if verified else None,
+        } for sid, name, stype, status, updated, lat, lon, village, ward, screened, recent, open_issues, verified in rows],
         "disclaimer": MAP_DISCLAIMER,
     }
+
+
+LEADERBOARD_NOTE = "Points reward on-time field screening. They say nothing about whether any water source is safe to drink."
+
+
+def display_name(full_name: str | None) -> str:
+    """First name and last initial only: a public page never shows a full name."""
+    parts = (full_name or "").split()
+    return (parts[0] + (f" {parts[-1][0]}." if len(parts) > 1 else "")) if parts else "Field worker"
+
+
+@router.get("/leaderboard")
+def public_leaderboard(conn: Any = Depends(pg)) -> dict[str, Any]:
+    workers = conn.execute(
+        "select p.full_name, t.region, p.points_balance,"
+        " (select count(*) from public.points_ledger l where l.profile_id = p.id and l.reason = 'screening_on_time'),"
+        " (select count(*) from public.test_records r where r.performed_by = p.id)"
+        " from public.profiles p left join public.teams t on t.id = p.team_id"
+        " where p.role = 'field_worker' and p.active order by p.points_balance desc, 5 desc, p.full_name limit 20").fetchall()
+    areas = conn.execute(
+        "select coalesce(ws.village, 'Unnamed area'), count(*),"
+        " sum((select count(*) from public.test_records t where t.source_id = ws.id and t.created_at > now() - interval '30 days')),"
+        " sum((select count(*) from public.reports r where r.source_id = ws.id and r.status <> 'closed'))"
+        " from public.water_sources ws group by 1 order by 3 desc, 1").fetchall()
+    return {"field_workers": [{"rank": n + 1, "display_name": display_name(name), "area": region, "points": points,
+                               "on_time_screenings": on_time, "screenings": tests}
+                              for n, (name, region, points, on_time, tests) in enumerate(workers)],
+            "areas": [{"rank": n + 1, "area": area, "sources": sources, "screenings_30d": int(recent or 0),
+                       "open_issues": int(open_ or 0)} for n, (area, sources, recent, open_) in enumerate(areas)],
+            "disclaimer": LEADERBOARD_NOTE}
+
+
+STATS_NOTE = ("Counts of monitoring activity. A flagged screening is a field screening outside its band, "
+              "not a laboratory result; none of these numbers says whether any water is safe to drink.")
+
+
+def _utc(value: Any) -> datetime:
+    if isinstance(value, str):
+        value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+
+
+def build_stats(now: datetime, records: list[tuple[Any, str | None]], reports: list[tuple[Any, Any, int]],
+                complaints: list[tuple[Any, str]], sources: list[tuple[str, str]], weeks: int = 12) -> dict[str, Any]:
+    """The public graphs, from plain rows (shared by Postgres and the internal DB):
+    records (created_at, risk), reports (created_at, closed_at, escalated 0/1),
+    complaints (submitted_at, type), sources (type, status)."""
+    start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(weeks=weeks - 1)
+    buckets = [{"week_start": (start + timedelta(weeks=i)).date().isoformat(), "screenings": 0, "flagged": 0,
+                "reports_opened": 0, "reports_closed": 0, "complaints": 0} for i in range(weeks)]
+
+    def bump(at: Any, key: str) -> None:
+        i = (_utc(at) - start).days // 7
+        if 0 <= i < weeks:
+            buckets[i][key] += 1
+
+    risk_30d: dict[str, int] = {"low": 0, "medium": 0, "high": 0, "unknown": 0}
+    for at, risk in records:
+        bump(at, "screenings")
+        if risk in ("medium", "high"):
+            bump(at, "flagged")
+        if _utc(at) > now - timedelta(days=30):
+            risk_30d[risk if risk in risk_30d else "unknown"] += 1
+    for opened, closed, _ in reports:
+        bump(opened, "reports_opened")
+        if closed:
+            bump(closed, "reports_closed")
+    by_type: dict[str, int] = {}
+    for at, kind in complaints:
+        bump(at, "complaints")
+        by_type[kind] = by_type.get(kind, 0) + 1
+    count = lambda values: dict(sorted({v: values.count(v) for v in set(values)}.items(), key=lambda kv: -kv[1]))  # noqa: E731
+    return {"weeks": buckets, "risk_30d": risk_30d,
+            "sources_by_type": count([t for t, _ in sources]), "sources_by_status": count([s for _, s in sources]),
+            "complaints_by_type": dict(sorted(by_type.items(), key=lambda kv: -kv[1])),
+            "totals": {"sources": len(sources), "screenings": len(records), "reports": len(reports),
+                       "open_reports": sum(1 for _, closed, _ in reports if not closed),
+                       "escalated_to_authority": sum(e for _, _, e in reports), "complaints": len(complaints)},
+            "disclaimer": STATS_NOTE}
+
+
+@router.get("/stats")
+def public_stats(conn: Any = Depends(pg)) -> dict[str, Any]:
+    since = datetime.now(timezone.utc) - timedelta(weeks=13)
+    return build_stats(
+        datetime.now(timezone.utc),
+        conn.execute("select created_at, computed_risk_level from public.test_records where created_at > %s", (since,)).fetchall(),
+        conn.execute("select created_at, closed_at, (escalated_at is not null)::int from public.reports").fetchall(),
+        conn.execute("select submitted_at, complaint_type from public.complaints where submitted_at > %s", (since,)).fetchall(),
+        conn.execute("select source_type, current_public_status from public.water_sources").fetchall())
 
 
 PORTAL_HTML = Path(__file__).with_name("portal.html")
@@ -527,3 +637,16 @@ def portal() -> HTMLResponse:
     """The resident web portal: the page a shared link or QR code opens."""
     return HTMLResponse(PORTAL_HTML.read_text(encoding="utf-8"),
                         headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+
+
+#: The phone APK built by the release script (output/ is not committed).
+APK_FILE = Path(__file__).resolve().parents[3] / "output" / "JalSakshi-v3.0.0-phone.apk"
+
+
+@portal_router.get("/download/jalsakshi.apk", include_in_schema=False)
+def download_apk() -> FileResponse:
+    """The Android app, for sideloading on demo phones."""
+    if not APK_FILE.is_file():
+        raise ApiError("NOT_FOUND", "No app build is available on this server.")
+    return FileResponse(APK_FILE, media_type="application/vnd.android.package-archive", filename="JalSakshi.apk",
+                        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"})

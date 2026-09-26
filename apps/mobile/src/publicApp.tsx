@@ -1,284 +1,396 @@
 /**
- * JalSakshi — PUBLIC / COMMUNITY app surface.
+ * JalSakshi — PUBLIC / COMMUNITY app surface ("View public data", no account).
  *
- * Reproduces the supplied three-panel community mockup: Source Overview,
- * Details & History, and Community & Actions, as three tabs.
+ * Live data from GET /v1/public/map and /v1/public/leaderboard, the same
+ * records the supervisor dashboard and field workers change:
  *
- * ## Where this deliberately differs from the mockup
+ *   Sources      every public source, searchable, filterable by status and area;
+ *                tap one for its details
+ *   Map          every source on a map, coloured by type (publicMap.tsx)
+ *   Trends       graphs from /v1/public/stats, and per-area summaries
+ *   Leaders      field workers by on-time screening points, and areas
  *
- * The mockup's overview panel led with a large green potability verdict and a
- * matching pill, and its actions panel gave water-treatment advice. Those are
- * the highest-risk strings in the whole product: a resident who reads a
- * drinking-water assurance will act on it. AGENTS.md forbids both a potability
- * claim and a remediation instruction, so the summary states what a laboratory
- * actually measured, against which standard, on which date, and stops there.
- *
- * (The prohibited phrasings are deliberately not reproduced in this file;
- * tests/status-label.test.ts greps the source for them.)
- *
- * ## What IS kept from the mockup, and why it is legitimate
- *
- * The precise numbers (pH 7.2, 1.8 NTU, 0.4 mg/L, E. coli not detected) are
- * kept, because they come from a **verified laboratory report** — a distinct
- * provenance channel from screening. A laboratory measured them and a
- * `lab_reviewer` verified the report, so reporting them as "as tested on
- * <date> by <lab>" is a fact rather than a fabrication. The same numbers
- * coming from a phone photo would NOT be legitimate, and screening results
- * are not shown on this surface at all.
- *
- * Every value here is a DEMO FIXTURE.
+ * Wording rules (AGENTS.md): status words come from the server's constrained
+ * vocabulary; no drinking-water assurance and no water-treatment advice. The
+ * leaderboard rewards timely screening work and says nothing about water.
+ * When the server cannot be reached, the offline demo data is shown and
+ * labelled as such.
  */
 
-import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { demo } from './demoBackend';
 import { colors, radius, spacing, type } from './theme';
-import { Badge, Card, CardTitle, Divider, Row, StatusBlock } from './ui';
-import { labParameterTone, labSummary, recordAgeLabel, type LabParameter } from './statusLabel';
+import { Bars, HBars, SplitBar } from './charts';
+import { PublicMap, SOURCE_TYPE_COLORS, SOURCE_TYPE_LABELS } from './publicMap';
+import { RefreshBar, useAutoRefresh } from './refresh';
+import { Badge, Card, CardTitle, Divider, Row, type Tone } from './ui';
+import { recordAgeLabel } from './statusLabel';
+import { problemText, publicLeaderboard, publicMap, publicStats, type Leaderboard, type MapSource, type PublicStats } from './v2';
 
-type Panel = 'overview' | 'details' | 'community';
+type Panel = 'sources' | 'map' | 'trends' | 'leaderboard' | 'about';
 
-const LAB = 'Riverside District Water Lab';
-const TESTED_ON_ISO = '2026-09-18T00:00:00Z';
-const TESTED_ON = '18 Sep 2026';
+/** Green only for a verified lab report (theme.ts); the rest describe the record. */
+const STATUS_TONE: Record<string, Tone> = {
+  lab_verified_safe: 'ok', under_review: 'watch', action_pending: 'alert', no_open_issues: 'unknown', not_tested: 'unknown',
+};
+const FILTERS = [['all', 'All'], ['action_pending', 'Action pending'], ['under_review', 'Under review'],
+  ['lab_verified_safe', 'Lab-verified'], ['no_open_issues', 'No open issues'], ['not_tested', 'Not tested']] as const;
 
-/** Verified laboratory report fixture. Numbers are legitimate ONLY because
- *  they carry this provenance; see the module docstring. */
-const PARAMETERS: LabParameter[] = [
-  { name: 'pH', value: '7.2', unit: null, limitText: '6.5 – 8.5', withinLimit: true },
-  { name: 'Turbidity', value: '1.8', unit: 'NTU', limitText: '≤ 5', withinLimit: true },
-  { name: 'Nitrate', value: '8', unit: 'mg/L', limitText: '≤ 45', withinLimit: true },
-  { name: 'Residual chlorine', value: '0.4', unit: 'mg/L', limitText: '0.2 – 1.0', withinLimit: true },
-  { name: 'E. coli', value: 'Not detected', unit: null, limitText: '0 per 100 mL', withinLimit: true },
-];
-
-const HISTORY = [
-  { date: '18 Sep 2026', note: 'All tested parameters within limits', tone: 'ok' as const },
-  { date: '10 Aug 2026', note: 'All tested parameters within limits', tone: 'ok' as const },
-  { date: '05 Jul 2026', note: 'Turbidity above limit (6.1 NTU)', tone: 'watch' as const },
-];
+interface Data { sources: MapSource[]; disclaimer: string; board: Leaderboard; stats: PublicStats; offline: boolean }
 
 export interface PublicAppProps {
   now?: () => number;
 }
 
 export function PublicApp({ now = Date.now }: PublicAppProps): React.JSX.Element {
-  const [panel, setPanel] = useState<Panel>('overview');
-  const allWithin = PARAMETERS.every((p) => p.withinLimit === true);
-  const summary = labSummary(allWithin, TESTED_ON, LAB);
+  const [panel, setPanel] = useState<Panel>('sources');
+  const [data, setData] = useState<Data | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<string>('all');
+  const [area, setArea] = useState<string | null>(null);
+  const [open, setOpen] = useState<MapSource | null>(null);
+
+  // Every 30 s and on the refresh button. A failed background refresh keeps the
+  // last live data on screen; only a first load falls back to the offline demo.
+  const load = async (background: boolean): Promise<boolean> => {
+    const [map, board, stats] = await Promise.all([publicMap(), publicLeaderboard(), publicStats()]);
+    if (map.kind === 'ok' && board.kind === 'ok' && stats.kind === 'ok') {
+      setError(null);
+      setData({ sources: map.value.items, disclaimer: map.value.disclaimer, board: board.value, stats: stats.value, offline: false });
+      return true;
+    }
+    if (background && data && !data.offline) return false;
+    const failed = map.kind !== 'ok' ? map : board.kind !== 'ok' ? board : stats.kind !== 'ok' ? stats : null;
+    if (failed && failed.kind === 'offline') {
+      const m = demo.publicMap();
+      const b = demo.leaderboard();
+      const st = demo.stats();
+      if (m.kind === 'ok' && b.kind === 'ok' && st.kind === 'ok') {
+        setData({ sources: m.value.items, disclaimer: m.value.disclaimer, board: b.value, stats: st.value, offline: true });
+        return false;
+      }
+    }
+    if (failed) setError(problemText(failed));
+    return false;
+  };
+  const refresh = useAutoRefresh(load);
+
+  const areaOf = (src: MapSource) => src.village ?? 'Unnamed area';
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return (data?.sources ?? []).filter((src) => (status === 'all' || src.status === status) && (!area || areaOf(src) === area)
+      && (!q || `${src.name} ${src.village ?? ''} ${src.ward ?? ''} ${src.source_type}`.toLowerCase().includes(q)));
+  }, [data, query, status, area]);
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: data?.sources.length ?? 0 };
+    for (const src of data?.sources ?? []) c[src.status] = (c[src.status] ?? 0) + 1;
+    return c;
+  }, [data]);
+
+  const TABS = [['sources', 'Sources'], ['map', 'Map'], ['trends', 'Trends'], ['leaderboard', 'Leaders'], ['about', 'About']] as const;
 
   return (
     <View style={s.screen}>
-      <View style={s.header}>
-        <View style={{ flex: 1 }}>
-          <Text style={s.brand}>JalSakshi</Text>
-          <Text style={s.brandSub}>Water quality information for residents</Text>
-        </View>
-      </View>
-
       <View style={s.tabs}>
-        {(
-          [
-            ['overview', 'Overview'],
-            ['details', 'Details'],
-            ['community', 'Community'],
-          ] as const
-        ).map(([key, label]) => (
-          <Pressable
-            key={key}
-            testID={`public-tab-${key}`}
-            style={[s.tab, panel === key && s.tabActive]}
-            onPress={() => setPanel(key)}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: panel === key }}
-          >
+        {TABS.map(([key, label]) => (
+          <Pressable key={key} testID={`public-tab-${key}`} style={[s.tab, panel === key && s.tabActive]}
+            onPress={() => { setPanel(key); setOpen(null); }} accessibilityRole="tab" accessibilityState={{ selected: panel === key }}>
             <Text style={[s.tabText, panel === key && s.tabTextActive]}>{label}</Text>
           </Pressable>
         ))}
       </View>
+      <RefreshBar state={refresh} />
 
-      <ScrollView contentContainerStyle={s.content}>
-        {panel === 'overview' && (
+      <ScrollView contentContainerStyle={s.content} keyboardShouldPersistTaps="handled"
+        refreshControl={<RefreshControl refreshing={refresh.refreshing} onRefresh={refresh.refresh} />}>
+        {data?.offline && <Text style={s.offline}>Offline demo data — the server cannot be reached. Pull down to retry.</Text>}
+        {error && (
+          <Card>
+            <Text style={s.error}>{error}</Text>
+            <Pressable style={s.btn} onPress={refresh.refresh} accessibilityRole="button"><Text style={s.btnText}>Try again</Text></Pressable>
+          </Card>
+        )}
+        {!data && !error && <Text style={s.note}>Loading public water data…</Text>}
+
+        {data && panel === 'sources' && !open && (
+          <>
+            <View style={s.stats}>
+              <Stat label="Sources" value={data.sources.length} />
+              <Stat label="Screened (30 days)" value={data.sources.reduce((n, x) => n + x.screenings_30d, 0)} />
+              <Stat label="Open issues" value={data.sources.reduce((n, x) => n + x.open_issues, 0)} tone={colors.alert} />
+            </View>
+            <TextInput style={s.search} value={query} onChangeText={setQuery} placeholder="Search by name, village or type"
+              placeholderTextColor={colors.textFaint} accessibilityLabel="Search sources" testID="public-search" />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
+              {FILTERS.map(([key, label]) => (
+                <Pressable key={key} style={[s.chip, status === key && s.chipOn]} onPress={() => setStatus(key)} accessibilityRole="radio"
+                  accessibilityState={{ selected: status === key }}>
+                  <Text style={[s.chipText, status === key && s.chipTextOn]}>{label} {counts[key] ?? 0}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            {area && (
+              <Pressable style={s.areaTag} onPress={() => setArea(null)} accessibilityRole="button">
+                <Text style={s.areaTagText}>Area: {area}  ✕</Text>
+              </Pressable>
+            )}
+            <Text style={s.note}>{shown.length} of {data.sources.length} sources</Text>
+            {shown.map((src) => (
+              <Pressable key={src.source_id} style={s.item} onPress={() => setOpen(src)} accessibilityRole="button"
+                testID={`public-source-${src.source_id}`}>
+                <View style={s.between}>
+                  <Text style={s.itemTitle} numberOfLines={1}>{src.name}</Text>
+                  <Badge label={src.status_label} tone={STATUS_TONE[src.status] ?? 'unknown'} />
+                </View>
+                <Text style={s.note}>
+                  {src.source_type.replace('_', ' ')} · {areaOf(src)}{src.ward ? `, ${src.ward}` : ''}
+                </Text>
+                <Text style={s.note}>
+                  {src.last_screened_at ? `Last screening: ${recordAgeLabel(src.last_screened_at, now()).toLowerCase()}` : 'Not screened yet'}
+                  {' · '}{src.screenings_30d} in 30 days{src.open_issues ? ` · ${src.open_issues} open issue${src.open_issues === 1 ? '' : 's'}` : ''}
+                </Text>
+              </Pressable>
+            ))}
+            <Text style={s.footer}>{data.disclaimer}</Text>
+          </>
+        )}
+
+        {data && panel === 'sources' && open && (
           <>
             <Card>
               <View style={s.between}>
-                <CardTitle>Patel Nagar hand pump</CardTitle>
-                <Badge label="Public source" tone="unknown" />
+                <CardTitle>{open.name}</CardTitle>
+                <Badge label={open.status_label} tone={STATUS_TONE[open.status] ?? 'unknown'} />
               </View>
-              <Text style={s.sourceId}>RS-1043</Text>
-              <Row label="Locality" value="Patel Nagar, Riverside District" />
-            </Card>
-
-            <Card>
-              {/* The mockup's big green "Safe" block. Reworded to state the
-                  measurement, not a drinking-water guarantee. */}
-              <StatusBlock title={summary.title} caveat={summary.detail} tone={summary.tone} />
+              <Row label="Type" value={open.source_type.replace('_', ' ')} />
+              <Row label="Area" value={`${areaOf(open)}${open.ward ? `, ${open.ward}` : ''}`} />
+              <Row label="Last field screening" value={open.last_screened_at ? recordAgeLabel(open.last_screened_at, now()) : 'None yet'} />
+              <Row label="Screenings in 30 days" value={String(open.screenings_30d)} />
+              <Row label="Open issues" value={String(open.open_issues)} tone={open.open_issues ? 'alert' : undefined} />
+              <Row label="Lab-verified" value={open.lab_verified_at ? recordAgeLabel(open.lab_verified_at, now()) : 'Not yet'} />
+              <Row label="Record updated" value={recordAgeLabel(open.last_updated, now())} />
               <Divider />
-              <Row label="Tested by" value={LAB} />
-              <Row label="Tested on" value={TESTED_ON} />
-              <Row label="Record age" value={recordAgeLabel(TESTED_ON_ISO, now())} />
-              <Text style={s.note}>
-                This describes one laboratory test of one sample taken on that date.
-                Water quality can change between tests.
-              </Text>
+              <Row label="Location" value={open.location_precision} />
+              {open.latitude !== null && open.longitude !== null && (
+                <Pressable style={s.ghost} accessibilityRole="link"
+                  onPress={() => void Linking.openURL(`https://www.openstreetmap.org/?mlat=${open.latitude}&mlon=${open.longitude}#map=16/${open.latitude}/${open.longitude}`)}>
+                  <Text style={s.ghostText}>Open on the map</Text>
+                </Pressable>
+              )}
             </Card>
-
             <Card>
               <CardTitle>What this page does not tell you</CardTitle>
               <Text style={s.note}>
-                • It does not cover parameters that were not tested.{'\n'}
-                • It does not describe the water today, only the sample tested.{'\n'}
-                • It is not advice about whether to drink. For that, contact the
-                water authority using the details under Community.
+                • A field screening is not a laboratory test.{'\n'}
+                • It does not describe the water today, only what was last recorded.{'\n'}
+                • It is not advice about whether to drink. Contact the water authority (see About).
               </Text>
             </Card>
+            <Pressable style={s.ghost} onPress={() => setOpen(null)} accessibilityRole="button" testID="public-back">
+              <Text style={s.ghostText}>Back to all sources</Text>
+            </Pressable>
           </>
         )}
 
-        {panel === 'details' && (
+        {data && panel === 'map' && <PublicMap sources={data.sources} />}
+
+        {data && panel === 'trends' && <Trends stats={data.stats} />}
+
+        {data && panel === 'trends' && (
+          <>
+            <Text style={s.section}>Areas</Text>
+            {data.board.areas.map((a) => (
+              <Pressable key={a.area} style={s.item} onPress={() => { setArea(a.area); setStatus('all'); setPanel('sources'); }}
+                accessibilityRole="button">
+                <View style={s.between}>
+                  <Text style={s.itemTitle}>{a.area}</Text>
+                  <Text style={s.note}>View sources ›</Text>
+                </View>
+                <View style={s.stats}>
+                  <Stat label="Sources" value={a.sources} />
+                  <Stat label="Screened (30 days)" value={a.screenings_30d} />
+                  <Stat label="Open issues" value={a.open_issues} tone={colors.alert} />
+                </View>
+              </Pressable>
+            ))}
+            {data.board.areas.length === 0 && <Text style={s.note}>No areas yet.</Text>}
+          </>
+        )}
+
+        {data && panel === 'leaderboard' && (
           <>
             <Card>
-              <View style={s.between}>
-                <CardTitle>Laboratory results</CardTitle>
-                <Badge label="Verified report" tone="ok" />
-              </View>
-              <Text style={s.note}>
-                Measured by {LAB} on {TESTED_ON}. Compared against the published BIS
-                10500 limits.
-              </Text>
-              <Divider />
-              {PARAMETERS.map((p) => (
-                <View key={p.name} style={s.param}>
+              <CardTitle>Field worker leaderboard</CardTitle>
+              <Text style={s.note}>Points for complete, on-time screenings with a photo.</Text>
+              {data.board.field_workers.map((w) => (
+                <View key={`${w.rank}-${w.display_name}`} style={s.rankRow}>
+                  <Text style={[s.rank, w.rank <= 3 && s.rankTop]}>{w.rank <= 3 ? ['🥇', '🥈', '🥉'][w.rank - 1] : `#${w.rank}`}</Text>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.paramName}>{p.name}</Text>
-                    <Text style={s.paramLimit}>Limit {p.limitText}</Text>
+                    <Text style={s.itemTitle}>{w.display_name}</Text>
+                    <Text style={s.note}>{w.area ?? '—'} · {w.on_time_screenings} on time of {w.screenings}</Text>
                   </View>
-                  <Text style={s.paramValue}>
-                    {p.value}
-                    {p.unit ? ` ${p.unit}` : ''}
-                  </Text>
-                  <Badge
-                    label={p.withinLimit === null ? 'Not tested' : p.withinLimit ? 'Within limit' : 'Above limit'}
-                    tone={labParameterTone(p)}
-                  />
+                  <Text style={s.points}>{w.points}</Text>
                 </View>
               ))}
+              {data.board.field_workers.length === 0 && <Text style={s.note}>No field workers yet.</Text>}
             </Card>
-
             <Card>
-              <CardTitle>Previous laboratory tests</CardTitle>
-              {HISTORY.map((h) => (
-                <View key={h.date} style={s.histRow}>
-                  <Text style={s.histDate}>{h.date}</Text>
-                  <Text style={s.histNote}>{h.note}</Text>
-                  <Badge label={h.tone === 'ok' ? 'Within limits' : 'Outside limits'} tone={h.tone} />
-                </View>
+              <CardTitle>Most active areas (30 days)</CardTitle>
+              {data.board.areas.map((a) => (
+                <Row key={a.area} label={`#${a.rank} ${a.area}`} value={`${a.screenings_30d} screenings`} />
               ))}
-              <Text style={s.note}>
-                Only laboratory-verified reports appear here. Field screening results
-                are not shown, because a screening is not a laboratory test.
-              </Text>
             </Card>
+            <Text style={s.footer}>{data.board.disclaimer}</Text>
           </>
         )}
 
-        {panel === 'community' && (
+        {panel === 'about' && (
           <>
             <Card>
-              <CardTitle>Report a problem</CardTitle>
+              <CardTitle>What the statuses mean</CardTitle>
+              {FILTERS.slice(1).map(([key, label]) => (
+                <View key={key} style={s.between}>
+                  <Badge label={label} tone={STATUS_TONE[key]} />
+                </View>
+              ))}
               <Text style={s.note}>
-                Tell the water authority if something has changed at this source — a
-                break, a leak, or a change you have noticed.
+                Statuses describe the monitoring record, not the water. "Lab-verified" means a laboratory report for the last
+                sample was verified; it does not cover parameters that were not tested or the water today.
               </Text>
-              {/* T48: these did nothing when tapped. Until in-app reporting
-                  exists they are visibly and programmatically disabled, and the
-                  helpline below is named as the way to do it. */}
-              <Pressable style={[s.btn, s.btnPrimary, s.btnDisabled]} disabled accessibilityRole="button"
-                accessibilityState={{ disabled: true }} accessibilityHint="Not available in the app yet. Call the helpline below.">
-                <Text style={s.btnPrimaryText}>Report an issue</Text>
-              </Pressable>
-              <Pressable style={[s.btn, s.btnGhost, s.btnDisabled]} disabled accessibilityRole="button"
-                accessibilityState={{ disabled: true }} accessibilityHint="Not available in the app yet. Call the helpline below.">
-                <Text style={s.btnGhostText}>Request a retest</Text>
-              </Pressable>
-              <Text style={s.note}>Not available in the app yet: call the reporting helpline below.</Text>
             </Card>
-
             <Card>
               <CardTitle>Contact</CardTitle>
               <Row label="Reporting helpline" value="1800 123 5678" />
               <Row label="Availability" value="24×7, toll free" />
               <Divider />
               <Text style={s.note}>
-                {/* The mockup's water-treatment tip was a remediation
-                    instruction and is deliberately not reproduced. Residents
-                    are directed to the water authority instead. */}
-                For any question about whether this water is suitable for a
-                particular use, contact the water authority on the number above.
-                This app does not give guidance on treating water.
+                For any question about whether this water is suitable for a particular use, contact the water authority on
+                the number above. This app does not give guidance on treating water. Residents can sign in to report a problem.
               </Text>
             </Card>
-
             <Card>
-              <CardTitle>How this source is monitored</CardTitle>
+              <CardTitle>How sources are monitored</CardTitle>
               <Text style={s.note}>
-                Trained community workers record field screenings, and a laboratory
-                verifies selected samples. Only verified laboratory reports are
-                published on this page.
+                Trained field workers record screenings with test kits, including a look at the surroundings of each source.
+                Supervisors review the results and a laboratory verifies selected samples.
               </Text>
             </Card>
           </>
         )}
-
-        <Text style={s.footer}>
-          Demo fixtures. Not a real monitoring record for any real source.
-        </Text>
       </ScrollView>
+    </View>
+  );
+}
+
+const RISK_COLORS = { low: colors.ok, medium: colors.watch, high: colors.alert, unknown: colors.unknown };
+const STATUS_WORDS: Record<string, string> = {
+  not_tested: 'Not yet tested', under_review: 'Under review', action_pending: 'Action pending', no_open_issues: 'No open issues',
+  lab_verified_safe: 'Lab-verified',
+};
+const shortDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+
+/** The graphs: weekly activity, the report pipeline, the 30-day risk mix, sources by type and status, complaints. */
+function Trends({ stats }: { stats: PublicStats }): React.JSX.Element {
+  const labels = stats.weeks.map((w) => shortDate(w.week_start));
+  const t = stats.totals;
+  return (
+    <>
+      <View style={s.stats}>
+        <Stat label="Screenings (12 wk)" value={stats.weeks.reduce((n, w) => n + w.screenings, 0)} />
+        <Stat label="Open reports" value={t.open_reports} tone={colors.alert} />
+        <Stat label="Escalated to authority" value={t.escalated_to_authority} tone={colors.watch} />
+      </View>
+      <Card>
+        <CardTitle>Field screenings per week</CardTitle>
+        <Bars labels={labels} stacked series={[
+          { name: 'Within band', color: colors.primary, values: stats.weeks.map((w) => w.screenings - w.flagged) },
+          { name: 'Flagged for review', color: colors.watch, values: stats.weeks.map((w) => w.flagged) },
+        ]} />
+      </Card>
+      <Card>
+        <CardTitle>Reports opened and closed per week</CardTitle>
+        <Bars labels={labels} series={[
+          { name: 'Opened', color: colors.alert, values: stats.weeks.map((w) => w.reports_opened) },
+          { name: 'Closed', color: colors.ok, values: stats.weeks.map((w) => w.reports_closed) },
+        ]} />
+      </Card>
+      <Card>
+        <CardTitle>Screening results, last 30 days</CardTitle>
+        <SplitBar parts={[
+          { name: 'Within band', value: stats.risk_30d.low, color: RISK_COLORS.low },
+          { name: 'Watch', value: stats.risk_30d.medium, color: RISK_COLORS.medium },
+          { name: 'Outside band', value: stats.risk_30d.high, color: RISK_COLORS.high },
+        ]} />
+      </Card>
+      <Card>
+        <CardTitle>Sources by type</CardTitle>
+        <HBars items={Object.entries(stats.sources_by_type).map(([k, v]) => ({
+          label: SOURCE_TYPE_LABELS[k] ?? k, value: v, color: SOURCE_TYPE_COLORS[k] ?? SOURCE_TYPE_COLORS.other }))} />
+      </Card>
+      <Card>
+        <CardTitle>Sources by record status</CardTitle>
+        <HBars items={Object.entries(stats.sources_by_status).map(([k, v]) => ({
+          label: STATUS_WORDS[k] ?? k, value: v, color: k === 'action_pending' ? colors.alert : k === 'under_review' ? colors.watch
+            : k === 'lab_verified_safe' ? colors.ok : colors.unknown }))} />
+      </Card>
+      <Card>
+        <CardTitle>Resident complaints per week</CardTitle>
+        <Bars labels={labels} height={100} series={[{ name: 'Complaints', color: '#7C3AED', values: stats.weeks.map((w) => w.complaints) }]} />
+        <HBars items={Object.entries(stats.complaints_by_type).map(([k, v]) => ({ label: k.replace('_', ' '), value: v, color: '#A78BFA' }))} />
+      </Card>
+      <Text style={s.footer}>{stats.disclaimer}</Text>
+    </>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone?: string }): React.JSX.Element {
+  return (
+    <View style={s.stat}>
+      <Text style={[s.statValue, tone && value ? { color: tone } : null]}>{value}</Text>
+      <Text style={s.statLabel}>{label}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: 'row', alignItems: 'center', padding: spacing.lg, paddingBottom: spacing.sm },
-  brand: { ...type.h1, color: colors.primaryDark },
-  brandSub: { ...type.small },
-  tabs: { flexDirection: 'row', paddingHorizontal: spacing.lg, gap: spacing.sm },
-  tab: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
+  tabs: { flexDirection: 'row', paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.xs },
+  tab: { flex: 1, paddingVertical: 9, borderRadius: radius.pill, alignItems: 'center', backgroundColor: colors.card, borderWidth: 1,
+         borderColor: colors.border },
   tabActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  tabText: { fontSize: 13, color: colors.textMuted, fontWeight: '600' },
+  tabText: { fontSize: 12, color: colors.textMuted, fontWeight: '600' },
   tabTextActive: { color: colors.onPrimary },
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl * 2 },
-  between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sourceId: { fontSize: 24, fontWeight: '800', color: colors.primaryDark, letterSpacing: 0.5 },
+  offline: { backgroundColor: colors.watchSoft, color: colors.watch, fontWeight: '600', fontSize: 12, padding: spacing.sm, borderRadius: radius.sm },
+  error: { color: colors.alert, fontWeight: '600' },
+  stats: { flexDirection: 'row', gap: spacing.sm },
+  stat: { flex: 1, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.sm, alignItems: 'center' },
+  statValue: { fontSize: 22, fontWeight: '800', color: colors.primaryDark },
+  statLabel: { ...type.tiny, textAlign: 'center' },
+  search: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10,
+            fontSize: 15, color: colors.text, backgroundColor: colors.card },
+  chips: { gap: spacing.sm },
+  chip: { paddingVertical: 7, paddingHorizontal: spacing.md, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 12, color: colors.text, fontWeight: '600' },
+  chipTextOn: { color: colors.onPrimary },
+  areaTag: { alignSelf: 'flex-start', backgroundColor: colors.primarySoft, borderRadius: radius.pill, paddingVertical: 5, paddingHorizontal: spacing.md },
+  areaTagText: { color: colors.primaryDark, fontWeight: '700', fontSize: 12 },
+  item: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, gap: 4 },
+  itemTitle: { ...type.body, fontWeight: '700', flexShrink: 1 },
+  between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: spacing.sm },
   note: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
-  param: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  paramName: { ...type.body, fontWeight: '600' },
-  paramLimit: { ...type.tiny },
-  paramValue: { ...type.body, fontWeight: '700', color: colors.primaryDark },
-  histRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: 7 },
-  histDate: { ...type.small, width: 86 },
-  histNote: { ...type.small, flex: 1 },
-  btn: { paddingVertical: 12, borderRadius: radius.md, alignItems: 'center', marginTop: spacing.xs },
-  btnPrimary: { backgroundColor: colors.primary },
-  btnPrimaryText: { color: colors.onPrimary, fontWeight: '700', fontSize: 15 },
-  btnGhost: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.primary },
-  btnGhostText: { color: colors.primary, fontWeight: '600', fontSize: 15 },
-  btnDisabled: { opacity: 0.5 },
+  rankRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+  rank: { width: 36, fontSize: 15, fontWeight: '800', color: colors.textMuted, textAlign: 'center' },
+  rankTop: { fontSize: 22 },
+  points: { fontSize: 20, fontWeight: '800', color: colors.primary },
+  btn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.sm },
+  btnText: { ...type.body, color: colors.onPrimary, fontWeight: '700' },
+  ghost: { borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.md, alignItems: 'center', marginTop: spacing.xs },
+  ghostText: { ...type.body, color: colors.textMuted },
   footer: { ...type.tiny, textAlign: 'center', marginTop: spacing.sm },
+  section: { ...type.body, fontWeight: '800', color: colors.primaryDark, marginTop: spacing.sm },
 });

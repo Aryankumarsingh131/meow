@@ -11,7 +11,7 @@ PORT="${PORT:-8000}"
 # The app's HOSTED_API_BASE (apps/mobile/src/api.ts). Change both together.
 NGROK_URL="${NGROK_URL:-https://angelfish-juice-refresh.ngrok-free.dev}"
 
-JALSAKSHI_ENVIRONMENT=staging python -m uvicorn services.api.app.main:app --host 127.0.0.1 --port "$PORT" &
+JALSAKSHI_ENVIRONMENT=staging python -m uvicorn services.api.app.main:app --host 0.0.0.0 --port "$PORT" &   # LAN phones reach the internal DB offline
 API=$!
 ngrok http "$PORT" --url "$NGROK_URL" --log=stdout > .ngrok.log &
 TUNNEL=$!

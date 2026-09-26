@@ -254,6 +254,94 @@ matrix OK, rebuild test (001→006, 006 twice) OK, `node tests/pluccy.test.ts`
 `test_kits.read_grace_sec`. Pluccy keeps the dip time in memory only (a
 ponytail note in `pluccy.tsx`). Dip/read times come from the phone's clock.
 
+### Supervisor dashboard + internal fallback database (2026-09-25, owner decisions)
+
+- **Supervisors use the dashboard** (`apps/supervisor`, from github.com/aditya531-a/supervisor).
+  The phone app is for field workers and residents only: `2@demo.org` left the
+  mobile demo dropdown and offline demo, a supervisor sign-in on the phone is
+  refused, and the phone's complaint queue was removed.
+- **One data path:** phone and dashboard both call the FastAPI; the dashboard's
+  Node server is an adapter over `/v1/staff` (its v1 Supabase tables are not used;
+  its v1 migration scripts refuse to run against v2). New routes for it (008):
+  `GET /v1/staff/team`, `PATCH /v1/staff/sources/{id}`, report `notes`,
+  `communications` (SMS/phone logs; recording sends nothing), `re-report`
+  (`request_re_report`, version-checked), report detail `history` + `communications`.
+- **Internal fallback database (owner choice "Supabase + internal fallback"):**
+  `services/api/app/local_store.py` serves the v2 routes from SQLite when the cloud
+  Postgres is unreachable (probe every 15 s), or for `local1.*` tokens. Seed:
+  committed `services/api/local_db/seed.json` (`tools/export_local_seed.py`; no
+  passwords, no file bytes); runtime `jalsakshi_local.sqlite3` is gitignored.
+  Offline sign-in: seeded demo accounts, password 1234. Same rules as 004/006/008.
+  **One-way:** offline writes are not synced back to Supabase (upgrade path: a sync job).
+  The phone tries ngrok, then the laptop API (`EXPO_PUBLIC_LOCAL_API_BASE`, default
+  `10.0.2.2:8000`), then its in-memory demo. The API now binds `0.0.0.0` in
+  `tools/dev_tunnel.sh` so LAN phones can reach it.
+- **Dashboard now real:** map from recorded GPS pins (no tiles; zoom/pan/pin popup),
+  trend computed from screenings, Lab Portal readings/photo/persistent notes/audit
+  filter, team + leaderboards from the API, rewards panel replaced by the points rule.
+
+Evidence (2026-09-25): `tests.local_store_test` 7/7 (offline, CI-safe);
+`staff_v2_http_test.test_supervisor_board_routes` on Postgres; dashboard `npm test`
+14/14; live phone->dashboard->API sync 11/11 online and 11/11 with the cloud DB
+unreachable (second API on :8001); emulator: dropdown without supervisor, points match.
+
+### Field judgement, protocols, more kits, public data (2026-09-26, 009)
+
+- **009_field_judgement.sql:** `test_kits.protocol` (steps per kit), `inspection_criteria`
+  (8 sanitary + 5 observation questions), `test_records.inspection`; two more kits
+  (AquaCheck 6-in-1: pH, chlorine, iron, hardness, nitrate, fluoride; Turbidity Tube).
+- **Judgement rule (server decides, `public_v2.judge/combine`):** sanitary "yes" count
+  0-2 low, 3-4 medium, 5+ high; any observation medium, reported illness high; risk =
+  max(readings, sanitary, observations), so a medium/high judgement opens a report even
+  with readings in band. Unknown keys -> 422. The phone sends the answers once per visit
+  (first kit's record) so one visit opens one case.
+- **Phone (Pluccy):** add a source by GPS (`expo-location`, gps_auto <= 100 m; manual pins
+  stay supervisor-only), several kits per visit with a timer each, merged protocol
+  checklist, judgement questions with a live preview, per-stage tips, result-based next
+  steps. Camera: frame guide, torch, zoom, tap to refocus, preview with retake/use.
+- **Public data (no account):** all sources from `/v1/public/map` (search, status and area
+  filters, per-source details: last screening, 30-day count, open issues, lab-verified
+  date), area summaries, and `GET /v1/public/leaderboard` (first name + initial, points,
+  on-time counts; states that points say nothing about the water).
+
+Evidence (2026-09-26): live API — 6-in-1 screening with 3 sanitary yes -> risk medium,
+report opened, unknown key 422; `tests.local_store_test` 8/8; pluccy.test 9/9;
+emulator walk-through: GPS source saved, two kits with parallel timers, protocol,
+judgement, send, result + next steps; public Sources/Leaderboard on live data.
+
+### Escalation emails, public graphs + map, resident login, bulk demo data (2026-09-26, 010)
+
+- **010_authority_escalation.sql:** `authorities` (one per team: name, email,
+  `escalate_after_hours` default 48), notification channel `email` + `recipient_email`,
+  `reports.escalated_at`. Seeded authorities use `example.org` addresses (never deliver);
+  replace them with the real offices.
+- **Worker (`app/escalation.py`, started by the API when hosted):** every
+  `JALSAKSHI_ESCALATION_INTERVAL_S` (300) it queues ONE email per report still open past its
+  authority's window (audit `escalated_to_authority`), then sends queued emails over SMTP
+  (`JALSAKSHI_SMTP_HOST/_PORT/_USER/_PASSWORD/_FROM`, see `.env.example`). **No SMTP is
+  configured yet:** the 70 escalations queued on 2026-09-26 stay `queued` and go out on the
+  first run after SMTP is set. Emails appear in the dashboard's report messages.
+- **`GET /v1/public/stats`** (Postgres + internal DB, one pure `build_stats`): 12 weekly
+  buckets (screenings, flagged, reports opened/closed, complaints), 30-day risk mix,
+  sources by type/status, complaints by type, totals incl. escalations.
+- **Phone:** public view has Sources / Map (Leaflet + OSM in `react-native-webview`, dots
+  coloured by source TYPE, legend toggles, fuzzed locations) / Trends (6 graphs, plain-View
+  charts in `charts.tsx`) / Leaders / About. New resident entrance (`residentLogin.tsx`):
+  sign in or create an account in-app (`POST /v1/public/accounts`), demo resident button.
+- **Bulk synthetic data (`tools/seed_bulk_demo.py`, idempotent, applied to live):** 36 more
+  sources, 742 screenings over 12 weeks, reports through lab verification, repair and
+  closure, 60 complaints; demo workers renamed to ordinary synthetic names. Proof/lab/
+  repair images are generated and labelled SYNTHETIC DEMO; points came from the 006 trigger.
+  Internal DB snapshot re-exported; the old runtime SQLite kept as `*.pre-bulk-seed.sqlite3.bak`.
+- **Suggested solutions after each screening (owner request):** `apps/mobile/src/solutions.ts`
+  maps every flagged reading (by side of its band) and every flagged sanitary/observation
+  answer to likely cause, steps at the source, who acts, and priority (today / this week /
+  routine). Field-worker screen only, never resident/public surfaces; readings-based items
+  say to confirm with the lab first; no banned words (tests/solutions.test.ts).
+- **Standalone APK:** `assembleRelease` for arm64-v8a + x86_64 (debug keystore; fine for
+  sideloading, not for a store), JS bundled in, talks to the ngrok URL; copied to
+  `output/JalSakshi-release.apk`.
+
 ## What exists
 
 `jalsakshi-blueprint/` — planning/reference package only, untouched, not edited by this task.

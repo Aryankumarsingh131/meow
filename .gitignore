@@ -39,3 +39,7 @@ local.properties
 *.key
 .ngrok.log
 .tunnel.out
+
+# Internal fallback database: runtime state (the committed seed is local_db/seed.json)
+services/api/local_db/*.sqlite3*
+services/api/local_db/.token_key

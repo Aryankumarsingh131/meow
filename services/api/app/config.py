@@ -7,7 +7,7 @@ never from a committed file.
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "staging", "production"]
@@ -47,6 +47,16 @@ class Settings(BaseSettings):
     # T37 kill switch: SHA-256 of on-device model files the app must stop
     # using, comma-separated. Phones pick it up on their next online refresh.
     disabled_models: str = ""
+
+    # 010 escalation emails (app/escalation.py). Empty smtp_host = emails stay queued.
+    smtp_host: str = ""
+    smtp_port: int = Field(default=587, gt=0, lt=65536)
+    smtp_user: str = ""
+    smtp_password: SecretStr = SecretStr("")
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    escalation_interval_s: int = Field(default=300, ge=0)   # 0 turns the worker off
+    dashboard_url: str = "http://127.0.0.1:5175"
 
     @model_validator(mode="after")
     def refuse_unsafe_production_defaults(self) -> "Settings":

@@ -14,11 +14,10 @@ const test = (n: string, f: () => void) => tests.push([n, f]);
 const value = <T>(r: { kind: string; value?: T }): T => { assert.equal(r.kind, 'ok'); return r.value as T; };
 
 const worker = demoLogin('1@demo.org', '1234')!;
-const sup = demoLogin(' 2@DEMO.org ', '1234')!;
 const resident = demoLogin('3@demo.org', '1234')!;
 
 test('only the demo accounts with 1234 sign in offline', () => {
-  assert.deepEqual([worker.role, sup.role, resident.role], ['field_worker', 'supervisor', 'resident']);
+  assert.deepEqual([worker.role, resident.role], ['field_worker', 'resident']);
   assert.ok(isDemoToken(worker.token));
   assert.equal(demoLogin('1@demo.org', 'wrong'), null);
   assert.equal(demoLogin('someone@example.org', '1234'), null);
@@ -54,19 +53,11 @@ test('replaying a screening does not pay twice; a high reading opens a report', 
   assert.equal(value(demo.staffMe(worker.token)).points.points_balance, 20);
 });
 
-test('complaint: resident files, supervisor links at the current version only', () => {
+test('residents file complaints offline; no supervisor account on the phone', () => {
+  assert.equal(demoLogin('2@demo.org', '1234'), null);
   const filed = value(demo.fileComplaint({ complaint_type: 'smell', source_id: 'demo-src-pond1' }));
-  const queue = value(demo.staffComplaints()).items;
-  const c = queue.find((x) => x.reference_number === filed.reference_number)!;
-  const report = value(demo.staffReports()).items.find((r) => r.source_id === 'demo-src-pond1')!;
-  assert.equal(demo.reviewComplaint(worker.token, c.complaint_id, { action: 'dismiss' }).kind, 'failed');   // not a supervisor
-  const stale = demo.reviewComplaint(sup.token, c.complaint_id, { action: 'link', report_id: report.report_id, version: report.version - 1 });
-  assert.equal(stale.kind === 'failed' && stale.code, 'CASE_VERSION_CONFLICT');
-  assert.equal(value(demo.reviewComplaint(sup.token, c.complaint_id,
-    { action: 'link', report_id: report.report_id, version: report.version })).status, 'linked');
-  const again = demo.reviewComplaint(sup.token, c.complaint_id, { action: 'dismiss' });
-  assert.equal(again.kind === 'failed' && again.code, 'COMPLAINT_ALREADY_REVIEWED');
-  assert.equal(value(demo.myComplaints()).items.find((x) => x.reference_number === filed.reference_number)!.status, 'linked');
+  const mine = value(demo.myComplaints()).items;
+  assert.equal(mine.find((x) => x.reference_number === filed.reference_number)!.status, 'new');
 });
 
 let failed = 0;
